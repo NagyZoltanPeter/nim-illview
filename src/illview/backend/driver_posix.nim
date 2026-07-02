@@ -25,7 +25,9 @@ type
     decoder: Decoder
     onEvent: InputEventHandler
     active: bool
-    origStdinFlags: cint
+    inFd: cint                # /dev/tty (own fd) or STDIN_FILENO fallback
+    ownsFd: bool
+    origStdinFlags: cint      # only used in the stdin-fallback path
     winchPipe: array[2, cint] # [read, write]
 
 var gWinchWriteFd: cint = -1 # signal handlers cannot capture state
@@ -46,7 +48,7 @@ proc onStdinReadable(arg: pointer) {.gcsafe, raises: [].} =
   let dr = cast[InputDriver](arg)
   var buf: array[1024, byte]
   while true:
-    let n = posix.read(STDIN_FILENO, addr buf[0], buf.len)
+    let n = posix.read(dr.inFd, addr buf[0], buf.len)
     if n > 0:
       dr.dispatch(dr.decoder.feed(buf.toOpenArray(0, n - 1)))
     elif n == 0:
@@ -74,8 +76,25 @@ proc start*(dr: InputDriver) {.raises: [OSError].} =
   ## Re-entrant: no-op when already active.
   if dr.active:
     return
-  dr.origStdinFlags = fcntl(STDIN_FILENO, F_GETFL, 0)
-  setNonBlocking(STDIN_FILENO)
+  # Read the terminal through a DEDICATED fd: on a tty, fd 0/1/2 usually
+  # share one file description, so O_NONBLOCK on stdin would make stdout
+  # writes fail with EAGAIN mid-frame. Open the tty's real device name
+  # (ttyname) — NOT /dev/tty, which macOS kqueue refuses to watch — for a
+  # separate description; termios (set by illwillInit on fd 0) is
+  # per-device, so raw mode still applies. Fallback: stdin + O_NONBLOCK.
+  dr.inFd = -1
+  for fd in [cint(STDIN_FILENO), cint(STDOUT_FILENO), cint(STDERR_FILENO)]:
+    if isatty(fd) == 1:
+      let name = ttyname(fd)
+      if name != nil:
+        dr.inFd = posix.open(name, O_RDONLY or O_NONBLOCK)
+        if dr.inFd >= 0:
+          break
+  dr.ownsFd = dr.inFd >= 0
+  if not dr.ownsFd:
+    dr.inFd = STDIN_FILENO
+    dr.origStdinFlags = fcntl(STDIN_FILENO, F_GETFL, 0)
+    setNonBlocking(STDIN_FILENO)
 
   if posix.pipe(dr.winchPipe) != 0:
     raiseOSError(osLastError(), "pipe")
@@ -86,9 +105,9 @@ proc start*(dr: InputDriver) {.raises: [OSError].} =
     if res.isErr:
       raise newException(OSError, "illview driver: " & what)
 
-  checked register2(AsyncFD(STDIN_FILENO)), "register stdin"
-  checked addReader2(AsyncFD(STDIN_FILENO), onStdinReadable,
-                     cast[pointer](dr)), "watch stdin"
+  checked register2(AsyncFD(dr.inFd)), "register terminal input fd"
+  checked addReader2(AsyncFD(dr.inFd), onStdinReadable,
+                     cast[pointer](dr)), "watch terminal input fd"
   checked register2(AsyncFD(dr.winchPipe[0])), "register winch pipe"
   checked addReader2(AsyncFD(dr.winchPipe[0]), onWinchReadable,
                      cast[pointer](dr)), "watch winch pipe"
@@ -104,10 +123,13 @@ proc stop*(dr: InputDriver) {.raises: [].} =
   dr.active = false
   signal(SIGWINCH, SIG_DFL)
   gWinchWriteFd = -1
-  discard removeReader2(AsyncFD(STDIN_FILENO))
-  discard unregister2(AsyncFD(STDIN_FILENO))
+  discard removeReader2(AsyncFD(dr.inFd))
+  discard unregister2(AsyncFD(dr.inFd))
   discard removeReader2(AsyncFD(dr.winchPipe[0]))
   discard unregister2(AsyncFD(dr.winchPipe[0]))
   discard close(dr.winchPipe[0])
   discard close(dr.winchPipe[1])
-  discard fcntl(STDIN_FILENO, F_SETFL, dr.origStdinFlags)
+  if dr.ownsFd:
+    discard close(dr.inFd)
+  else:
+    discard fcntl(STDIN_FILENO, F_SETFL, dr.origStdinFlags)

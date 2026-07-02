@@ -18,7 +18,13 @@ with framework-owned input routing and nim-brokers as the domain event bus.
 | 3 | Layout engine (HBox/VBox/Grid/dock) | done |
 | 4 | Widget set with VCL-style closure slots | done |
 | 5 | Declarative layer (pragmas + `mount` macro) | done |
-| 6 | nim-brokers EventBus + network-event visualizer | pending |
+| 6 | nim-brokers EventBus + network-event visualizer | done |
+
+Phase 6 note: the real broker bus lives in `illview/bus_brokers` (import it
+explicitly; the umbrella keeps the broker macro expansion out of the default
+import graph). Wiring `enableTui`/`disableTui` into the LogosDelivery daemon
+happens in the `logos-delivery` repo — see
+[DESIGN-DEVIATIONS.md §9](docs/DESIGN-DEVIATIONS.md).
 
 ## Build & test
 

@@ -19,8 +19,10 @@ proc main() {.async.} =
   var lastKey = "-"
 
   proc ticker() {.async.} =
-    while app.running:
+    while true:
       await sleepAsync(1.seconds)
+      if not app.running: # checked after the first sleep: run() started by then
+        break
       inc ticks
       app.requestRedraw()
 

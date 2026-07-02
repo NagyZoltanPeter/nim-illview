@@ -70,10 +70,13 @@ by the umbrella module, so user code sees no difference.
 ## 8. Dependency handling
 
 - `chronos` — normal nimble requirement.
-- `nim-brokers` — not in the nimble registry. Phases 1–5 code against the
-  `EventBus` abstraction + `StubBus` only (per plan §3.8); the requirement is
-  added in Phase 6 as a git-URL requirement (or develop-mode against
-  `~/dev/status/nim-brokers`).
+- `nim-brokers` — IS in the nimble registry as `brokers`
+  (github.com/NagyZoltanPeter/nim-brokers), contrary to the initial
+  assumption. Phases 1–5 code against the `EventBus` abstraction + `StubBus`
+  only (per plan §3.8); Phase 6 adds `requires "brokers >= 3.1.0"` and
+  implements `BrokersBus` in `illview/bus_brokers.nim`. That module is
+  deliberately NOT re-exported by the umbrella so the broker macro expansion
+  stays out of the default import graph — import it explicitly.
 
 ## 9. Phase 6 scope split
 
@@ -113,3 +116,15 @@ the fps period and then renders once. Same observable behavior (dirty-driven,
 fps-capped), but an idle app has **zero** pending timers — which is what the
 Phase 1 exit criterion ("idle CPU ≈ 0") actually demands. Verified: 4 s
 mostly-idle run = 0.00 user + 0.00 sys.
+
+## 14. Input reads its own tty fd, never O_NONBLOCK on stdin (Phase 6 fix)
+
+The Phase-1 driver set `O_NONBLOCK` on fd 0. On a terminal, fd 0/1/2
+normally share ONE open file description, so the flag also made **stdout**
+non-blocking — large frames then failed mid-write with `EAGAIN` (observed as
+`IOError: errno 35` on quit, and silently dropped frames elsewhere). The
+driver now opens the terminal's real device (`ttyname(0|1|2)`) as a
+dedicated O_NONBLOCK read fd; termios raw mode set by illwill on fd 0 still
+applies because termios state is per-device. Note: `/dev/tty` (the alias
+device) is NOT usable here — macOS kqueue refuses to watch it. Fallback when
+no fd is a tty: the old stdin+O_NONBLOCK path (flags restored on stop).

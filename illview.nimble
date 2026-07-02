@@ -11,13 +11,14 @@ skipDirs      = @["tests", "examples", "docs"]
 
 requires "nim >= 2.0.0"
 requires "chronos >= 4.0.0"
-# nim-brokers is bound in Phase 6 (not in the nimble registry; see
-# docs/DESIGN-DEVIATIONS.md). Phases 1-5 use the StubBus.
+requires "brokers >= 3.1.0" # nim-brokers; used by illview/bus_brokers (Phase 6)
 
 task test, "Run the test suite":
-  for t in ["test_decoder", "test_layout", "test_render_snapshot", "test_routing", "test_widgets", "test_mount"]:
+  for t in ["test_decoder", "test_layout", "test_render_snapshot",
+            "test_routing", "test_widgets", "test_mount", "test_bus_brokers"]:
     exec "nim c -r --mm:orc --hints:off tests/" & t & ".nim"
 
 task examples, "Build all examples (POSIX)":
-  for ex in ["ex00_echo", "ex01_loop", "ex02_windows", "ex03_layout", "ex04_widgets_gallery", "ex05_declarative"]:
+  for ex in ["ex00_echo", "ex01_loop", "ex02_windows", "ex03_layout",
+             "ex04_widgets_gallery", "ex05_declarative", "ex06_netviz"]:
     exec "nim c --mm:orc --hints:off examples/" & ex & ".nim"
