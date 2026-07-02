@@ -1,0 +1,99 @@
+# Design deviations & gap analysis
+
+Deviations from [BUILD-PLAN.md](BUILD-PLAN.md), found while executing. The plan
+remains authoritative for everything not listed here. Numbering is stable so
+commits can reference "deviation #N".
+
+## 1. Decoder is a rewrite, not a lift (Phase 0)
+
+The plan assumes the escape-sequence parser can be "lifted out" of illwill's
+`getKey()`. It cannot: illwill's POSIX `parseStdin` issues multiple blocking
+`read()` calls *mid-sequence*, keeps no partial-sequence state, and does not
+handle Alt-combos, UTF-8 runes, CSI modifier parameters, or bracketed paste.
+
+What was ported verbatim: the `Key` mapping tables (`KEYS_D/E/F/G`) and the
+SGR mouse bit layout from `fillGlobalMouseInfo`. The incremental state machine
+in `backend/decoder.nim` is new. Additions beyond the plan's §3.1:
+
+- `flush()` — resolves the bare-ESC ambiguity. A lone `0x1B` may be the ESC
+  key or the head of a sequence whose tail hasn't arrived. `feed()` keeps it
+  pending; the driver calls `flush()` after draining the fd, which converts a
+  pending lone ESC into `Key.Escape`. Without this, ESC-the-key is
+  undecodable in an incremental parser.
+- CSI modifier params (`\e[1;5C` → Right+Ctrl), `\e[Z` → Shift-Tab.
+- Bracketed paste (`ikPaste` is declared in the plan's §3.1 but no phase task
+  implements it; the framework will enable mode 2004 in the driver).
+- Key aliasing follows upstream illwill: bytes 10 and 13 → `Key.Enter`,
+  8 and 127 → `Key.Backspace`. `Key.CtrlH` / `Key.CtrlJ` are therefore
+  unreachable, exactly as in illwill.
+
+## 2. `DrawContext.tb` is `TerminalBuffer`, not `ptr TerminalBuffer` (§3.3)
+
+illwill's `TerminalBuffer` is a `ref object`; a `ptr` to it would be a pointer
+to a managed ref cell. The field holds the ref directly.
+
+## 3. `Style` is an illview type (§3.3)
+
+illwill has no single `Style` value — drawing state is
+`ForegroundColor` + `BackgroundColor` + `set[terminal.Style]`. `core/theme.nim`
+defines `Style* = object; fg, bg, styles` and the theme tokens map to it.
+
+## 4. Widget access to `App`/bus (§3.9)
+
+The plan's activation pseudocode references `app.bus` inside
+`Button.handleEvent` but never defines how a widget reaches the `App`.
+Decision: `Desktop` (the root `Group`) holds an `App` backref; `View.app()`
+walks `parent` to the root. Views detached from a desktop get `nil` — slots
+still fire, broker publish is skipped.
+
+## 5. `Group.focused` vs `App.focus` (§3.4/§3.7)
+
+Two sources of truth in the plan. Decision: `App.focus` is authoritative for
+key delivery; `Group.focused` only remembers the group's last-focused child so
+window activation can restore it. Invariant: `App.focus` is always reachable
+from `App.desktop` or is `nil`.
+
+## 6. Modal loop is Future-based (§ Phase 2)
+
+A TurboVision-style nested poll loop conflicts with a single chronos loop.
+`execView(v): Future[Command]` inserts the modal view, marks it modal (routing
+refuses to deliver outside it), and returns a future completed by
+`endModal(cmd)`. No nested event loop, no reentrancy.
+
+## 7. Framework `Event` lives next to `View`, not in `core/events.nim` (§3.5)
+
+`Event` carries `sender*: View`; defining it in `events.nim` would create an
+import cycle (`events → view → events`). `core/events.nim` holds the backend
+input types; `Event`/`EventKind` are defined in `core/view.nim` and re-exported
+by the umbrella module, so user code sees no difference.
+
+## 8. Dependency handling
+
+- `chronos` — normal nimble requirement.
+- `nim-brokers` — not in the nimble registry. Phases 1–5 code against the
+  `EventBus` abstraction + `StubBus` only (per plan §3.8); the requirement is
+  added in Phase 6 as a git-URL requirement (or develop-mode against
+  `~/dev/status/nim-brokers`).
+
+## 9. Phase 6 scope split
+
+Wiring `enableTui`/`disableTui` into the LogosDelivery daemon happens in the
+`logos-delivery` repository, not here. This repo delivers: the real
+nim-brokers `EventBus` implementation, `NetVizWidget`, and
+`examples/06_netviz.nim` driving it with synthetic domain events.
+
+## 10. `enableTui`/`disableTui` re-entrancy vs `illwillInit`
+
+`illwillInit` raises `IllwillError` on double-init and `illwillDeinit` on
+double-deinit; the vendored file stays verbatim, so `App` tracks its own
+`tuiActive` state and additionally saves/restores `O_NONBLOCK` on stdin
+(illwill only toggles termios ICANON/ECHO; the chronos driver needs
+non-blocking reads).
+
+## 11. Resize delivery (Phase 1)
+
+`SIGWINCH` handlers can't safely touch the chronos loop. The POSIX driver uses
+the self-pipe trick: the signal handler write()s one byte to a pipe registered
+with `addReader`; the read side emits `ikResize` on the loop thread. (chronos'
+signal support is platform-uneven; the self-pipe is dependency-free and
+single-threaded.)
