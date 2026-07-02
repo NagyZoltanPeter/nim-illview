@@ -86,6 +86,48 @@ method draw*(g: Group, dc: DrawContext) {.gcsafe, raises: [].} =
     if child.visible:
       child.draw(cdc.sub(child.bounds))
 
+func stripLen(h: SizeHint, remaining: int): int =
+  min(clamp(h.pref, h.min, h.max), remaining)
+
+proc arrangeChildren*(g: Group) {.gcsafe, raises: [].} =
+  ## Dock-aware arrangement of direct children inside clientRect (plan §1
+  ## "dock anchors"). Docked children consume edge strips sized by their
+  ## measured hint; dkFill takes what remains; dkNone keeps manual bounds.
+  ## Recurses via child.arrange either way, so a resize reflows the tree.
+  let cr = g.clientRect
+  var rem = rect(0, 0, cr.w, cr.h)
+  for c in g.children:
+    if not c.visible:
+      continue
+    let hints = c.measure()
+    case c.dock
+    of dkNone:
+      c.arrange(c.bounds)
+    of dkFill:
+      c.arrange(rem)
+    of dkTop:
+      let h = stripLen(hints.h, rem.h)
+      c.arrange(rect(rem.x, rem.y, rem.w, h))
+      rem.y += h
+      rem.h -= h
+    of dkBottom:
+      let h = stripLen(hints.h, rem.h)
+      c.arrange(rect(rem.x, rem.y + rem.h - h, rem.w, h))
+      rem.h -= h
+    of dkLeft:
+      let w = stripLen(hints.w, rem.w)
+      c.arrange(rect(rem.x, rem.y, w, rem.h))
+      rem.x += w
+      rem.w -= w
+    of dkRight:
+      let w = stripLen(hints.w, rem.w)
+      c.arrange(rect(rem.x + rem.w - w, rem.y, w, rem.h))
+      rem.w -= w
+
+method arrange*(g: Group, r: Rect) {.gcsafe, raises: [].} =
+  g.bounds = r
+  g.arrangeChildren()
+
 # --- tree ------------------------------------------------------------------
 
 proc root*(v: View): View =

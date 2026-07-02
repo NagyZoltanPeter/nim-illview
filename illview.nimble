@@ -15,9 +15,9 @@ requires "chronos >= 4.0.0"
 # docs/DESIGN-DEVIATIONS.md). Phases 1-5 use the StubBus.
 
 task test, "Run the test suite":
-  for t in ["test_decoder", "test_render_snapshot", "test_routing"]:
+  for t in ["test_decoder", "test_layout", "test_render_snapshot", "test_routing"]:
     exec "nim c -r --mm:orc --hints:off tests/" & t & ".nim"
 
 task examples, "Build all examples (POSIX)":
-  for ex in ["ex00_echo", "ex01_loop", "ex02_windows"]:
+  for ex in ["ex00_echo", "ex01_loop", "ex02_windows", "ex03_layout"]:
     exec "nim c --mm:orc --hints:off examples/" & ex & ".nim"

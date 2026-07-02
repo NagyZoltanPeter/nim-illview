@@ -15,7 +15,7 @@ with framework-owned input routing and nim-brokers as the domain event bus.
 | 0 | Vendored illwill + incremental input decoder | done |
 | 1 | chronos loop, POSIX stdin driver, opt-in TUI lifecycle | done |
 | 2 | View tree, DrawContext clipping, mouse/key routing | done |
-| 3 | Layout engine (HBox/VBox/Grid/dock) | pending |
+| 3 | Layout engine (HBox/VBox/Grid/dock) | done |
 | 4 | Widget set with VCL-style closure slots | pending |
 | 5 | Declarative layer (pragmas + `mount` macro) | pending |
 | 6 | nim-brokers EventBus + network-event visualizer | pending |

@@ -95,7 +95,9 @@ proc frame*(app: App) =
   else:
     app.tb.clear()
   if app.desktop != nil:
-    app.desktop.bounds = rect(0, 0, w, h)
+    # arrange every frame: pure and cheap at TUI scale, and it makes resize
+    # reflow free (frame only runs when dirty anyway)
+    app.desktop.arrange(rect(0, 0, w, h))
     app.desktop.draw(initDrawContext(app.tb))
   if app.onRender != nil:
     app.onRender(app.tb) # escape hatch: draws over the tree
