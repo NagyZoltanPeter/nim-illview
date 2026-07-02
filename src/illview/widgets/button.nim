@@ -26,7 +26,7 @@ proc activate*(b: Button) =
 
 method draw*(b: Button, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = b.styleOf(if b.isFocused: tkButtonFocused else: tkButton)
-  dc.fill(rect(0, 0, b.bounds.w, b.bounds.h), " ", st)
+  dc.fill(rect(0, 0, b.contentW, b.contentH), " ", st)
   dc.write(0, 0, (if b.isFocused: "▶ " else: "[ "), st)
   dc.write(2, 0, b.caption, st)
   dc.write(2 + b.caption.runeLen, 0, (if b.isFocused: " ◀" else: " ]"), st)

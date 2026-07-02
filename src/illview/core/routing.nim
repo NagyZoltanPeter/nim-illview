@@ -74,36 +74,46 @@ proc focusInto*(scope: Group, g: Group) =
     setFocus(scope, leaf)
 
 proc hitTest*(g: Group, p: Point): tuple[target: View, local: Point] =
-  ## p in g-local coords. Topmost child wins; recurses into groups; falls
-  ## back to g itself (frame/background clicks).
-  let cr = g.clientRect
-  if cr.contains(p):
-    let cp = point(p.x - cr.x, p.y - cr.y)
-    for i in countdown(g.children.high, 0):
-      let c = g.children[i]
-      if c.visible and c.bounds.contains(cp):
-        let lp = point(cp.x - c.bounds.x, cp.y - c.bounds.y)
-        if c of Group:
-          return hitTest(Group(c), lp)
-        return (c, lp)
+  ## p in g-CONTENT-local coords. Topmost child wins; recurses into groups;
+  ## falls back to g itself (frame/background clicks — those may carry
+  ## coords outside the child's content, e.g. y == -1 on a border title).
+  for i in countdown(g.children.high, 0):
+    let c = g.children[i]
+    if c.visible and c.bounds.contains(p):
+      let cr = c.clientRect
+      let lp = point(p.x - c.bounds.x - cr.x, p.y - c.bounds.y - cr.y)
+      if c of Group:
+        return hitTest(Group(c), lp)
+      return (c, lp)
   (View(g), p)
 
 proc dispatchMouse*(scope: Group, ev: InputEvent) =
-  ## Absolute coords in ev; deliver target-local; bubble unconsumed events
-  ## parent-ward (retranslating coords), stopping at scope.
+  ## Absolute coords in ev; deliver target-content-local; bubble unconsumed
+  ## events parent-ward (retranslating coords), stopping at scope.
+  # Mouse capture (dragging): while set, everything goes to the captured
+  # view; capture ends automatically on release.
+  let rootG = Group(scope.root)
+  if rootG.mouseCapture != nil:
+    let cap = rootG.mouseCapture
+    let o = cap.absOrigin
+    var mev = ev
+    mev.mx = ev.mx - o.x
+    mev.my = ev.my - o.y
+    discard cap.handleEvent(Event(kind: evMouse, imouse: mev))
+    if ev.action == maRelease:
+      rootG.mouseCapture = nil
+    return
+
   let so = scope.absOrigin
   let p = point(ev.mx - so.x, ev.my - so.y)
 
   if ev.action == maPress:
     # raise the scope's direct child (window) under the cursor
-    let cr = scope.clientRect
-    if cr.contains(p):
-      let cp = point(p.x - cr.x, p.y - cr.y)
-      for i in countdown(scope.children.high, 0):
-        let c = scope.children[i]
-        if c.visible and c.bounds.contains(cp):
-          raiseToTop(scope, c)
-          break
+    for i in countdown(scope.children.high, 0):
+      let c = scope.children[i]
+      if c.visible and c.bounds.contains(p):
+        raiseToTop(scope, c)
+        break
 
   let (target, local) = hitTest(scope, p)
 
@@ -129,8 +139,10 @@ proc dispatchMouse*(scope: Group, ev: InputEvent) =
       return
     if cur == scope or cur.parent == nil:
       return
-    cp.x += cur.bounds.x + cur.parent.clientRect.x
-    cp.y += cur.bounds.y + cur.parent.clientRect.y
+    # content-local -> own full-rect local -> parent-content-local
+    let cr = cur.clientRect
+    cp.x += cur.bounds.x + cr.x
+    cp.y += cur.bounds.y + cr.y
     cur = cur.parent
 
 proc dispatchKey*(scope: Group, ev: InputEvent): bool =

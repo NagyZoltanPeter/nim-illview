@@ -25,11 +25,11 @@ proc addEvent*(nv: NetVizWidget, topic, payload: string) =
   nv.addLine &"[{topic}] {payload}" # addLine invalidates
 
 method draw*(nv: NetVizWidget, dc: DrawContext) {.gcsafe, raises: [].} =
-  let h = max(nv.bounds.h, 1)
+  let h = max(nv.contentH, 1)
   var header = &" events: {nv.total} "
   for topic, n in nv.perTopic:
     header.add &"| {topic}: {n} "
-  dc.fill(rect(0, 0, nv.bounds.w, 1), " ", nv.styleOf(tkSelection))
+  dc.fill(rect(0, 0, nv.contentW, 1), " ", nv.styleOf(tkSelection))
   dc.write(0, 0, header, nv.styleOf(tkSelection))
   # feed body below the header (h-1 rows)
   let bodyH = h - 1

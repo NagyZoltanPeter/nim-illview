@@ -35,6 +35,11 @@ type
     tkMenuSelected
     tkStatusBar
     tkStatusBarHotkey
+    tkBorder
+    tkShadow
+    tkGroupBox
+    tkTableHeader
+    tkProgress
 
   Theme* = ref object
     styles*: array[ThemeToken, Style]
@@ -67,3 +72,8 @@ proc defaultTheme*(): Theme =
   result.styles[tkMenuSelected] = style(fgWhite, bgGreen, bright = true)
   result.styles[tkStatusBar] = style(fgBlack, bgWhite)
   result.styles[tkStatusBarHotkey] = style(fgRed, bgWhite)
+  result.styles[tkBorder] = style(fgWhite, bgBlue)
+  result.styles[tkShadow] = style(fgBlack, bgBlack, bright = true)
+  result.styles[tkGroupBox] = style(fgWhite, bgBlue, bright = true)
+  result.styles[tkTableHeader] = style(fgBlack, bgCyan)
+  result.styles[tkProgress] = style(fgCyan, bgBlue, bright = true)

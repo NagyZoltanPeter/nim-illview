@@ -1,35 +1,40 @@
-## Window: framed, titled Group. Children live in the content area
-## (clientRect, inset by the 1-cell frame) and are clipped to it.
+## Window: framed, titled Group, riding the decoration mechanism (plan-2
+## D1): the parent draws frame + title; border doubles while active. The
+## window itself only fills its content background and hosts children.
 
-import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events]
 
 type
   Window* = ref object of Group
-    title*: string
 
 proc newWindow*(title: string, bounds: Rect): Window =
-  result = Window(title: title)
+  result = Window(borderTitle: title)
   initView(result)
   result.bounds = bounds
+  result.border = bkSingle
+
+proc title*(w: Window): string =
+  w.borderTitle
+
+proc `title=`*(w: Window, s: string) =
+  w.borderTitle = s
+  w.invalidate()
 
 func isActive*(w: Window): bool =
   ## Active = the focus chain passes through this window.
   w.parent != nil and w.parent.focused == w
 
-method clientRect*(w: Window): Rect {.gcsafe, raises: [].} =
-  rect(1, 1, max(w.bounds.w - 2, 0), max(w.bounds.h - 2, 0))
+method borderKind*(w: Window): BorderKind {.gcsafe, raises: [].} =
+  if w.isActive: bkDouble else: bkSingle
+
+method borderStyle*(w: Window): Style {.gcsafe, raises: [].} =
+  w.styleOf(if w.isActive: tkWindowFrameActive else: tkWindowFrame)
+
+method titleStyle*(w: Window): Style {.gcsafe, raises: [].} =
+  w.styleOf(tkWindowTitle)
 
 method draw*(w: Window, dc: DrawContext) {.gcsafe, raises: [].} =
-  let r = rect(0, 0, w.bounds.w, w.bounds.h)
-  let frameStyle = w.styleOf(if w.isActive: tkWindowFrameActive else: tkWindowFrame)
-  dc.fill(r, " ".runeAt(0), w.styleOf(tkWindowBg))
-  dc.box(r, frameStyle, double = w.isActive)
-  if w.title.len > 0 and w.bounds.w >= 4:
-    let t = " " & w.title & " "
-    let tlen = t.runeLen
-    let x = max((w.bounds.w - tlen) div 2, 1)
-    dc.write(x, 0, t, w.styleOf(tkWindowTitle))
+  dc.fill(rect(0, 0, w.contentW, w.contentH), " ", w.styleOf(tkWindowBg))
   procCall Group(w).draw(dc)
 
 method handleEvent*(w: Window, ev: Event): bool {.gcsafe, raises: [].} =

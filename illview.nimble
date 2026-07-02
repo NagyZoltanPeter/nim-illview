@@ -9,9 +9,9 @@ skipDirs      = @["tests", "examples", "docs"]
 
 # Dependencies
 
-requires "nim >= 2.0.0"
+requires "nim >= 2.2.4"
 requires "chronos >= 4.0.0"
-requires "brokers >= 3.1.0" # nim-brokers; used by illview/bus_brokers (Phase 6)
+requires "brokers >= 3.1.4" # nim-brokers; used by illview/bus_brokers (Phase 6)
 
 task test, "Run the test suite":
   for t in ["test_decoder", "test_layout", "test_render_snapshot",
@@ -20,5 +20,5 @@ task test, "Run the test suite":
 
 task examples, "Build all examples (POSIX)":
   for ex in ["ex00_echo", "ex01_loop", "ex02_windows", "ex03_layout",
-             "ex04_widgets_gallery", "ex05_declarative", "ex06_netviz"]:
+             "ex04_widgets_gallery", "ex05_declarative", "ex06_netviz", "ex07_styling"]:
     exec "nim c --mm:orc --hints:off examples/" & ex & ".nim"

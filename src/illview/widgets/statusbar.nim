@@ -35,12 +35,12 @@ func itemSpan(sb: StatusBar, i: int): tuple[x, w: int] =
 method draw*(sb: StatusBar, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = sb.styleOf(tkStatusBar)
   let hot = sb.styleOf(tkStatusBarHotkey)
-  dc.fill(rect(0, 0, sb.bounds.w, 1), " ", st)
+  dc.fill(rect(0, 0, sb.contentW, 1), " ", st)
   for i, item in sb.items:
     let (x, _) = sb.itemSpan(i)
     dc.write(x, 0, " " & item.label & " ", hot)
   if sb.text.len > 0:
-    let x = sb.bounds.w - sb.text.runeLen - 1
+    let x = sb.contentW - sb.text.runeLen - 1
     dc.write(max(x, 0), 0, sb.text, st)
 
 method handleEvent*(sb: StatusBar, ev: Event): bool {.gcsafe, raises: [].} =

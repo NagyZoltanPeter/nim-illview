@@ -41,7 +41,7 @@ proc changed(i: Input) =
   i.invalidate()
 
 proc ensureCursorVisible(i: Input) =
-  let w = max(i.bounds.w, 1)
+  let w = max(i.contentW, 1)
   if i.cursor < i.scrollX:
     i.scrollX = i.cursor
   elif i.cursor >= i.scrollX + w:
@@ -60,10 +60,10 @@ method draw*(i: Input, dc: DrawContext) {.gcsafe, raises: [].} =
   let focused = i.isFocused
   let st = i.styleOf(if focused: tkInputFocused else: tkInput)
   i.ensureCursorVisible()
-  dc.fill(rect(0, 0, i.bounds.w, 1), " ", st)
+  dc.fill(rect(0, 0, i.contentW, 1), " ", st)
   var x = 0
   for idx in i.scrollX ..< i.runes.len:
-    if x >= i.bounds.w:
+    if x >= i.contentW:
       break
     dc.putCell(x, 0, i.runes[idx], st)
     inc x

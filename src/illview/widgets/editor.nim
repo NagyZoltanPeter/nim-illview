@@ -40,8 +40,8 @@ proc clampCursor(e: Editor) =
   e.curCol = clamp(e.curCol, 0, e.lineLen(e.curLine))
 
 proc ensureVisible(e: Editor) =
-  let w = max(e.bounds.w, 1)
-  let h = max(e.bounds.h, 1)
+  let w = max(e.contentW, 1)
+  let h = max(e.contentH, 1)
   if e.curLine < e.scrollY: e.scrollY = e.curLine
   elif e.curLine >= e.scrollY + h: e.scrollY = e.curLine - h + 1
   if e.curCol < e.scrollX: e.scrollX = e.curCol
@@ -112,7 +112,7 @@ proc insertText*(e: Editor, s: string) =
 method draw*(e: Editor, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = e.styleOf(tkText)
   e.ensureVisible()
-  for y in 0 ..< max(e.bounds.h, 0):
+  for y in 0 ..< max(e.contentH, 0):
     let idx = e.scrollY + y
     if idx > e.lines.high:
       break
@@ -120,7 +120,7 @@ method draw*(e: Editor, dc: DrawContext) {.gcsafe, raises: [].} =
     var ri = 0
     for r in e.lines[idx].runes:
       if ri >= e.scrollX:
-        if x >= e.bounds.w:
+        if x >= e.contentW:
           break
         dc.putCell(x, y, r, st)
         inc x
@@ -146,8 +146,8 @@ method handleEvent*(e: Editor, ev: Event): bool {.gcsafe, raises: [].} =
     of Key.End:
       e.curCol = e.lineLen(e.curLine)
       e.invalidate()
-    of Key.PageUp: e.moveCursor(-max(e.bounds.h, 1), 0)
-    of Key.PageDown: e.moveCursor(max(e.bounds.h, 1), 0)
+    of Key.PageUp: e.moveCursor(-max(e.contentH, 1), 0)
+    of Key.PageDown: e.moveCursor(max(e.contentH, 1), 0)
     of Key.Enter: e.insertNewline()
     of Key.Backspace: e.deleteBack()
     of Key.Delete: e.deleteForward()

@@ -170,3 +170,40 @@ suite "routing: keys, focus traversal, bubbling":
     setFocus(root, a2)
     check a1.got[^1].kind == evFocusLost
     check a2.got[^1].kind == evFocusGained
+
+suite "routing: border-inset coordinates (iteration 2)":
+  test "bordered group: content clicks are content-local, frame clicks hit the group":
+    let root = newRecordingRoot(40, 20)
+    let box = newGroup()
+    box.border = bkSingle
+    box.bounds = rect(10, 10, 10, 4)
+    let p1 = newProbe("p1", rect(0, 0, 5, 1)) # content abs (11,11)
+    box.add p1
+    root.add box
+    var (target, local) = hitTest(root, point(11, 11))
+    check target == View(p1)
+    check local == point(0, 0)
+    (target, local) = hitTest(root, point(13, 11))
+    check local == point(2, 0)
+    # top border cell: no child there; the group gets it with y == -1
+    (target, local) = hitTest(root, point(12, 10))
+    check target == View(box)
+    check local == point(1, -1)
+
+  test "mouse capture routes moves/release to the captor, then auto-clears":
+    let root = newRecordingRoot(40, 20)
+    let p = newProbe("p", rect(5, 5, 5, 1))
+    root.add p
+    p.captureMouse()
+    check root.mouseCapture == View(p)
+    # a move far outside p still reaches p, coords relative to p
+    dispatchMouse(root, mouseEvent(maMove, mbNone, 30, 15))
+    check p.mouseGot.len == 1
+    check p.mouseGot[0].imouse.mx == 25
+    check p.mouseGot[0].imouse.my == 10
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 30, 15))
+    check root.mouseCapture == nil
+    # after release, normal routing resumes
+    dispatchMouse(root, press(30, 15))
+    check p.mouseGot.len == 2 # only the capture move + release... press missed p
+    check root.got.len == 1   # press went to the root background

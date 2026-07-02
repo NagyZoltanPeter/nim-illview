@@ -118,7 +118,7 @@ proc visibleChildren(g: Group): seq[View] =
 method measure*(b: BoxLayout): tuple[w, h: SizeHint] {.gcsafe, raises: [].} =
   var wHints, hHints: seq[SizeHint]
   for c in b.visibleChildren:
-    let m = c.measure()
+    let m = c.outerHints()
     wHints.add m.w
     hHints.add m.h
   if b.axis == axH:
@@ -134,7 +134,7 @@ method arrange*(b: BoxLayout, r: Rect) {.gcsafe, raises: [].} =
   let kids = b.visibleChildren
   var main, cross: seq[SizeHint]
   for c in kids:
-    let m = c.measure()
+    let m = c.outerHints()
     if b.axis == axH:
       main.add m.w
       cross.add m.h
@@ -178,7 +178,7 @@ proc gridHints(g: Grid): tuple[colH, rowH: seq[SizeHint]] =
   for i in 0 ..< rows:
     result.rowH[i] = SizeHint(max: 0)
   for i, c in kids:
-    let m = c.measure()
+    let m = c.outerHints()
     let col = i mod g.cols
     let row = i div g.cols
     template mergeInto(dst: SizeHint, src: SizeHint) =

@@ -58,12 +58,12 @@ proc activateItem(p: MenuPopup) =
 method draw*(p: MenuPopup, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = p.styleOf(tkMenu)
   let sel = p.styleOf(tkMenuSelected)
-  dc.fill(rect(0, 0, p.bounds.w, p.bounds.h), " ", st)
-  dc.box(rect(0, 0, p.bounds.w, p.bounds.h), st)
+  dc.fill(rect(0, 0, p.contentW, p.contentH), " ", st)
+  dc.box(rect(0, 0, p.contentW, p.contentH), st)
   for i, item in p.items:
     let s = if i == p.selected: sel else: st
     if i == p.selected:
-      dc.fill(rect(1, 1 + i, p.bounds.w - 2, 1), " ", s)
+      dc.fill(rect(1, 1 + i, p.contentW - 2, 1), " ", s)
     dc.write(2, 1 + i, item.label, s)
 
 method handleEvent*(p: MenuPopup, ev: Event): bool {.gcsafe, raises: [].} =
@@ -86,7 +86,7 @@ method handleEvent*(p: MenuPopup, ev: Event): bool {.gcsafe, raises: [].} =
   of evMouse:
     let m = ev.imouse
     if m.action == maPress:
-      if not rect(0, 0, p.bounds.w, p.bounds.h).contains(point(m.mx, m.my)):
+      if not rect(0, 0, p.contentW, p.contentH).contains(point(m.mx, m.my)):
         p.endModal(cmdNone) # click outside closes the menu
       else:
         let idx = m.my - 1
@@ -118,7 +118,7 @@ proc openMenu*(mb: MenuBar, i: int) =
 method draw*(mb: MenuBar, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = mb.styleOf(tkMenu)
   let sel = mb.styleOf(tkMenuSelected)
-  dc.fill(rect(0, 0, mb.bounds.w, 1), " ", st)
+  dc.fill(rect(0, 0, mb.contentW, 1), " ", st)
   for i, m in mb.menus:
     let s = if mb.isFocused and i == mb.barSel: sel else: st
     dc.write(mb.titleX(i), 0, " " & m.title & " ", s)

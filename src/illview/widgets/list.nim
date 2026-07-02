@@ -33,7 +33,7 @@ proc setItems*(l: ListView, items: seq[string]) =
   l.invalidate()
 
 proc ensureVisible*(l: ListView) =
-  let h = max(l.bounds.h, 1)
+  let h = max(l.contentH, 1)
   if l.selected < l.top:
     l.top = l.selected
   elif l.selected >= l.top + h:
@@ -60,19 +60,19 @@ proc activate*(l: ListView) =
 method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
   let normal = l.styleOf(tkText)
   let sel = l.styleOf(if l.isFocused: tkSelectionFocused else: tkSelection)
-  for y in 0 ..< max(l.bounds.h, 0):
+  for y in 0 ..< max(l.contentH, 0):
     let idx = l.top + y
     if idx > l.items.high:
       break
     let st = if idx == l.selected: sel else: normal
     if idx == l.selected:
-      dc.fill(rect(0, y, l.bounds.w, 1), " ", st)
+      dc.fill(rect(0, y, l.contentW, 1), " ", st)
     dc.write(0, y, l.items[idx], st)
 
 method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
-    let page = max(l.bounds.h, 1)
+    let page = max(l.contentH, 1)
     case ev.ikey.key
     of Key.Up: l.select(l.selected - 1)
     of Key.Down: l.select(l.selected + 1)
@@ -92,7 +92,7 @@ method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
       l.invalidate()
       return true
     of maWheelDown:
-      l.top = clamp(l.top + 1, 0, max(l.items.len - l.bounds.h, 0))
+      l.top = clamp(l.top + 1, 0, max(l.items.len - l.contentH, 0))
       l.invalidate()
       return true
     of maPress:

@@ -4,7 +4,7 @@
 ## Type-level: view, title(s), hbox, vbox, grid(cols), spacing(n), dock(d)
 ## Field-level: child, caption(s), dock(d), stretch(n), action(c), bindTo(m)
 
-import ../core/[geometry, bus]
+import ../core/[geometry, bus, theme, view]
 
 template view*() {.pragma.}
   ## Marks a type as a mountable illview screen/component.
@@ -45,3 +45,26 @@ template bindTo*(m: string) {.pragma.}
   ## enclosing view: proc m(self: EnclosingType, sender: FieldType).
   ## Primary slots: Button.onClick, Checkbox.onToggle, Radio.onSelect,
   ## ListView.onActivate, Input.onSubmit, Editor.onChange.
+
+# --- styling (iteration 2, plan-2 D3) ----------------------------------------
+
+template border*(k: BorderKind) {.pragma.}
+  ## Border drawn by the parent; content area shrinks by 1 cell per side.
+
+template boxTitle*(s: string) {.pragma.}
+  ## Title on the top border (requires a border).
+
+template shadow*() {.pragma.}
+  ## TV-style shadow (recolors the cells right/below of the view).
+
+template fg*(c: ForegroundColor) {.pragma.}
+  ## Foreground override merged over the theme token.
+
+template bg*(c: BackgroundColor) {.pragma.}
+  ## Background override merged over the theme token.
+
+template focusFg*(c: ForegroundColor) {.pragma.}
+  ## Foreground while the view is focused.
+
+template focusBg*(c: BackgroundColor) {.pragma.}
+  ## Background while the view is focused.

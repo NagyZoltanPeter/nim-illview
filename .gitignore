@@ -11,3 +11,4 @@ tests/test_widgets
 examples/[0-9][0-9]_*
 !examples/*.nim
 illview.log
+nimbledeps

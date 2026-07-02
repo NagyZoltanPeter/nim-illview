@@ -86,6 +86,37 @@ proc fieldInfo(identDefs: NimNode): tuple[name: NimNode, prag: NimNode,
     nameNode = nameNode[1]
   (nameNode, prag, identDefs[^2])
 
+proc addStyleApplications(stmts, prag, target: NimNode) =
+  ## Styling pragmas (plan-2 D3), valid at type level (target = self) and
+  ## field level (target = self.field).
+  let borderArg = pragmaArg(prag, "border")
+  if borderArg != nil:
+    stmts.add quote do:
+      `target`.border = `borderArg`
+  let btArg = pragmaArg(prag, "boxTitle")
+  if btArg != nil:
+    stmts.add quote do:
+      `target`.borderTitle = `btArg`
+  if pragmaArg(prag, "shadow") != nil:
+    stmts.add quote do:
+      `target`.shadow = true
+  let fgArg = pragmaArg(prag, "fg")
+  if fgArg != nil:
+    stmts.add quote do:
+      `target`.styleOv.fg = `fgArg`
+  let bgArg = pragmaArg(prag, "bg")
+  if bgArg != nil:
+    stmts.add quote do:
+      `target`.styleOv.bg = `bgArg`
+  let ffgArg = pragmaArg(prag, "focusFg")
+  if ffgArg != nil:
+    stmts.add quote do:
+      `target`.styleOv.focusFg = `ffgArg`
+  let fbgArg = pragmaArg(prag, "focusBg")
+  if fbgArg != nil:
+    stmts.add quote do:
+      `target`.styleOv.focusBg = `fbgArg`
+
 macro mount*(T: typedesc): untyped =
   ## Build an instance of the pragma-annotated view type T: construct,
   ## wire children into the declared layout container, set captions/docks/
@@ -118,6 +149,7 @@ macro mount*(T: typedesc): untyped =
   if tdock != nil:
     stmts.add quote do:
       `self`.dock = `tdock`
+  addStyleApplications(stmts, tprag, self)
 
   # layout container selection
   let spacingArg = pragmaArg(tprag, "spacing")
@@ -183,6 +215,7 @@ macro mount*(T: typedesc): untyped =
     if actionArg != nil:
       stmts.add quote do:
         `self`.`fname`.command = `actionArg`
+    addStyleApplications(stmts, fprag, newDotExpr(self, fname))
     let bindArg = pragmaArg(fprag, "bindTo")
     if bindArg != nil:
       if bindArg.kind notin {nnkStrLit, nnkRStrLit, nnkTripleStrLit}:

@@ -115,3 +115,78 @@ suite "render snapshots":
     let st = defaultTheme().style(tkDesktop)
     check cell.fg == st.fg
     check cell.bg == st.bg
+
+suite "decoration (iteration 2)":
+  test "border insets the content and clips it":
+    let d = newDesktop()
+    let win = newWindow("W", rect(0, 0, 20, 7))
+    let t = newTextView(repeat("X", 16), rect(1, 1, 10, 3))
+    t.border = bkSingle
+    d.add win
+    win.add t
+    let tb = render(d, 24, 9)
+    # t's full rect abs = win content (1,1) + bounds (1,1) => (2,2,10,3)
+    check cellStr(tb, 2, 2) == "┌"
+    check cellStr(tb, 11, 2) == "┐"
+    check cellStr(tb, 2, 3) == "│"
+    # content row: 8 cells of X, clipped at the border
+    for x in 3 .. 10:
+      check cellStr(tb, x, 3) == "X"
+    check cellStr(tb, 11, 3) == "│"
+    check cellStr(tb, 12, 3) == " " # window bg, no bleed
+
+  test "border title is centered on the top border":
+    let d = newDesktop()
+    let box = newGroup()
+    box.border = bkSingle
+    box.borderTitle = "opts"
+    box.bounds = rect(1, 1, 12, 4)
+    d.add box
+    let tb2 = render(d, 16, 7)
+    check " opts " in rowStr(tb2, 1)
+    check cellStr(tb2, 1, 1) == "┌"
+
+  test "shadow recolors cells but keeps the runes":
+    let d = newDesktop()
+    let win = newWindow("S", rect(1, 1, 10, 4))
+    win.shadow = true
+    d.add win
+    let tb = render(d, 20, 10)
+    # bottom shadow row: y = 1 + 4 = 5, x from 3; right shadow: x = 11..12
+    let sh = defaultTheme().style(tkShadow)
+    check cellStr(tb, 3, 5) == "▒" # rune preserved from the desktop pattern
+    check tb[3, 5].fg == sh.fg
+    check tb[3, 5].bg == sh.bg
+    check tb[11, 2].fg == sh.fg
+    # untouched desktop cell keeps its own colors
+    check tb[0, 0].fg == defaultTheme().style(tkDesktop).fg
+
+  test "fg/bg override merges over the theme token":
+    let d = newDesktop()
+    let t = newTextView("hi", rect(0, 0, 4, 1))
+    t.styleOv.fg = fgRed
+    t.styleOv.bg = bgGreen
+    d.add t
+    let tb = render(d, 6, 2)
+    check cellStr(tb, 0, 0) == "h"
+    check tb[0, 0].fg == fgRed
+    check tb[0, 0].bg == bgGreen
+
+  test "focus override applies only while focused":
+    let d = newDesktop()
+    let t = newTextView("hi", rect(0, 0, 4, 1), focusable = true)
+    t.styleOv.focusFg = fgYellow
+    d.add t
+    var tb = render(d, 6, 2)
+    check tb[0, 0].fg == defaultTheme().style(tkText).fg
+    setFocus(d, t)
+    tb = render(d, 6, 2)
+    check tb[0, 0].fg == fgYellow
+
+  test "outerHints adds the border cells for layout":
+    let t = newTextView("x", rect(0, 0, 0, 0))
+    t.hint = (fixedHint(5), fixedHint(1))
+    check t.outerHints().w.pref == 5
+    t.border = bkSingle
+    check t.outerHints().w.pref == 7
+    check t.outerHints().h.min == 3
