@@ -27,9 +27,12 @@ type
   Group* = ref object of View
     children*: seq[View] # z-order: index 0 = bottom, last = topmost
     focused*: View       # focused child; chain root->leaf is the app focus
-    # Set on the ROOT group by App; reached via invalidate()/publish().
+    # Set on the ROOT group by App; reached via invalidate()/publish()/
+    # runModal()/endModal(). Widgets never see the App itself (deviation #4).
     invalidateCb*: proc() {.gcsafe, raises: [].}
     publishCb*: proc(a: UiAction) {.gcsafe, raises: [].}
+    runModalCb*: proc(g: Group) {.gcsafe, raises: [].}
+    endModalCb*: proc(cmd: Command) {.gcsafe, raises: [].}
 
   Event* = object
     case kind*: EventKind
@@ -148,6 +151,27 @@ proc publish*(v: View, cmd: Command) {.gcsafe, raises: [].} =
   let r = v.root
   if r of Group and Group(r).publishCb != nil:
     Group(r).publishCb(UiAction(cmd: cmd, senderId: v.id))
+
+proc runModal*(v: View, g: Group) {.gcsafe, raises: [].} =
+  ## Open g as a transient modal (menus, dialogs). No-op when detached.
+  let r = v.root
+  if r of Group and Group(r).runModalCb != nil:
+    Group(r).runModalCb(g)
+
+proc endModal*(v: View, cmd: Command) {.gcsafe, raises: [].} =
+  ## Close the topmost modal. No-op when detached.
+  let r = v.root
+  if r of Group and Group(r).endModalCb != nil:
+    Group(r).endModalCb(cmd)
+
+func isFocused*(v: View): bool =
+  ## True when v is the leaf of the root's focused chain.
+  var cur = v
+  while cur.parent != nil:
+    if cur.parent.focused != cur:
+      return false
+    cur = cur.parent
+  true
 
 proc add*(g: Group, child: View) =
   child.parent = g

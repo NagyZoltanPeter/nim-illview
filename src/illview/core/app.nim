@@ -43,6 +43,8 @@ type
 
 proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].}
 proc requestRedraw*(app: App) {.gcsafe, raises: [].}
+proc execView*(app: App, v: Group): Future[Command] {.gcsafe, raises: [].}
+proc endModal*(app: App, cmd: Command) {.gcsafe, raises: [].}
 
 proc newApp*(fpsCap = 30, theme: Theme = nil): App =
   let app = App(fpsCap: fpsCap)
@@ -56,6 +58,10 @@ proc newApp*(fpsCap = 30, theme: Theme = nil): App =
     if app.bus != nil:
       {.cast(raises: []).}:
         app.bus.publish(a)
+  app.desktop.runModalCb = proc(g: Group) {.gcsafe, raises: [].} =
+    discard app.execView(g) # commands flow via the bus; future unused here
+  app.desktop.endModalCb = proc(cmd: Command) {.gcsafe, raises: [].} =
+    app.endModal(cmd)
   app
 
 proc focus*(app: App): View =
@@ -140,7 +146,7 @@ proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].} =
   if app.onInput != nil:
     app.onInput(ev) # observer hook, runs after routing
 
-proc execView*(app: App, v: Group): Future[Command] =
+proc execView*(app: App, v: Group): Future[Command] {.gcsafe, raises: [].} =
   ## Modal loop (deviation #6): adds v on top of the desktop, confines
   ## routing to it and returns a future completed by endModal(). No nested
   ## event loop.
@@ -152,7 +158,7 @@ proc execView*(app: App, v: Group): Future[Command] =
   app.requestRedraw()
   fut
 
-proc endModal*(app: App, cmd: Command) =
+proc endModal*(app: App, cmd: Command) {.gcsafe, raises: [].} =
   ## Close the topmost modal view and complete its execView future.
   if app.modalStack.len == 0:
     return

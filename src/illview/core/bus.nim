@@ -18,10 +18,10 @@ const cmdNone* = Command(0)
 proc `==`*(a, b: Command): bool {.borrow.}
 proc `$`*(c: Command): string {.borrow.}
 
-method publish*(bus: EventBus, a: UiAction) {.base, gcsafe.} =
+method publish*(bus: EventBus, a: UiAction) {.base, gcsafe, raises: [].} =
   discard
 
-method publishDomain*(bus: EventBus, topic: string, payload: string) {.base, gcsafe.} =
+method publishDomain*(bus: EventBus, topic: string, payload: string) {.base, gcsafe, raises: [].} =
   discard
 
 type
@@ -33,8 +33,8 @@ type
 proc newStubBus*(): StubBus =
   StubBus()
 
-method publish*(bus: StubBus, a: UiAction) {.gcsafe.} =
+method publish*(bus: StubBus, a: UiAction) {.gcsafe, raises: [].} =
   bus.actions.add a
 
-method publishDomain*(bus: StubBus, topic: string, payload: string) {.gcsafe.} =
+method publishDomain*(bus: StubBus, topic: string, payload: string) {.gcsafe, raises: [].} =
   bus.domain.add (topic, payload)
