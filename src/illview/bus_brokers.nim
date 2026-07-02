@@ -29,9 +29,23 @@ EventBroker:
 
 type
   BrokersBus* = ref object of EventBus
+    listening: bool # IvDomainEvent.listen registered for subscriber dispatch
 
 proc newBrokersBus*(): BrokersBus =
   BrokersBus()
+
+method subscribeDomain*(bus: BrokersBus, pattern: string,
+                        handler: DomainHandler): SubId {.gcsafe, raises: [].} =
+  ## Subscriptions ride ONE broker listener (registered lazily): domain
+  ## events published by anyone — this bus or other IvDomainEvent emitters —
+  ## fan out to matching illview subscribers on the chronos loop.
+  if not bus.listening:
+    let res = IvDomainEvent.listen(
+      proc(ev: IvDomainEvent): Future[void] {.async: (raises: []), gcsafe.} =
+        bus.dispatchDomain(ev.topic, ev.payload))
+    if res.isOk:
+      bus.listening = true
+  procCall subscribeDomain(EventBus(bus), pattern, handler)
 
 method publish*(bus: BrokersBus, a: UiAction) {.gcsafe, raises: [].} =
   emit(IvUiAction(cmd: int(a.cmd), senderId: a.senderId))
