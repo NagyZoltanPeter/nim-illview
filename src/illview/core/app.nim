@@ -12,7 +12,8 @@
 
 import chronos
 import ../backend/illwill_vendored
-import ./events
+import ../widgets/desktop
+import ./events, ./view, ./routing, ./geometry, ./drawcontext, ./bus, ./theme
 
 when defined(posix):
   import ../backend/driver_posix
@@ -23,6 +24,8 @@ export illwill_vendored.TerminalBuffer
 
 type
   App* = ref object
+    desktop*: Desktop
+    bus*: EventBus # StubBus by default; real nim-brokers bus in Phase 6
     fpsCap*: int
     running*: bool
     onInput*: proc(ev: InputEvent) {.gcsafe, raises: [].}
@@ -34,16 +37,37 @@ type
     driver: InputDriver
     lastFrame: Moment
     quitFut: Future[void]
+    modalStack: seq[tuple[view: Group, fut: Future[Command]]]
     when compileOption("threads"):
       loopThreadId: int
 
 proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].}
+proc requestRedraw*(app: App) {.gcsafe, raises: [].}
 
-proc newApp*(fpsCap = 30): App =
+proc newApp*(fpsCap = 30, theme: Theme = nil): App =
   let app = App(fpsCap: fpsCap)
   app.driver = newInputDriver(
     proc(ev: InputEvent) {.gcsafe, raises: [].} = app.handleInput(ev))
+  app.bus = newStubBus()
+  app.desktop = newDesktop(theme)
+  app.desktop.invalidateCb = proc() {.gcsafe, raises: [].} =
+    app.requestRedraw()
+  app.desktop.publishCb = proc(a: UiAction) {.gcsafe, raises: [].} =
+    if app.bus != nil:
+      {.cast(raises: []).}:
+        app.bus.publish(a)
   app
+
+proc focus*(app: App): View =
+  ## The focused leaf of the desktop chain (deviation #5: derived, not stored).
+  app.desktop.focusedLeaf
+
+proc scope(app: App): Group =
+  ## Routing scope: top modal view when a modal is active, else the desktop.
+  if app.modalStack.len > 0:
+    app.modalStack[^1].view
+  else:
+    Group(app.desktop)
 
 proc tuiActive*(app: App): bool = app.tuiActive
 
@@ -70,8 +94,11 @@ proc frame*(app: App) =
     app.tb = newTerminalBuffer(w, h)
   else:
     app.tb.clear()
+  if app.desktop != nil:
+    app.desktop.bounds = rect(0, 0, w, h)
+    app.desktop.draw(initDrawContext(app.tb))
   if app.onRender != nil:
-    app.onRender(app.tb)
+    app.onRender(app.tb) # escape hatch: draws over the tree
   app.tb.display()
   app.dirty = false
   app.lastFrame = Moment.now()
@@ -87,7 +114,10 @@ proc scheduleFrame(app: App) {.gcsafe, raises: [].} =
       await sleepAsync(minPeriod - sinceLast)
     app.renderPending = false
     if app.dirty and app.tuiActive:
-      app.frame()
+      try:
+        app.frame() # display()/terminalWidth() can raise IOError
+      except CatchableError:
+        discard # a failed frame must not kill the loop; next redraw retries
   asyncSpawn frameSoon()
 
 proc requestRedraw*(app: App) {.gcsafe, raises: [].} =
@@ -96,10 +126,39 @@ proc requestRedraw*(app: App) {.gcsafe, raises: [].} =
 
 proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].} =
   app.assertLoopThread()
-  if ev.kind == ikResize:
-    app.requestRedraw() # frame() re-sizes the buffer
+  case ev.kind
+  of ikKey:
+    discard dispatchKey(app.scope, ev)
+  of ikMouse:
+    dispatchMouse(app.scope, ev)
+  of ikPaste:
+    discard dispatchPaste(app.scope, ev.text)
+  of ikResize:
+    app.requestRedraw() # frame() re-sizes the buffer; Phase 3 adds relayout
   if app.onInput != nil:
-    app.onInput(ev)
+    app.onInput(ev) # observer hook, runs after routing
+
+proc execView*(app: App, v: Group): Future[Command] =
+  ## Modal loop (deviation #6): adds v on top of the desktop, confines
+  ## routing to it and returns a future completed by endModal(). No nested
+  ## event loop.
+  app.desktop.add v
+  raiseToTop(app.desktop, v)
+  let fut = newFuture[Command]("illview.execView")
+  app.modalStack.add (v, fut)
+  focusInto(app.scope, v)
+  app.requestRedraw()
+  fut
+
+proc endModal*(app: App, cmd: Command) =
+  ## Close the topmost modal view and complete its execView future.
+  if app.modalStack.len == 0:
+    return
+  let (v, fut) = app.modalStack.pop()
+  app.desktop.remove v
+  app.requestRedraw()
+  if not fut.finished:
+    fut.complete(cmd)
 
 proc enableTui*(app: App) =
   ## Re-entrant: switch the terminal to TUI mode (altscreen, raw-ish termios,
