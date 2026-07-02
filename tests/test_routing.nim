@@ -207,3 +207,56 @@ suite "routing: border-inset coordinates (iteration 2)":
     dispatchMouse(root, press(30, 15))
     check p.mouseGot.len == 2 # only the capture move + release... press missed p
     check root.got.len == 1   # press went to the root background
+
+suite "window move/resize (phase 10)":
+  setup:
+    let root = newRecordingRoot(80, 24)
+    let win = newWindow("W", rect(5, 5, 20, 10))
+    let p = newProbe("p", rect(0, 0, 5, 1))
+    win.add p
+    root.add win
+
+  test "Alt+Arrows move; Alt+Shift+Arrows resize; min size clamps":
+    setFocus(root, p)
+    check dispatchKey(root, keyEvent(Key.Right, mods = {modAlt}))
+    check win.bounds == rect(6, 5, 20, 10)
+    check dispatchKey(root, keyEvent(Key.Down, mods = {modAlt}))
+    check win.bounds.y == 6
+    check dispatchKey(root, keyEvent(Key.Right, mods = {modAlt, modShift}))
+    check win.bounds.w == 21
+    for _ in 1 .. 30:
+      discard dispatchKey(root, keyEvent(Key.Left, mods = {modAlt, modShift}))
+      discard dispatchKey(root, keyEvent(Key.Up, mods = {modAlt, modShift}))
+    check win.bounds.w == 8 # MinW
+    check win.bounds.h == 3 # MinH
+
+  test "docked windows are layout-owned: move/resize ignored":
+    win.dock = dkFill
+    setFocus(root, p)
+    check not dispatchKey(root, keyEvent(Key.Right, mods = {modAlt}))
+    check win.bounds == rect(5, 5, 20, 10)
+
+  test "title drag moves the window; capture ends on release":
+    dispatchMouse(root, press(10, 5)) # top border row: content-local y == -1
+    check root.mouseCapture == View(win)
+    dispatchMouse(root, mouseEvent(maMove, mbNone, 15, 8)) # +5, +3
+    check win.bounds.x == 10
+    check win.bounds.y == 8
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 15, 8))
+    check root.mouseCapture == nil
+
+  test "corner drag resizes; clamps at minimum":
+    dispatchMouse(root, press(24, 14)) # bottom-right corner cell
+    check root.mouseCapture == View(win)
+    dispatchMouse(root, mouseEvent(maMove, mbNone, 30, 18))
+    check win.bounds.w == 26
+    check win.bounds.h == 14
+    dispatchMouse(root, mouseEvent(maMove, mbNone, 2, 2))
+    check win.bounds.w == 8
+    check win.bounds.h == 3
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 2, 2))
+    check root.mouseCapture == nil
+
+  test "content clicks do not start a drag":
+    dispatchMouse(root, press(12, 12)) # inside the content area
+    check root.mouseCapture == nil

@@ -126,6 +126,8 @@ method draw*(mb: MenuBar, dc: DrawContext) {.gcsafe, raises: [].} =
 method handleEvent*(mb: MenuBar, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
+    if modAlt in ev.ikey.keyMods:
+      return false # Alt-chords are window/app level (move/resize)
     case ev.ikey.key
     of Key.Left:
       mb.barSel = (mb.barSel - 1 + mb.menus.len) mod mb.menus.len

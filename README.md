@@ -19,6 +19,12 @@ with framework-owned input routing and nim-brokers as the domain event bus.
 | 4 | Widget set with VCL-style closure slots | done |
 | 5 | Declarative layer (pragmas + `mount` macro) | done |
 | 6 | nim-brokers EventBus + network-event visualizer | done |
+| 7 | Declarative styling: border/title/shadow/color + focus overrides | done |
+| 8 | GroupBox, Table, ProgressBar | done |
+| 9 | bindValue/bindRequest state binding, uiEvents typed broker events, open bus | done |
+| 10 | Window move/resize (mouse drag + Alt+Arrows) | done |
+
+Iteration-2 brief: [docs/BUILD-PLAN-2.md](docs/BUILD-PLAN-2.md).
 
 Phase 6 note: the real broker bus lives in `illview/bus_brokers` (import it
 explicitly; the umbrella keeps the broker macro expansion out of the default

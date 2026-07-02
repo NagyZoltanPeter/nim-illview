@@ -72,6 +72,8 @@ method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
 method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
+    if modAlt in ev.ikey.keyMods:
+      return false # Alt-chords are window/app level (move/resize)
     let page = max(l.contentH, 1)
     case ev.ikey.key
     of Key.Up: l.select(l.selected - 1)

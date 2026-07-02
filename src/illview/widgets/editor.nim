@@ -135,6 +135,8 @@ method handleEvent*(e: Editor, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
     let k = ev.ikey
+    if modAlt in k.keyMods:
+      return false # Alt-chords are window/app level (move/resize)
     case k.key
     of Key.Up: e.moveCursor(-1, 0)
     of Key.Down: e.moveCursor(1, 0)

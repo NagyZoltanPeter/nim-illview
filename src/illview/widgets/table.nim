@@ -122,6 +122,8 @@ method draw*(t: Table, dc: DrawContext) {.gcsafe, raises: [].} =
 method handleEvent*(t: Table, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
+    if modAlt in ev.ikey.keyMods:
+      return false # Alt-chords are window/app level (move/resize)
     let page = t.viewportRows
     case ev.ikey.key
     of Key.Up: t.select(t.selected - 1)

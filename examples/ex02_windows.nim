@@ -1,5 +1,7 @@
-## Phase 2 demo: two overlapping windows, click-to-raise, Tab/Shift-Tab
-## cycles focus, all drawing clipped through DrawContext. ESC quits.
+## Phase 2+10 demo: two overlapping windows, click-to-raise, Tab/Shift-Tab
+## cycles focus, all drawing clipped through DrawContext. Drag a title to
+## move, drag the ◢ corner to resize, Alt+Arrows / Alt+Shift+Arrows work
+## too. ESC quits.
 
 import std/strformat
 import chronos

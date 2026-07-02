@@ -47,6 +47,8 @@ method draw*(r: Radio, dc: DrawContext) {.gcsafe, raises: [].} =
 method handleEvent*(r: Radio, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
+    if modAlt in ev.ikey.keyMods:
+      return false # Alt-chords are window/app level (move/resize)
     case ev.ikey.key
     of Key.Up:
       r.select(r.selected - 1)
