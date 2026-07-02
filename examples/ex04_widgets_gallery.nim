@@ -56,14 +56,24 @@ proc main() {.async.} =
   inp.onSubmit = proc(s: Input) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine "input SUBMIT: " & s.text
   form.add inp
+  # group-box around the option widgets (Phase 8)
+  let opts = newGroupBox("options")
+  opts.hint = (prefHint(0, stretch = 1), fixedHint(4))
+  let optsBox = newVBox()
+  optsBox.dock = dkFill
   let chk = newCheckbox("enable feature")
   chk.onToggle = proc(s: Checkbox) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine &"checkbox: {s.checked}"
-  form.add chk
+  optsBox.add chk
   let rad = newRadio(@["refc", "orc", "arc"], selected = 1)
   rad.onSelect = proc(s: Radio) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine &"radio: {s.items[s.selected]}"
-  form.add rad
+  optsBox.add rad
+  opts.add optsBox
+  form.add opts
+  let pb = newProgressBar()
+  pb.setValue(3)
+  form.add pb
   let btn = newButton("Run", command = cmdRun)
   btn.onClick = proc(s: Button) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine "button: onClick (before publish)"
@@ -77,10 +87,22 @@ proc main() {.async.} =
     items.add &"list item {i:02}"
   let lst = newListView(items)
   lst.onSelect = proc(s: ListView) {.gcsafe, raises: [].} =
-    {.cast(gcsafe).}: log.addLine "list select: " & s.items[s.selected]
+    {.cast(gcsafe).}:
+      log.addLine "list select: " & s.items[s.selected]
+      pb.setValue((s.selected + 1) * 100 div s.items.len) # progress demo
   lst.onActivate = proc(s: ListView) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine "list ACTIVATE: " & s.items[s.selected]
   right.add lst
+  # table (Phase 8): fixed + stretchy columns, header, row selection
+  let tbl = newTable(
+    @[tableColumn("proto", fixedHint(8)),
+      tableColumn("status", prefHint(0, stretch = 1))],
+    @[@["relay", "up"], @["store", "syncing"], @["filter", "off"],
+      @["px", "up"], @["lightpush", "up"]])
+  tbl.onActivate = proc(s: Table) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}: log.addLine "table ACTIVATE: " & s.rows[s.selected][0]
+  tbl.hint = (prefHint(0, stretch = 1), prefHint(4, stretch = 1))
+  right.add tbl
   let ed = newEditor("multiline editor\nno wrap, no undo (v1)\nend.")
   ed.onChange = proc(s: Editor) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine "editor changed"

@@ -2,11 +2,12 @@
 ## scroll, textview viewport, editor cursor/edit; closure slots fire inside
 ## dispatch; command-bearing widgets publish to the StubBus. No terminal.
 
-import std/[unittest, strformat, unicode]
+import std/[unittest, strformat, unicode, strutils]
 import ../src/illview/backend/illwill_vendored
 import ../src/illview/core/[geometry, theme, drawcontext, events, bus, view, routing]
 import ../src/illview/widgets/[button, checkbox, radio, list, input, textview,
-                               editor, statusbar, menu]
+                               editor, statusbar, menu, groupbox, table,
+                               progress, label]
 
 proc rowStr(tb: TerminalBuffer, y, w: int): string =
   for x in 0 ..< w:
@@ -238,3 +239,82 @@ suite "editor (snapshot)":
     discard e.handleEvent(keyEv(Key.X, Rune('x')))
     discard e.handleEvent(keyEv(Key.Backspace))
     check changes == 2
+
+suite "groupbox (iteration 2)":
+  test "border + title + inset children, drawn by the parent":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 8)
+    let gb = newGroupBox("opts")
+    gb.bounds = rect(1, 1, 14, 5)
+    gb.add newLabel("inside")
+    gb.children[0].bounds = rect(0, 0, 6, 1)
+    root.add gb
+    let tb = newTerminalBuffer(20, 8)
+    root.draw(initDrawContext(tb))
+    check rowStr(tb, 1, 16).contains(" opts ")
+    check $tb[1, 1].ch == "┌"
+    check $tb[14, 1].ch == "┐"
+    # label content starts at gb content origin abs (2,2)
+    check rowStr(tb, 2, 16).contains("inside")
+    check $tb[2, 2].ch == "i"
+
+suite "table (iteration 2)":
+  setup:
+    var rows: seq[seq[string]]
+    for i in 1 .. 10:
+      rows.add @[&"row{i:02}", &"val{i:02}"]
+    let t = newTable(@[
+      tableColumn("id", fixedHint(6)),
+      tableColumn("value", prefHint(0, stretch = 1))], rows)
+
+  test "header + column widths via distribute":
+    let tb = renderInto(t, 16, 4)
+    check rowStr(tb, 0, 6) == "id    "
+    check rowStr(tb, 0, 12).contains("value")
+    check rowStr(tb, 1, 6) == "row01 "
+    # second column starts after fixed 6 + 1 spacing
+    check rowStr(tb, 1, 13).contains("val01")
+
+  test "selection scrolls the viewport (header stays)":
+    discard renderInto(t, 16, 4) # 3 data rows visible
+    for _ in 1 .. 5:
+      discard t.handleEvent(keyEv(Key.Down))
+    check t.selected == 5
+    let tb = renderInto(t, 16, 4)
+    check rowStr(tb, 0, 2) == "id" # header pinned
+    check rowStr(tb, 1, 6).contains("row04")
+    check rowStr(tb, 3, 6).contains("row06")
+
+  test "mouse: click selects (header ignored), re-click activates":
+    var acts: seq[int]
+    t.onActivate = proc(s: Table) {.gcsafe, raises: [].} =
+      {.cast(gcsafe).}: acts.add s.selected
+    discard renderInto(t, 16, 4)
+    let press1 = Event(kind: evMouse, imouse: mouseEvent(maPress, mbLeft, 2, 2))
+    check t.handleEvent(press1)
+    check t.selected == 1 # data row under y=2
+    check t.handleEvent(press1) # same row again -> activate
+    check acts == @[1]
+    let hdr = Event(kind: evMouse, imouse: mouseEvent(maPress, mbLeft, 2, 0))
+    check t.handleEvent(hdr)
+    check t.selected == 1 # header click changes nothing
+
+suite "progressbar (iteration 2)":
+  test "fill at 0 / 50 / 100 percent":
+    let p = newProgressBar(maxValue = 100, showPercent = false)
+    p.setValue(0)
+    var tb = renderInto(p, 10, 1)
+    check rowStr(tb, 0, 10) == repeat("░", 10)
+    p.setValue(50)
+    tb = renderInto(p, 10, 1)
+    check rowStr(tb, 0, 10) == repeat("█", 5) & repeat("░", 5)
+    p.setValue(100)
+    tb = renderInto(p, 10, 1)
+    check rowStr(tb, 0, 10) == repeat("█", 10)
+
+  test "percent label centered":
+    let p = newProgressBar(maxValue = 100)
+    p.setValue(40)
+    let tb = renderInto(p, 12, 1)
+    check rowStr(tb, 0, 12).contains(" 40% ")
+    check p.value == 40

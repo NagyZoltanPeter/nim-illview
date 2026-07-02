@@ -5,7 +5,8 @@ import illview/core/[events, geometry, theme, drawcontext, bus, view, routing, a
 import illview/backend/decoder
 import illview/layout/layout
 import illview/widgets/[desktop, window, label, button, checkbox, radio,
-                        list, input, textview, statusbar, menu, editor, netviz]
+                        list, input, textview, statusbar, menu, editor, netviz,
+                        groupbox, table, progress]
 import illview/dsl/[pragmas, mount]
 # The real nim-brokers bus lives in illview/bus_brokers — import explicitly
 # to keep the broker macro expansion out of the default import graph.
@@ -13,6 +14,6 @@ import illview/dsl/[pragmas, mount]
 export events, geometry, theme, drawcontext, bus, view, routing, app
 export decoder
 export layout
-export desktop, window, label, button, checkbox, radio,
+export desktop, window, label, button, checkbox, radio, groupbox, table, progress,
        list, input, textview, statusbar, menu, editor, netviz
 export pragmas, mount

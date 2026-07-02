@@ -7,7 +7,7 @@ import std/[macros, unicode]
 import ../core/[geometry, view, bus]
 import ../layout/layout
 import ../widgets/[window, label, button, checkbox, radio, list, input,
-                   textview, statusbar, editor]
+                   textview, statusbar, editor, groupbox, table, progress]
 
 # --- construction defaults ---------------------------------------------------
 
@@ -21,6 +21,9 @@ proc createView*(t: typedesc[TextView]): TextView = newTextView()
 proc createView*(t: typedesc[Editor]): Editor = newEditor()
 proc createView*(t: typedesc[StatusBar]): StatusBar = newStatusBar()
 proc createView*(t: typedesc[Window]): Window = newWindow("", rect(0, 0, 0, 0))
+proc createView*(t: typedesc[GroupBox]): GroupBox = newGroupBox("")
+proc createView*(t: typedesc[Table]): Table = newTable()
+proc createView*(t: typedesc[ProgressBar]): ProgressBar = newProgressBar()
 
 # --- pragma appliers ----------------------------------------------------------
 
@@ -35,6 +38,7 @@ proc setCaption*(w: Checkbox, s: string) =
 proc setCaption*(w: Label, s: string) = w.setText(s)
 proc setCaption*(w: Input, s: string) = w.setText(s)
 proc setCaption*(w: Window, s: string) = w.title = s
+proc setCaption*(w: GroupBox, s: string) = w.borderTitle = s
 
 proc setStretch*(v: View, n: int) =
   v.hint.w.stretch = n
