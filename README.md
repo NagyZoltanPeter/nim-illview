@@ -13,7 +13,7 @@ with framework-owned input routing and nim-brokers as the domain event bus.
 | Phase | Content | State |
 | ----- | ------- | ----- |
 | 0 | Vendored illwill + incremental input decoder | done |
-| 1 | chronos loop, POSIX stdin driver, opt-in TUI lifecycle | pending |
+| 1 | chronos loop, POSIX stdin driver, opt-in TUI lifecycle | done |
 | 2 | View tree, DrawContext clipping, mouse/key routing | pending |
 | 3 | Layout engine (HBox/VBox/Grid/dock) | pending |
 | 4 | Widget set with VCL-style closure slots | pending |

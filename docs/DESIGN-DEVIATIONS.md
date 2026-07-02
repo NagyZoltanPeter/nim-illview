@@ -97,3 +97,19 @@ the self-pipe trick: the signal handler write()s one byte to a pipe registered
 with `addReader`; the read side emits `ikResize` on the loop thread. (chronos'
 signal support is platform-uneven; the self-pipe is dependency-free and
 single-threaded.)
+
+## 12. Example file names carry an `ex` prefix (§2)
+
+The plan's `00_echo.nim` is not a valid Nim module name (identifiers cannot
+start with a digit — the compiler rejects the file). Examples are
+`ex00_echo.nim`, `ex01_loop.nim`, … instead.
+
+## 13. Demand-scheduled frames instead of a permanent ticker (§3.7, Phase 1)
+
+The plan describes "a capped ticker [that] renders one frame when dirty". A
+permanently-running 30 Hz ticker wakes the loop 30×/s even when idle. Instead,
+`requestRedraw` arms a *one-shot* frame task that waits out the remainder of
+the fps period and then renders once. Same observable behavior (dirty-driven,
+fps-capped), but an idle app has **zero** pending timers — which is what the
+Phase 1 exit criterion ("idle CPU ≈ 0") actually demands. Verified: 4 s
+mostly-idle run = 0.00 user + 0.00 sys.

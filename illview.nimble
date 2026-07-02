@@ -16,3 +16,7 @@ requires "chronos >= 4.0.0"
 
 task test, "Run the test suite":
   exec "nim c -r --mm:orc --hints:off tests/test_decoder.nim"
+
+task examples, "Build all examples (POSIX)":
+  for ex in ["ex00_echo", "ex01_loop"]:
+    exec "nim c --mm:orc --hints:off examples/" & ex & ".nim"
