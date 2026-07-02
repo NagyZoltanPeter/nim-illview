@@ -6,9 +6,11 @@ import illview/backend/decoder
 import illview/layout/layout
 import illview/widgets/[desktop, window, label, button, checkbox, radio,
                         list, input, textview, statusbar, menu, editor]
+import illview/dsl/[pragmas, mount]
 
 export events, geometry, theme, drawcontext, bus, view, routing, app
 export decoder
 export layout
 export desktop, window, label, button, checkbox, radio,
        list, input, textview, statusbar, menu, editor
+export pragmas, mount

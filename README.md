@@ -17,7 +17,7 @@ with framework-owned input routing and nim-brokers as the domain event bus.
 | 2 | View tree, DrawContext clipping, mouse/key routing | done |
 | 3 | Layout engine (HBox/VBox/Grid/dock) | done |
 | 4 | Widget set with VCL-style closure slots | done |
-| 5 | Declarative layer (pragmas + `mount` macro) | pending |
+| 5 | Declarative layer (pragmas + `mount` macro) | done |
 | 6 | nim-brokers EventBus + network-event visualizer | pending |
 
 ## Build & test

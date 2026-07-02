@@ -20,6 +20,15 @@ proc newRadio*(items: seq[string], selected = 0, command = cmdNone): Radio =
     w = max(w, it.runeLen + 4)
   result.hint = (fixedHint(w), fixedHint(items.len))
 
+proc setItems*(r: Radio, items: seq[string]) =
+  r.items = items
+  r.selected = clamp(r.selected, 0, max(items.high, 0))
+  var w = 0
+  for it in items:
+    w = max(w, it.runeLen + 4)
+  r.hint = (fixedHint(w), fixedHint(items.len))
+  r.invalidate()
+
 proc select*(r: Radio, i: int) =
   if not r.enabled or i < 0 or i >= r.items.len or i == r.selected:
     return

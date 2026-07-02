@@ -22,6 +22,16 @@ proc newListView*(items: seq[string] = @[], command = cmdNone): ListView =
     w = max(w, it.runeLen)
   result.hint = (prefHint(w, stretch = 1), prefHint(items.len, stretch = 1))
 
+proc setItems*(l: ListView, items: seq[string]) =
+  l.items = items
+  l.selected = clamp(l.selected, 0, max(items.high, 0))
+  l.top = 0
+  var w = 0
+  for it in items:
+    w = max(w, it.runeLen)
+  l.hint = (prefHint(w, stretch = 1), prefHint(items.len, stretch = 1))
+  l.invalidate()
+
 proc ensureVisible*(l: ListView) =
   let h = max(l.bounds.h, 1)
   if l.selected < l.top:
