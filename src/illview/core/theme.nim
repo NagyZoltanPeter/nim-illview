@@ -75,5 +75,5 @@ proc defaultTheme*(): Theme =
   result.styles[tkBorder] = style(fgWhite, bgBlue)
   result.styles[tkShadow] = style(fgBlack, bgBlack, bright = true)
   result.styles[tkGroupBox] = style(fgWhite, bgBlue, bright = true)
-  result.styles[tkTableHeader] = style(fgBlack, bgCyan)
+  result.styles[tkTableHeader] = style(fgBlack, bgWhite) # distinct from tkSelection
   result.styles[tkProgress] = style(fgCyan, bgBlue, bright = true)

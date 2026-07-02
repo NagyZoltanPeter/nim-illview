@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="432" viewBox="0 0 720 432">
+<rect width="720" height="432" fill="#1c1c1c"/>
+<g font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14">
+<rect x="0" y="0" width="720" height="18" fill="#d0d0c8"/>
+<text x="0" y="14" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">  File   Help                                                                   </text>
+<rect x="0" y="18" width="720" height="18" fill="#20409a"/>
+<text x="0" y="32" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╔═══════════════════════════════ widget gallery ═══════════════════════════════╗</text>
+<rect x="0" y="36" width="720" height="18" fill="#20409a"/>
+<text x="0" y="50" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="50" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">Name:                                list item 01                             </text>
+<text x="711" y="50" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="54" width="720" height="18" fill="#20409a"/>
+<text x="0" y="68" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="68" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">                                     list item 02                             </text>
+<text x="711" y="68" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="72" width="720" height="18" fill="#20409a"/>
+<text x="0" y="86" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="86" textLength="315" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#c4a000">nim-illview                        </text>
+<text x="324" y="86" textLength="387" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">  list item 03                             </text>
+<text x="711" y="86" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="90" width="342" height="18" fill="#20409a"/>
+<rect x="342" y="90" width="369" height="18" fill="#178b8d"/>
+<rect x="711" y="90" width="9" height="18" fill="#20409a"/>
+<text x="0" y="104" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="342" y="104" textLength="378" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">list item 04                             ║</text>
+<rect x="0" y="108" width="720" height="18" fill="#20409a"/>
+<text x="0" y="122" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="122" textLength="117" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">┌────────────</text>
+<text x="126" y="122" textLength="81" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff"> options </text>
+<text x="207" y="122" textLength="504" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">────────────┐  list item 05                             </text>
+<text x="711" y="122" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="126" width="720" height="18" fill="#20409a"/>
+<text x="0" y="140" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="140" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">│[x] enable feature               │  list item 06                             </text>
+<text x="711" y="140" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="144" width="720" height="18" fill="#20409a"/>
+<text x="0" y="158" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="158" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">│( ) refc                         │  list item 07                             </text>
+<text x="711" y="158" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="162" width="720" height="18" fill="#20409a"/>
+<text x="0" y="176" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="176" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">│(•) orc                          │  list item 08                             </text>
+<text x="711" y="176" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="180" width="720" height="18" fill="#20409a"/>
+<text x="0" y="194" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="194" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">│( ) arc                          │  list item 09                             </text>
+<text x="711" y="194" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="198" width="720" height="18" fill="#20409a"/>
+<text x="0" y="212" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="212" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">└─────────────────────────────────┘  list item 10                             </text>
+<text x="711" y="212" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="216" width="720" height="18" fill="#20409a"/>
+<text x="0" y="230" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="230" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">                                     list item 11                             </text>
+<text x="711" y="230" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="234" width="720" height="18" fill="#20409a"/>
+<text x="0" y="248" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="248" textLength="315" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#34e2e2">███████████████ 62% █░░░░░░░░░░░░░░</text>
+<text x="711" y="248" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="252" width="342" height="18" fill="#20409a"/>
+<rect x="342" y="252" width="369" height="18" fill="#d0d0c8"/>
+<rect x="711" y="252" width="9" height="18" fill="#20409a"/>
+<text x="0" y="266" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="342" y="266" textLength="369" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">proto      status                        </text>
+<text x="711" y="266" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="270" width="9" height="18" fill="#20409a"/>
+<rect x="9" y="270" width="63" height="18" fill="#3f7d16"/>
+<rect x="72" y="270" width="270" height="18" fill="#20409a"/>
+<rect x="342" y="270" width="369" height="18" fill="#178b8d"/>
+<rect x="711" y="270" width="9" height="18" fill="#20409a"/>
+<text x="0" y="284" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="284" textLength="63" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[ Run ]</text>
+<text x="342" y="284" textLength="369" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">relay      up                            </text>
+<text x="711" y="284" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="288" width="720" height="18" fill="#20409a"/>
+<text x="0" y="302" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="302" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">                                     store      syncing                       </text>
+<text x="711" y="302" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="306" width="720" height="18" fill="#20409a"/>
+<text x="0" y="320" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="320" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">                                     filter     off                           </text>
+<text x="711" y="320" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="324" width="720" height="18" fill="#20409a"/>
+<text x="0" y="338" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="711" y="338" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="342" width="720" height="18" fill="#20409a"/>
+<text x="0" y="356" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="356" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">radio: orc                                                                    </text>
+<text x="711" y="356" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="360" width="720" height="18" fill="#20409a"/>
+<text x="0" y="374" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="374" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">list select: list item 04                                                     </text>
+<text x="711" y="374" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="378" width="720" height="18" fill="#20409a"/>
+<text x="0" y="392" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<text x="9" y="392" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">bus: UiAction(cmd: 120, sender: 7)                                            </text>
+<text x="711" y="392" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
+<rect x="0" y="396" width="720" height="18" fill="#20409a"/>
+<text x="0" y="410" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╚══════════════════════════════════════════════════════════════════════════════╝</text>
+<rect x="0" y="414" width="720" height="18" fill="#d0d0c8"/>
+<text x="9" y="428" textLength="90" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#cc4444"> F10 Menu </text>
+<text x="108" y="428" textLength="90" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#cc4444"> Esc Quit </text>
+</g>
+</svg>
