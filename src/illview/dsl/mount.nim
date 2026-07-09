@@ -305,6 +305,44 @@ macro mount*(T: typedesc): untyped =
                  proc(sender: `ftypId`) {.gcsafe, raises: [].} =
                    {.cast(gcsafe).}:
                      uiEmit(sender, `evId`))
+    # instance-ctx listeners (plan-3 D9): on: {EventType: "handler", ...} —
+    # each handler listens on THIS widget's brokerCtx, so the same event
+    # type on two widgets never cross-talks. All broker idents (listen,
+    # Future, asyncSpawn, async) are deliberately unresolvable in THIS
+    # module: quote leaves them raw and they bind at the expansion site
+    # (same sym-binding trap uievents.nim documents for `emit`).
+    let onArg = pragmaArg(fprag, "on")
+    if onArg != nil:
+      if onArg.kind != nnkTableConstr:
+        error("on: expects {EventType: \"handlerName\", ...}", onArg)
+      for pair in onArg:
+        if pair.kind != nnkExprColonExpr or pair[0].kind notin {nnkIdent, nnkSym} or
+           pair[1].kind notin {nnkStrLit, nnkRStrLit}:
+          error("on: entries must be EventType: \"handlerName\"", pair)
+        let evId = ident(if pair[0].kind == nnkSym: pair[0].strVal else: $pair[0])
+        let handler = ident(pair[1].strVal)
+        stmts.add quote do:
+          when compiles(`evId`.listen(`self`.`fname`.brokerCtx,
+              proc(): Future[void] {.async: (raises: []), gcsafe.} = discard)):
+            # payload-less event (e.g. Clicked): handler is proc(self)
+            discard `evId`.listen(`self`.`fname`.brokerCtx,
+              proc(): Future[void] {.async: (raises: []), gcsafe.} =
+                {.cast(gcsafe).}:
+                  `handler`(`self`))
+          else:
+            discard `evId`.listen(`self`.`fname`.brokerCtx,
+              proc(ev: `evId`): Future[void] {.async: (raises: []), gcsafe.} =
+                {.cast(gcsafe).}:
+                  when compiles(`handler`(`self`, ev)):
+                    `handler`(`self`, ev)
+                  else:
+                    `handler`(`self`))
+          # teardown rides the WIDGET's disposers: the listener lives on the
+          # widget's ctx and must drop before that ctx is released
+          `self`.`fname`.disposers.add(
+            proc() {.gcsafe, raises: [].} =
+              {.cast(gcsafe).}:
+                asyncSpawn `evId`.dropAllListeners(`self`.`fname`.brokerCtx))
     stmts.add quote do:
       add(`cont`, `self`.`fname`)
 

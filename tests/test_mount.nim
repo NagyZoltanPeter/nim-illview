@@ -1,13 +1,16 @@
 ## Phase 5 exit criteria: a declaratively-defined screen produces a tree
 ## structurally identical to a hand-built equivalent; `action:` sets the
 ## right command; `bindTo:` wires the right method. No terminal.
+## Phase 13 (plan-3 D9): `on:` installs ctx-scoped listeners per instance.
 
 import std/unittest
+import chronos
 import ../src/illview/core/[geometry, events, bus, view, routing]
 import ../src/illview/layout/layout
 import ../src/illview/widgets/[window, label, button, checkbox, input, textview]
 import ../src/illview/dsl/pragmas
 import ../src/illview/dsl/mount
+import ../src/illview/vocab
 
 const cmdRun = Command(42)
 
@@ -126,3 +129,74 @@ suite "mount(T)":
         it.add newLabel("row " & $i)
     check g.children.len == 3
     check Label(g.children[1]).text == "row 2"
+
+# --- on: pragma (plan-3 D9) ----------------------------------------------------
+
+type
+  CtxForm {.view, vbox.} = ref object of Group
+    run {.child, caption: "Run", on: {Clicked: "onCtxRun"}.}: Button
+    cancel {.child, caption: "Cancel", on: {Clicked: "onCtxCancel"},
+             bindTo: "onCancelSlot".}: Button
+    host {.child, on: {TextChanged: "onHostEdit"}.}: Input
+
+proc onCtxRun(self: CtxForm) {.gcsafe, raises: [].} =
+  {.cast(gcsafe).}:
+    evLog.add "ctx:run"
+
+proc onCtxCancel(self: CtxForm) {.gcsafe, raises: [].} =
+  {.cast(gcsafe).}:
+    evLog.add "ctx:cancel"
+
+proc onCancelSlot(self: CtxForm, sender: Button) {.gcsafe, raises: [].} =
+  {.cast(gcsafe).}:
+    evLog.add "slot:cancel"
+
+proc onHostEdit(self: CtxForm, ev: TextChanged) {.gcsafe, raises: [].} =
+  {.cast(gcsafe).}:
+    evLog.add "host:" & ev.text
+
+template pump() =
+  waitFor sleepAsync(5.milliseconds)
+
+suite "mount(T) on: pragma (plan-3 D9)":
+  setup:
+    evLog.setLen(0)
+
+  test "same event type, two buttons, no cross-talk; bindTo coexists":
+    let f = mount(CtxForm)
+    f.run.activate()
+    f.cancel.activate()
+    pump()
+    # suspension-free listener tasks run eagerly inside emit (asyncSpawn
+    # executes to the first await), so broker handlers land in call order
+    check evLog == @["ctx:run", "slot:cancel", "ctx:cancel"]
+    dispose(f)
+
+  test "payload arity: handler receives the typed event":
+    let f = mount(CtxForm)
+    f.host.insertText("ab") # one changed() for the whole insert
+    pump()
+    check evLog == @["host:ab"]
+    dispose(f)
+
+  test "two instances of the same form type are isolated":
+    let a = mount(CtxForm)
+    let b = mount(CtxForm)
+    a.run.activate()
+    pump()
+    check evLog == @["ctx:run"] # exactly one hit: a's listener only
+    b.cancel.activate()
+    pump()
+    check evLog == @["ctx:run", "slot:cancel", "ctx:cancel"]
+    dispose(a)
+    dispose(b)
+
+  test "dispose(form) tears down everything mount installed":
+    let f = mount(CtxForm)
+    let runCtx = f.run.brokerCtx
+    dispose(f)
+    pump() # let asyncSpawn'd drops settle
+    check not Clicked.hasListeners(runCtx)
+    f.run.activate() # ctx is inert now
+    pump()
+    check evLog.len == 0
