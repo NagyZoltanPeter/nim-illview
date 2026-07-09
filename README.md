@@ -123,6 +123,62 @@ discard SetPort.replaceProvider(DefaultBrokerContext,
     else: err("not a number"))                    # veto: field unchanged
 ```
 
+## Communication model: instance-ctx events & signals
+
+Every widget instance owns a **BrokerContext** — identity lives in the
+route, not the payload. The framework vocabulary (`illview/vocab`) defines
+the event/signal types ONCE; two buttons share the `Clicked` type but can
+never cross-talk, because each listener is bucketed under one widget's ctx:
+
+```nim
+type
+  ConnectForm {.view, vbox.} = ref object of Group
+    host {.child, bindValue: "hostVal",
+           on: {TextChanged: "onHostEdit", Submitted: "onHostDone"}.}: Input
+    prog {.child.}: ProgressBar
+    run    {.child, caption: "Run",   on: {Clicked: "onRun"}.}: Button
+    cancel {.child, caption: "Reset", on: {Clicked: "onReset"}.}: Button
+    hostVal: string
+
+uiEvents(ConnectForm)
+
+proc onRun(self: ConnectForm) {.gcsafe, raises: [].} = discard
+proc onHostEdit(self: ConnectForm, ev: TextChanged) {.gcsafe, raises: [].} =
+  discard # typed payload; ev.text
+```
+
+The reverse direction is a **SignalBroker** per directive — single handler
+per (type, ctx) = exactly the mounted widget. The model drives widgets it
+never imports, holding nothing but a ctx (a plain value, safe after
+dispose — signals just return `err`):
+
+```nim
+# async driver: stops by itself when the widget disappears
+for pct in countup(0, 100, 5):
+  if SetProgress.signal(form.prog.brokerCtx, SetProgress(value: pct)).isErr:
+    return
+  await sleepAsync(60.milliseconds)
+
+form.setHostVal("10.0.0.1")   # D10 writer: store field + SetText signal
+discard FocusMe.signal(form.run.brokerCtx)
+```
+
+| Direction | Mechanism | Declarative form |
+|-----------|-----------|------------------|
+| widget → form proc | vocab event on the widget's ctx | `on: {Clicked: "onRun"}` |
+| widget → view field | slot store (+ optional validation) | `bindValue` / `bindRequest` |
+| form → widget value | Set-signal on the widget's ctx | `form.setHostVal(v)` (generated) |
+| widget → model, semantic | app-defined event, default ctx | `emits: "RunRequested"` |
+| model → widget, decoupled | Set-signal via a stored ctx handle | wiring-time ctx handoff |
+
+Guidance: models listen **semantic by default** (`RunRequested` survives UI
+restructuring); instance-ctx listening is the escape hatch for genuinely
+widget-bound concerns (mirroring, metrics). Lifecycle: broker registrations
+hold strong refs — call `dispose(view)` exactly once when a subtree is
+permanently done (teardown + ctx recycling; `remove()` alone keeps wiring
+alive on purpose). See `examples/ex10_instance_ctx.nim` for two instances
+of one form living side by side.
+
 ## Live domain events
 
 Domain events fan out through the bus (exact or `prefix/*` wildcard topics)
@@ -202,6 +258,7 @@ nimble examples   # builds all of these into build/examples/
 | `ex06_netviz` | live network events through real nim-brokers |
 | `ex07_styling` | borders, shadows, color & focus overrides |
 | `ex09_bindings` | `bindValue`/`bindRequest`/`emits` round trip |
+| `ex10_instance_ctx` | instance-ctx events & signals: two forms, one event type, zero cross-talk |
 
 ## Development
 

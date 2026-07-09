@@ -23,7 +23,8 @@ task test, "Run the test suite":
 task examples, "Build all examples (POSIX)":
   mkDir "build/examples"
   for ex in ["ex00_echo", "ex01_loop", "ex02_windows", "ex03_layout",
-             "ex04_widgets_gallery", "ex05_declarative", "ex06_netviz", "ex07_styling", "ex09_bindings"]:
+             "ex04_widgets_gallery", "ex05_declarative", "ex06_netviz", "ex07_styling",
+             "ex09_bindings", "ex10_instance_ctx"]:
     exec "nim c --mm:orc --hints:off -o:build/examples/" & ex & " examples/" & ex & ".nim"
 
 task screenshots, "Regenerate the README screenshots (docs/assets/*.svg)":
