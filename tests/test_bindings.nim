@@ -11,6 +11,7 @@ import ../src/illview/dsl/pragmas
 import ../src/illview/dsl/mount
 import ../src/illview/dsl/uievents
 import ../src/illview/bus_brokers
+import ../src/illview/vocab # set<Field> writers signal on instance ctxs (D10)
 
 var handlerLog: seq[string]
 
@@ -77,6 +78,58 @@ suite "bindValue / bindRequest (plan-2 D4)":
     typeText(root, "000")       # now "42000" etc: provider vetoes
     check form.portVal == "p:42" # unchanged after veto
     SetPort.clearProvider()
+
+# --- set<Field> writers (plan-3 D10) --------------------------------------------
+
+suite "set<Field> writers (plan-3 D10)":
+  setup:
+    handlerLog.setLen(0)
+    let root = newGroup()
+    root.bounds = rect(0, 0, 60, 20)
+    let form = mount(BoundForm)
+    form.dock = dkFill
+    root.add form
+    root.arrangeChildren()
+
+  test "setter writes the store AND the widget; nothing re-emits":
+    var edits: seq[string]
+    check TextChanged.listen(form.name.brokerCtx,
+      proc(ev: TextChanged): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}: edits.add ev.text).isOk
+
+    form.setNameVal("nimbus")
+    waitFor sleepAsync(5.milliseconds)
+    check form.nameVal == "nimbus"
+    check form.name.text == "nimbus"
+    check edits.len == 0 # signal apply must not re-emit TextChanged
+
+    # user edit still emits exactly once and stores via bindValue
+    setFocus(root, form.name)
+    discard dispatchKey(root, keyEvent(Key.None, Rune('!')))
+    waitFor sleepAsync(5.milliseconds)
+    check form.nameVal == "nimbus!"
+    check edits == @["nimbus!"]
+
+    waitFor TextChanged.dropAllListeners(form.name.brokerCtx)
+    dispose(form)
+
+  test "bool setter drives the checkbox":
+    form.setAcceptVal(true)
+    waitFor sleepAsync(5.milliseconds)
+    check form.acceptVal == true
+    check form.accept.checked == true
+    dispose(form)
+
+  test "setter bypasses the bindRequest provider (writer is authoritative)":
+    check SetPort.replaceProvider(DefaultBrokerContext,
+      proc(value: string): Result[string, string] =
+        err("always veto")).isOk
+    form.setPortVal("9000") # provider must NOT run: no veto possible
+    waitFor sleepAsync(5.milliseconds)
+    check form.portVal == "9000"
+    check form.port.text == "9000"
+    SetPort.clearProvider()
+    dispose(form)
 
 suite "emits: auto-generated typed events (plan-2 D5)":
   test "button activation emits RunClicked with senderId":

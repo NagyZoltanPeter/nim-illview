@@ -17,10 +17,24 @@
 ## is already provided) — replace it via Name.replaceProvider for external
 ## validation/normalization (confirmed amendment to D4).
 ##
+## Per `bindValue: "field"` it additionally generates the INVERSE writer
+## (plan-3 D10, two-way binding):
+##
+##   proc set<Field>*(self: T, v: VT)   # store + Set-signal to the widget
+##
+## which writes the store field and signals the bound widget on its
+## instance ctx (Input/Editor -> SetText, Checkbox -> SetChecked,
+## Radio/ListView/Table -> SetSelected). The writer is authoritative: it
+## deliberately BYPASSES any bindRequest provider, and — like all signal
+## application — fires no change slots and re-emits nothing. Requires
+## illview/vocab in scope at the callsite. (Explicit set<Field> naming, not
+## a `field=` property: mount/uiEvents expand in the type's defining
+## module, where direct field access would shadow a same-named setter.)
+##
 ## Nim requires type generation at top level, which is why this cannot live
 ## inside mount(): call `uiEvents(MyForm)` right after the type section.
 
-import std/macros
+import std/[macros, strutils]
 import results
 import chronos
 import brokers
@@ -60,7 +74,7 @@ macro uiEvents*(T: typedesc): untyped =
   for identDefs in recList:
     if identDefs.kind != nnkIdentDefs:
       continue
-    let (_, fprag, ftyp) = fieldInfo(identDefs)
+    let (fname, fprag, ftyp) = fieldInfo(identDefs)
     let typeName = if ftyp.kind == nnkSym: ftyp.strVal else: ""
     let ftypId = ident(typeName)
 
@@ -126,3 +140,26 @@ macro uiEvents*(T: typedesc): untyped =
         if not isProvided(`reqId`):
           discard setProvider(`reqId`,
             proc(value: `vt`): Result[`vt`, string] = ok(value))
+
+    # two-way binding writer (plan-3 D10): set<Field> = store + Set-signal.
+    # Built with parseStmt so SetText/SetChecked/SetSelected stay raw and
+    # bind to illview/vocab at the expansion site (same trap as uiEmit).
+    let bindValArg = pragmaArg(fprag, "bindValue")
+    if bindValArg != nil and bindValArg.kind in {nnkStrLit, nnkRStrLit}:
+      let (sigName, sigField, vtName) =
+        case payloadKind(typeName)
+        of upText: ("SetText", "text", "string")
+        of upChecked: ("SetChecked", "checked", "bool")
+        of upSelected: ("SetSelected", "selected", "int")
+        of upNone: ("", "", "")
+      if sigName.len == 0:
+        error("bindValue: field type '" & typeName &
+              "' has no Set-signal for a set<Field> writer", bindValArg)
+      let storeName = bindValArg.strVal
+      result.add parseStmt(
+        "proc set" & capitalizeAscii(storeName) & "*(self: " & sym.strVal &
+        ", v: " & vtName & ") {.gcsafe, raises: [].} =\n" &
+        "  {.cast(gcsafe).}:\n" &
+        "    self." & storeName & " = v\n" &
+        "    discard " & sigName & ".signal(self." & $fname & ".brokerCtx, " &
+        sigName & "(" & sigField & ": v))")
