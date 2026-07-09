@@ -3,6 +3,7 @@
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
+import ../vocab
 
 type
   Radio* = ref object of View
@@ -19,6 +20,12 @@ proc newRadio*(items: seq[string], selected = 0, command = cmdNone): Radio =
   for it in items:
     w = max(w, it.runeLen + 4)
   result.hint = (fixedHint(w), fixedHint(items.len))
+  let r = result
+  r.installSignal(SetSelected):
+    # programmatic apply: no slot, no publish, no re-emit (plan-3 D8)
+    r.selected = clamp(sig.selected, 0, max(r.items.high, 0))
+    r.invalidate()
+  r.installFocusMe()
 
 proc setItems*(r: Radio, items: seq[string]) =
   r.items = items
@@ -36,6 +43,7 @@ proc select*(r: Radio, i: int) =
   if r.onSelect != nil:
     r.onSelect(r)
   r.publish(r.command)
+  SelectionChanged.emit(r.brokerCtx, SelectionChanged(selected: r.selected))
   r.invalidate()
 
 method draw*(r: Radio, dc: DrawContext) {.gcsafe, raises: [].} =

@@ -14,9 +14,11 @@
 ## simply no-op.
 
 import std/unicode
+import brokers/broker_context
 import ./geometry, ./theme, ./events, ./drawcontext, ./bus
 
 export bus.Command, bus.cmdNone, bus.UiAction
+export broker_context.BrokerContext
 
 type
   EventKind* = enum
@@ -36,6 +38,8 @@ type
 
   View* = ref object of RootObj
     id*: int # unique per process; UiAction.senderId
+    brokerCtx*: BrokerContext # instance route (plan-3 D7): vocab events out, signals in
+    disposers*: seq[proc() {.gcsafe, raises: [].}] # broker teardowns, run by dispose()
     bounds*: Rect # relative to parent's CONTENT area
     parent*: Group
     hint*: tuple[w, h: SizeHint] # content-size hints (border added on top)
@@ -76,10 +80,15 @@ type
 
 var gNextViewId: int # plain int: safe to touch from gcsafe code; single loop thread
 
+let gAppClassCtx = NewBrokerContext()
+  ## One classCtx for the whole process; every View gets an instanceCtx under
+  ## it (plan-3 D7). Recycled by dispose() via releaseInstanceCtx.
+
 proc initView*(v: View) =
   ## Every widget constructor must call this.
   inc gNextViewId
   v.id = gNextViewId
+  v.brokerCtx = newInstanceCtx(gAppClassCtx)
   v.visible = true
   v.enabled = true
   v.hint = (SizeHint(), SizeHint()) # defaults: max unbounded
@@ -240,6 +249,25 @@ proc releaseMouse*(v: View) {.gcsafe, raises: [].} =
   let r = v.root
   if r of Group and Group(r).mouseCapture == v:
     Group(r).mouseCapture = nil
+
+# --- broker teardown (plan-3 D11) ---------------------------------------------
+
+proc dispose*(v: View) {.gcsafe, raises: [].} =
+  ## Tear down broker wiring for v's subtree, leaves first: run the recorded
+  ## disposers (ctx-scoped listener drops, signal handler removal) and recycle
+  ## each view's brokerCtx. Deliberately NOT called by remove(): transient
+  ## reparenting (menus, window re-adds) must keep wiring alive — call dispose
+  ## exactly once, when a subtree is permanently done. Broker registrations
+  ## hold strong refs to the view (closure captures), so an undisposed view is
+  ## kept alive by the broker registry under refc and ORC alike.
+  if v of Group:
+    for c in Group(v).children:
+      dispose(c)
+  for d in v.disposers:
+    d()
+  v.disposers.setLen 0
+  releaseInstanceCtx(v.brokerCtx)
+  v.brokerCtx = BrokerContext(0) # inert: signals err, emits reach nobody
 
 # --- tree mutation ------------------------------------------------------------
 

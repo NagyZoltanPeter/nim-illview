@@ -2,6 +2,7 @@
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
+import ../vocab
 
 type
   Checkbox* = ref object of View
@@ -15,6 +16,12 @@ proc newCheckbox*(caption: string, checked = false, command = cmdNone): Checkbox
   initView(result)
   result.focusable = true
   result.hint = (fixedHint(caption.runeLen + 4), fixedHint(1))
+  let c = result
+  c.installSignal(SetChecked):
+    # programmatic apply: no slot, no publish, no re-emit (plan-3 D8)
+    c.checked = sig.checked
+    c.invalidate()
+  c.installFocusMe()
 
 proc toggle*(c: Checkbox) =
   if not c.enabled:
@@ -23,6 +30,7 @@ proc toggle*(c: Checkbox) =
   if c.onToggle != nil:
     c.onToggle(c)
   c.publish(c.command)
+  Toggled.emit(c.brokerCtx, Toggled(checked: c.checked))
   c.invalidate()
 
 method draw*(c: Checkbox, dc: DrawContext) {.gcsafe, raises: [].} =

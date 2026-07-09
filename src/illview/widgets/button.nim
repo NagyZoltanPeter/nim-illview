@@ -3,6 +3,7 @@
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
+import ../vocab
 
 type
   Button* = ref object of View
@@ -15,6 +16,7 @@ proc newButton*(caption: string, command = cmdNone): Button =
   initView(result)
   result.focusable = true
   result.hint = (fixedHint(caption.runeLen + 4), fixedHint(1))
+  result.installFocusMe()
 
 proc activate*(b: Button) =
   if not b.enabled:
@@ -22,6 +24,7 @@ proc activate*(b: Button) =
   if b.onClick != nil:
     b.onClick(b)
   b.publish(b.command)
+  Clicked.emit(b.brokerCtx) # instance-routed vocab event (plan-3 D8)
   b.invalidate()
 
 method draw*(b: Button, dc: DrawContext) {.gcsafe, raises: [].} =

@@ -2,6 +2,7 @@
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext]
+import ../vocab
 
 type
   Label* = ref object of View
@@ -16,6 +17,9 @@ proc newLabel*(text: string): Label =
   result = Label()
   initView(result)
   result.setText(text)
+  let l = result
+  l.installSignal(SetText):
+    l.setText(sig.text)
 
 method draw*(l: Label, dc: DrawContext) {.gcsafe, raises: [].} =
   dc.write(0, 0, l.text,

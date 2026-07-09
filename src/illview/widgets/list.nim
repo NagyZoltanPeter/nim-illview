@@ -3,6 +3,7 @@
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
+import ../vocab
 
 type
   ListView* = ref object of View
@@ -13,6 +14,14 @@ type
     onSelect*: proc(sender: ListView) {.gcsafe, raises: [].}
     onActivate*: proc(sender: ListView) {.gcsafe, raises: [].}
 
+proc ensureVisible*(l: ListView) =
+  let h = max(l.contentH, 1)
+  if l.selected < l.top:
+    l.top = l.selected
+  elif l.selected >= l.top + h:
+    l.top = l.selected - h + 1
+  l.top = clamp(l.top, 0, max(l.items.len - 1, 0))
+
 proc newListView*(items: seq[string] = @[], command = cmdNone): ListView =
   result = ListView(items: items, command: command)
   initView(result)
@@ -21,6 +30,14 @@ proc newListView*(items: seq[string] = @[], command = cmdNone): ListView =
   for it in items:
     w = max(w, it.runeLen)
   result.hint = (prefHint(w, stretch = 1), prefHint(items.len, stretch = 1))
+  let l = result
+  l.installSignal(SetSelected):
+    # programmatic apply: no slot, no re-emit (plan-3 D8)
+    if l.items.len > 0:
+      l.selected = clamp(sig.selected, 0, l.items.high)
+      l.ensureVisible()
+      l.invalidate()
+  l.installFocusMe()
 
 proc setItems*(l: ListView, items: seq[string]) =
   l.items = items
@@ -32,14 +49,6 @@ proc setItems*(l: ListView, items: seq[string]) =
   l.hint = (prefHint(w, stretch = 1), prefHint(items.len, stretch = 1))
   l.invalidate()
 
-proc ensureVisible*(l: ListView) =
-  let h = max(l.contentH, 1)
-  if l.selected < l.top:
-    l.top = l.selected
-  elif l.selected >= l.top + h:
-    l.top = l.selected - h + 1
-  l.top = clamp(l.top, 0, max(l.items.len - 1, 0))
-
 proc select*(l: ListView, i: int) =
   let ni = clamp(i, 0, l.items.high)
   if l.items.len == 0 or ni == l.selected:
@@ -48,6 +57,7 @@ proc select*(l: ListView, i: int) =
   l.ensureVisible()
   if l.onSelect != nil:
     l.onSelect(l)
+  SelectionChanged.emit(l.brokerCtx, SelectionChanged(selected: l.selected))
   l.invalidate()
 
 proc activate*(l: ListView) =
@@ -56,6 +66,7 @@ proc activate*(l: ListView) =
   if l.onActivate != nil:
     l.onActivate(l)
   l.publish(l.command)
+  Activated.emit(l.brokerCtx, Activated(selected: l.selected))
 
 method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
   let normal = l.styleOf(tkText)

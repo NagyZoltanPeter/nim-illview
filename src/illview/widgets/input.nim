@@ -5,6 +5,7 @@
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
+import ../vocab
 
 type
   Input* = ref object of View
@@ -34,10 +35,15 @@ proc newInput*(text = "", command = cmdNone): Input =
   result.hint = (prefHint(16, stretch = 1), fixedHint(1))
   result.runes = text.toRunes
   result.cursor = result.runes.len
+  let i = result
+  i.installSignal(SetText):
+    i.setText(sig.text) # programmatic apply: no onChange, no re-emit (D8)
+  i.installFocusMe()
 
 proc changed(i: Input) =
   if i.onChange != nil:
     i.onChange(i)
+  TextChanged.emit(i.brokerCtx, TextChanged(text: i.text))
   i.invalidate()
 
 proc ensureCursorVisible(i: Input) =
@@ -104,6 +110,7 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
       if i.onSubmit != nil:
         i.onSubmit(i)
       i.publish(i.command)
+      Submitted.emit(i.brokerCtx, Submitted(text: i.text))
     else:
       # printable rune with no Ctrl/Alt chord -> insert
       if k.rune.int32 >= 32 and k.keyMods * {modCtrl, modAlt} == {}:

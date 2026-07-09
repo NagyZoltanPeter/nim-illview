@@ -128,3 +128,34 @@ dedicated O_NONBLOCK read fd; termios raw mode set by illwill on fd 0 still
 applies because termios state is per-device. Note: `/dev/tty` (the alias
 device) is NOT usable here — macOS kqueue refuses to watch it. Fallback when
 no fd is a tty: the old stdin+O_NONBLOCK path (flags restored on stop).
+
+## 15. No echo-guard flag for signal application (plan-3 D8, Phase 12)
+
+Plan-3 D8 called for an `applying: bool` guard so inbound Set-signals don't
+re-emit outbound vocab events. Unnecessary: illview's programmatic setters
+(`setText`, direct field application in the signal handlers) have NEVER fired
+change slots — only user-driven edit paths call `changed()`/`onToggle`/etc.,
+and those are the only places the vocab emits live. Signal application
+therefore bypasses slots and emission by construction; no guard flag exists.
+Consequence (documented in vocab.nim): tier-1 slots do NOT observe
+signal-applied changes — same semantics programmatic setters always had.
+
+## 16. dispose() is explicit; remove()/close do NOT auto-dispose (plan-3 D11)
+
+Plan-3 wired dispose into `Desktop.remove`/`Window.close`. There is no
+`Window.close`, and `Group.remove` is used for transient reparenting (menu
+popups, window re-adds) where broker wiring must survive. Auto-dispose there
+would silently strip signal handlers from a view the app intends to re-add.
+`dispose(v)` is therefore an explicit lifecycle call: exactly once, when a
+subtree is permanently done. The strong-ref note stands: broker registrations
+keep undisposed views alive (registry global → plain leak under refc AND ORC,
+no cycle involved).
+
+## 17. core/view depends on brokers/broker_context (plan-3 D7, Phase 12)
+
+`bus.nim`/`view.nim` were the dependency-free bottom. `View.brokerCtx`
+requires `brokers/broker_context` — a leaf module (chronos-only) of
+nim-brokers; the broker MACHINERY (EventBroker/SignalBroker expansion) stays
+out of core and lives in `vocab.nim`. vocab also deliberately does not
+`export brokers`: event_broker re-exports std/tables, whose `Table` collides
+with the Table widget in the umbrella module.

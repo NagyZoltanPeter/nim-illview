@@ -5,6 +5,7 @@
 
 import std/[unicode, strutils]
 import ../core/[geometry, theme, view, drawcontext, events]
+import ../vocab
 
 type
   Editor* = ref object of View
@@ -14,11 +15,24 @@ type
     scrollX*, scrollY*: int
     onChange*: proc(sender: Editor) {.gcsafe, raises: [].}
 
+proc setText*(e: Editor, s: string) =
+  ## Programmatic replace: no onChange, no re-emit (plan-3 D8).
+  e.lines = s.splitLines
+  e.curLine = clamp(e.curLine, 0, e.lines.high)
+  e.curCol = clamp(e.curCol, 0, e.lines[e.curLine].runeLen)
+  e.scrollX = 0
+  e.scrollY = 0
+  e.invalidate()
+
 proc newEditor*(text = ""): Editor =
   result = Editor(lines: text.splitLines)
   initView(result)
   result.focusable = true
   result.hint = (prefHint(20, stretch = 1), prefHint(5, stretch = 1))
+  let e = result
+  e.installSignal(SetText):
+    e.setText(sig.text)
+  e.installFocusMe()
 
 proc text*(e: Editor): string =
   e.lines.join("\n")
@@ -33,6 +47,7 @@ proc lineLen(e: Editor, i: int): int =
 proc changed(e: Editor) =
   if e.onChange != nil:
     e.onChange(e)
+  TextChanged.emit(e.brokerCtx, TextChanged(text: e.text))
   e.invalidate()
 
 proc clampCursor(e: Editor) =

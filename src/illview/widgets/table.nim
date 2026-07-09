@@ -6,6 +6,7 @@
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
 import ../layout/layout
+import ../vocab
 
 type
   TableColumn* = object
@@ -30,12 +31,31 @@ proc recomputeHint(t: Table) =
     w += clamp(c.hint.pref, c.hint.min, c.hint.max)
   t.hint = (prefHint(w, stretch = 1), prefHint(t.rows.len + 1, stretch = 1))
 
+func viewportRows(t: Table): int =
+  max(t.contentH - 1, 1) # minus the header row
+
+proc ensureVisible*(t: Table) =
+  let h = t.viewportRows
+  if t.selected < t.top:
+    t.top = t.selected
+  elif t.selected >= t.top + h:
+    t.top = t.selected - h + 1
+  t.top = clamp(t.top, 0, max(t.rows.len - 1, 0))
+
 proc newTable*(columns: seq[TableColumn] = @[],
                rows: seq[seq[string]] = @[], command = cmdNone): Table =
   result = Table(columns: columns, rows: rows, command: command)
   initView(result)
   result.focusable = true
   result.recomputeHint()
+  let t = result
+  t.installSignal(SetSelected):
+    # programmatic apply: no slot, no re-emit (plan-3 D8)
+    if t.rows.len > 0:
+      t.selected = clamp(sig.selected, 0, t.rows.high)
+      t.ensureVisible()
+      t.invalidate()
+  t.installFocusMe()
 
 proc setRows*(t: Table, rows: seq[seq[string]]) =
   t.rows = rows
@@ -49,17 +69,6 @@ proc addRow*(t: Table, row: seq[string]) =
   t.recomputeHint()
   t.invalidate()
 
-func viewportRows(t: Table): int =
-  max(t.contentH - 1, 1) # minus the header row
-
-proc ensureVisible*(t: Table) =
-  let h = t.viewportRows
-  if t.selected < t.top:
-    t.top = t.selected
-  elif t.selected >= t.top + h:
-    t.top = t.selected - h + 1
-  t.top = clamp(t.top, 0, max(t.rows.len - 1, 0))
-
 proc select*(t: Table, i: int) =
   let ni = clamp(i, 0, t.rows.high)
   if t.rows.len == 0 or ni == t.selected:
@@ -68,6 +77,7 @@ proc select*(t: Table, i: int) =
   t.ensureVisible()
   if t.onSelect != nil:
     t.onSelect(t)
+  SelectionChanged.emit(t.brokerCtx, SelectionChanged(selected: t.selected))
   t.invalidate()
 
 proc activate*(t: Table) =
@@ -76,6 +86,7 @@ proc activate*(t: Table) =
   if t.onActivate != nil:
     t.onActivate(t)
   t.publish(t.command)
+  Activated.emit(t.brokerCtx, Activated(selected: t.selected))
 
 func fit(s: string, w: int): string =
   ## First w runes (draw clipping would bleed into the next column).

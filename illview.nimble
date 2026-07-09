@@ -11,12 +11,13 @@ skipDirs      = @["tests", "examples", "docs"]
 
 requires "nim >= 2.2.4"
 requires "chronos >= 4.0.0"
-requires "brokers >= 3.2.0" # nim-brokers; used by illview/bus_brokers (Phase 6)
+requires "brokers >= 3.3.0" # nim-brokers; bus_brokers (Phase 6) + instance-ctx vocab (Phase 12)
 
 task test, "Run the test suite":
   mkDir "build/tests"
   for t in ["test_decoder", "test_layout", "test_render_snapshot",
-            "test_routing", "test_widgets", "test_mount", "test_bus_brokers", "test_bindings"]:
+            "test_routing", "test_widgets", "test_mount", "test_bus_brokers",
+            "test_bindings", "test_ctx_vocab"]:
     exec "nim c -r --mm:orc --hints:off -o:build/tests/" & t & " tests/" & t & ".nim"
 
 task examples, "Build all examples (POSIX)":

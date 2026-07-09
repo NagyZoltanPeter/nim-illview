@@ -3,6 +3,7 @@
 
 import std/strformat
 import ../core/[geometry, theme, view, drawcontext]
+import ../vocab
 
 type
   ProgressBar* = ref object of View
@@ -14,6 +15,13 @@ proc newProgressBar*(maxValue = 100, showPercent = true): ProgressBar =
   result = ProgressBar(maxValue: max(maxValue, 1), showPercent: showPercent)
   initView(result)
   result.hint = (prefHint(20, stretch = 1), fixedHint(1))
+  let p = result
+  p.installSignal(SetProgress):
+    # setValue, but that is declared below; same clamp+invalidate
+    let nv = clamp(sig.value, 0, p.maxValue)
+    if nv != p.value:
+      p.value = nv
+      p.invalidate()
 
 proc setValue*(p: ProgressBar, v: int) =
   let nv = clamp(v, 0, p.maxValue)
