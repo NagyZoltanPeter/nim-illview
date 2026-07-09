@@ -11,7 +11,7 @@ skipDirs      = @["tests", "examples", "docs"]
 
 requires "nim >= 2.2.4"
 requires "chronos >= 4.0.0"
-requires "brokers >= 3.1.4" # nim-brokers; used by illview/bus_brokers (Phase 6)
+requires "brokers >= 3.2.0" # nim-brokers; used by illview/bus_brokers (Phase 6)
 
 task test, "Run the test suite":
   mkDir "build/tests"
