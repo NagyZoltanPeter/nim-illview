@@ -3,16 +3,22 @@
 ## (Enter), onFocus / onBlur (focus in / out) — deliberately NOT collapsed
 ## into one event (plan Phase 4 note).
 
-import std/unicode
+import std/[unicode, strutils]
+import results
 import ../core/[geometry, theme, view, drawcontext, events, bus]
 import ../vocab
 
 type
+  KeyFilter* = proc(r: Rune, text: string): bool {.gcsafe, raises: [].}
+    ## Per-key validator (plan-4 D18): given a candidate rune and the current
+    ## text, return true to accept it. Rejected runes are swallowed silently.
+
   Input* = ref object of View
     runes: seq[Rune]
     cursor*: int  # rune index, 0..runes.len
     scrollX*: int # first visible rune
     command*: Command
+    filter*: KeyFilter # nil = accept everything
     onChange*: proc(sender: Input) {.gcsafe, raises: [].}
     onSubmit*: proc(sender: Input) {.gcsafe, raises: [].}
     onFocus*: proc(sender: Input) {.gcsafe, raises: [].}
@@ -53,14 +59,20 @@ proc ensureCursorVisible(i: Input) =
   elif i.cursor >= i.scrollX + w:
     i.scrollX = i.cursor - w + 1
 
+proc accepts(i: Input, r: Rune): bool =
+  i.filter == nil or i.filter(r, i.text)
+
 proc insertText*(i: Input, s: string) =
   var at = i.cursor
+  var any = false
   for r in s.runes:
-    if r.int32 >= 32: # strip control chars (incl. newlines from paste)
+    if r.int32 >= 32 and i.accepts(r): # control chars + rejected runes dropped
       i.runes.insert(r, at)
       inc at
+      any = true
   i.cursor = at
-  i.changed()
+  if any:
+    i.changed()
 
 method draw*(i: Input, dc: DrawContext) {.gcsafe, raises: [].} =
   let focused = i.isFocused
@@ -112,11 +124,13 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
       i.publish(i.command)
       Submitted.emit(i.brokerCtx, Submitted(text: i.text))
     else:
-      # printable rune with no Ctrl/Alt chord -> insert
+      # printable rune with no Ctrl/Alt chord -> insert (if the filter allows)
       if k.rune.int32 >= 32 and k.keyMods * {modCtrl, modAlt} == {}:
-        i.runes.insert(k.rune, i.cursor)
-        inc i.cursor
-        i.changed()
+        if i.accepts(k.rune):
+          i.runes.insert(k.rune, i.cursor)
+          inc i.cursor
+          i.changed()
+        # rejected: consume the key, no change (silent, per D18)
       else:
         return false
     return true
@@ -139,3 +153,44 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
   else:
     discard
   false
+
+# --- shipped validators (plan-4 D18) -----------------------------------------
+
+proc digitsOnly*(): KeyFilter =
+  ## Accept only ASCII digits.
+  (proc(r: Rune, text: string): bool {.gcsafe, raises: [].} =
+    r.int32 >= ord('0') and r.int32 <= ord('9'))
+
+proc charSet*(allowed: string): KeyFilter =
+  ## Accept only runes present in `allowed`.
+  let set = allowed.toRunes
+  (proc(r: Rune, text: string): bool {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}: r in set)
+
+proc maxLen*(n: int): KeyFilter =
+  ## Accept only while the text is shorter than `n` runes.
+  (proc(r: Rune, text: string): bool {.gcsafe, raises: [].} =
+    text.runeLen < n)
+
+proc allOf*(filters: varargs[KeyFilter]): KeyFilter =
+  ## Compose: accept only when every filter accepts (e.g. digitsOnly + maxLen).
+  let fs = @filters
+  (proc(r: Rune, text: string): bool {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}:
+      for f in fs:
+        if not f(r, text): return false
+      true)
+
+proc intRange*(lo, hi: int): proc(value: string): Result[string, string]
+    {.gcsafe, raises: [].} =
+  ## A bindRequest provider (value-level): vetoes out-of-range integers, lets
+  ## an empty in-progress value through. Pair with Name.replaceProvider.
+  (proc(value: string): Result[string, string] {.gcsafe, raises: [].} =
+    if value.len == 0:
+      return ok(value)
+    try:
+      let n = parseInt(value)
+      if n < lo or n > hi: err("out of range [" & $lo & ".." & $hi & "]")
+      else: ok(value)
+    except ValueError:
+      err("not an integer"))
