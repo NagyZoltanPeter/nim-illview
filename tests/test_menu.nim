@@ -5,6 +5,8 @@
 ## terminal.
 
 import std/[unittest, unicode]
+import chronos
+import brokers
 import ../src/illview/core/[geometry, view, events, bus, routing]
 import ../src/illview/widgets/menu
 
@@ -92,3 +94,86 @@ suite "menu command gating (D19, deferred from P22)":
     # a still-enabled accelerator works
     discard dispatchKey(top(), keyEvent(Key.None, "q".runeAt(0)))
     check published == @[Command(4)]
+
+# --- iteration-5: persistent popups + onActivate + declarative + context -----
+
+var fired: seq[string]
+
+EventBroker:
+  type OpenReq = object
+    tag*: int
+
+suite "persistent popups (iteration-5, item 2)":
+  test "opening the same menu twice reuses ONE popup object":
+    let root = newHarness()
+    let mb = fileMenu(); root.add mb; root.arrangeChildren()
+    discard dispatchKey(root, keyEvent(Key.None, "f".runeAt(0), {modAlt}))
+    let first = top()
+    discard dispatchKey(top(), keyEvent(Key.Escape))
+    check modals.len == 0
+    discard dispatchKey(root, keyEvent(Key.None, "f".runeAt(0), {modAlt}))
+    check top() == first # same object — built once, re-added, not rebuilt
+
+suite "onActivate + declarative items (iteration-5, 2b)":
+  setup:
+    fired.setLen(0)
+
+  test "item(label, closure) runs onActivate and closes the chain":
+    let root = newHarness()
+    let mb = menuBar(menu("~F~ile", @[
+      item("~R~un", proc() {.gcsafe, raises: [].} =
+        {.cast(gcsafe).}: fired.add "run"),
+      sep(),
+      item("~Q~uit", Command(9))]))
+    mb.dock = dkTop; root.add mb; root.arrangeChildren()
+    discard dispatchKey(root, keyEvent(Key.None, "f".runeAt(0), {modAlt}))
+    discard dispatchKey(top(), keyEvent(Key.None, "r".runeAt(0)))
+    check fired == @["run"]
+    check modals.len == 0
+
+  test "item(label, EventType) auto-emits the broker event":
+    var got = 0
+    check OpenReq.listen(proc(ev: OpenReq): Future[void] {.async: (raises: []), gcsafe.} =
+      {.cast(gcsafe).}: inc got).isOk
+    let root = newHarness()
+    let mb = menuBar(menu("~F~ile", @[item("~O~pen", OpenReq)]))
+    mb.dock = dkTop; root.add mb; root.arrangeChildren()
+    discard dispatchKey(root, keyEvent(Key.None, "f".runeAt(0), {modAlt}))
+    discard dispatchKey(top(), keyEvent(Key.None, "o".runeAt(0)))
+    waitFor sleepAsync(10.milliseconds)
+    check got == 1
+    waitFor OpenReq.dropAllListeners()
+
+  test "sep() is skipped by keyboard navigation":
+    let root = newHarness()
+    let mb = menuBar(menu("~F~ile", @[
+      item("one", proc() {.gcsafe, raises: [].} = ({.cast(gcsafe).}: fired.add "one")),
+      sep(),
+      item("two", proc() {.gcsafe, raises: [].} = ({.cast(gcsafe).}: fired.add "two"))]))
+    mb.dock = dkTop; root.add mb; root.arrangeChildren()
+    discard dispatchKey(root, keyEvent(Key.None, "f".runeAt(0), {modAlt}))
+    discard dispatchKey(top(), keyEvent(Key.Down)) # one -> skips sep -> two
+    discard dispatchKey(top(), keyEvent(Key.Enter))
+    check fired == @["two"]
+
+suite "ContextMenu (iteration-5, item 2)":
+  test "openAt remembers the source; reuses one object; action reads it":
+    let root = newHarness()
+    let target = newGroup()
+    target.bounds = rect(0, 0, 4, 1)
+    root.add target
+    root.arrangeChildren()
+    var ctx: ContextMenu
+    ctx = newContextMenu(@[
+      item("Inspect", proc() {.gcsafe, raises: [].} =
+        {.cast(gcsafe).}: fired.add "inspect:" & $ctx.source.id)])
+    fired.setLen(0)
+    ctx.openAt(target, point(5, 5))
+    check modals.len == 1
+    check ContextMenu(top()).source == View(target)
+    discard dispatchKey(top(), keyEvent(Key.Enter))
+    check fired == @["inspect:" & $target.id]
+    check modals.len == 0
+    # reuse: same object next open
+    ctx.openAt(target, point(1, 1))
+    check top() == ctx
