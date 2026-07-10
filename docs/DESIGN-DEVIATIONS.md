@@ -191,3 +191,22 @@ deferred to Phase 23, where the menu is already being reworked for submenus —
 doing both in one pass avoids touching menu.nim twice. Alt+letter hotkeys cover
 Button/Checkbox/Label in P22; **menubar** top-level accelerators also land with
 the P23 menu rework.
+
+## 21. instanceCtx recycling dropped; back to nim-brokers 3.2.0 (iteration 5)
+
+Iteration 3 (deviation #16) had `dispose()` call `releaseInstanceCtx` to recycle
+a View's broker instanceCtx id, needing a local nim-brokers 3.3.0. That whole
+mechanism is **reverted**: `requires "brokers >= 3.2.0"`, `dispose()` no longer
+recycles (it drops listeners via the recorded disposers and marks the ctx
+inert), and the one `hasListeners` test assertion became a behavioral check
+(activate a disposed widget → reaches nobody).
+
+Rationale: recycling was needed only because transient views (menus, dialogs)
+were **created fresh on every open** and never returned their id — churn against
+a 16-bit, monotonic instanceCtx counter. The framework already separates object
+lifetime from tree membership (`remove()` keeps wiring; `dispose()` is the
+explicit teardown, deviation #16). Adopting **persistent-object /
+transient-membership** — build a popup/dialog/context-menu once, `add`/`remove`
+it on show/hide, `dispose` only at app teardown — allocates one instanceCtx per
+object for its whole life, so there is no churn and nothing to recycle. The
+persistent MenuBar popups + ContextMenu widget realize this.

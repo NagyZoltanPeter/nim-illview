@@ -193,11 +193,11 @@ suite "mount(T) on: pragma (plan-3 D9)":
 
   test "dispose(form) tears down everything mount installed":
     let f = mount(CtxForm)
-    let runCtx = f.run.brokerCtx
     dispose(f)
     pump() # let asyncSpawn'd drops settle
-    check not Clicked.hasListeners(runCtx)
-    f.run.activate() # ctx is inert now
+    # behavioral check (3.2.0 has no hasListeners): the ctx is inert, so
+    # activating the disposed widget reaches nobody.
+    f.run.activate()
     pump()
     check evLog.len == 0
 

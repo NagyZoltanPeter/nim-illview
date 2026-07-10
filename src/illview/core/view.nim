@@ -98,7 +98,7 @@ var gNextViewId: int # plain int: safe to touch from gcsafe code; single loop th
 
 let gAppClassCtx = NewBrokerContext()
   ## One classCtx for the whole process; every View gets an instanceCtx under
-  ## it (plan-3 D7). Recycled by dispose() via releaseInstanceCtx.
+  ## it (plan-3 D7). The id is not recycled (nim-brokers 3.2.0) — see dispose().
 
 proc initView*(v: View) =
   ## Every widget constructor must call this.
@@ -294,19 +294,23 @@ proc releaseMouse*(v: View) {.gcsafe, raises: [].} =
 
 proc dispose*(v: View) {.gcsafe, raises: [].} =
   ## Tear down broker wiring for v's subtree, leaves first: run the recorded
-  ## disposers (ctx-scoped listener drops, signal handler removal) and recycle
-  ## each view's brokerCtx. Deliberately NOT called by remove(): transient
+  ## disposers (ctx-scoped listener drops, signal handler removal) and mark
+  ## each view's brokerCtx inert. Deliberately NOT called by remove(): transient
   ## reparenting (menus, window re-adds) must keep wiring alive — call dispose
   ## exactly once, when a subtree is permanently done. Broker registrations
   ## hold strong refs to the view (closure captures), so an undisposed view is
   ## kept alive by the broker registry under refc and ORC alike.
+  ##
+  ## nim-brokers 3.2.0: the instanceCtx id is NOT reclaimed here (no
+  ## releaseInstanceCtx). We rely on persistent-object / transient-membership
+  ## instead of churn (build a popup/dialog once, add/remove it, dispose only
+  ## at teardown), so the monotonic instanceCtx counter is not pressured.
   if v of Group:
     for c in Group(v).children:
       dispose(c)
   for d in v.disposers:
     d()
   v.disposers.setLen 0
-  releaseInstanceCtx(v.brokerCtx)
   v.brokerCtx = BrokerContext(0) # inert: signals err, emits reach nobody
 
 # --- tree mutation ------------------------------------------------------------
