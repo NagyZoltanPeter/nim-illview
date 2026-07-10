@@ -25,6 +25,19 @@ template dock*(d: Dock) {.pragma.}
 template stretch*(n: int) {.pragma.}
   ## Stretch weight (applied to both axes of the field's size hint).
 
+template alignSelf*(a: Align) {.pragma.}
+  ## Cross-axis (box) / in-cell (grid, form) placement of the child:
+  ## alStretch (default), alStart, alCenter, alEnd (plan-4 D14). Named
+  ## `alignSelf` (not `align`) to avoid Nim's built-in {.align.} pragma.
+
+template anchors*(edges: untyped) {.pragma.}
+  ## Edge-anchor a dkNone child to the given parent edges (plan-4 D14):
+  ## both edges of an axis => stretch, one => slide, none => stay put.
+  ## `edges` is a `set[Anchor]` literal, e.g. {aLeft, aRight}.
+
+template padding*(n: int) {.pragma.}
+  ## Content inset in cells; composes with the border (plan-4 D14).
+
 template hbox*() {.pragma.}
   ## Lay the children out in a horizontal box (type-level).
 
@@ -34,8 +47,12 @@ template vbox*() {.pragma.}
 template grid*(cols: int) {.pragma.}
   ## Lay the children out in a grid with `cols` columns (type-level).
 
+template form*() {.pragma.}
+  ## Lay the children out as a two-column form — (label, control) pairs;
+  ## column 0 auto-sizes to the widest label, column 1 stretches (type-level).
+
 template spacing*(n: int) {.pragma.}
-  ## Spacing for the hbox/vbox/grid container (type-level).
+  ## Spacing for the hbox/vbox/grid/form container (type-level).
 
 template action*(c: Command) {.pragma.}
   ## Broker command: the widget auto-publishes UiAction(c, id) on activation.

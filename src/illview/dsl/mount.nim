@@ -204,6 +204,12 @@ macro mount*(T: typedesc): untyped =
       inner.dock = dkFill
       add(Group(`self`), inner)
       let `cont`: Group = inner
+  elif pragmaArg(tprag, "form") != nil:
+    stmts.add quote do:
+      let inner = newFormLayout(`spacing`)
+      inner.dock = dkFill
+      add(Group(`self`), inner)
+      let `cont`: Group = inner
   else:
     stmts.add quote do:
       let `cont`: Group = Group(`self`)
@@ -242,6 +248,18 @@ macro mount*(T: typedesc): untyped =
     if stretchArg != nil:
       stmts.add quote do:
         setStretch(`self`.`fname`, `stretchArg`)
+    let alignArg = pragmaArg(fprag, "alignSelf")
+    if alignArg != nil:
+      stmts.add quote do:
+        `self`.`fname`.align = `alignArg`
+    let anchorsArg = pragmaArg(fprag, "anchors")
+    if anchorsArg != nil:
+      stmts.add quote do:
+        `self`.`fname`.anchor.edges = `anchorsArg`
+    let paddingArg = pragmaArg(fprag, "padding")
+    if paddingArg != nil:
+      stmts.add quote do:
+        `self`.`fname`.padding = `paddingArg`
     let actionArg = pragmaArg(fprag, "action")
     if actionArg != nil:
       stmts.add quote do:

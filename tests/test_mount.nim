@@ -200,3 +200,41 @@ suite "mount(T) on: pragma (plan-3 D9)":
     f.run.activate() # ctx is inert now
     pump()
     check evLog.len == 0
+
+# --- plan-4 D14: form container + align/anchors/padding field pragmas ---------
+
+type
+  FormScreen {.view, form, spacing: 1.} = ref object of Group
+    nameLbl {.child, caption: "Name".}: Label
+    name {.child.}: Input
+    noteLbl {.child, caption: "Note", alignSelf: alEnd.}: Label
+    note {.child, padding: 1.}: Input
+
+  AnchoredScreen {.view.} = ref object of Group
+    body {.child, anchors: {aLeft, aTop, aRight, aBottom}.}: TextView
+
+suite "mount(T) plan-4 layout pragmas":
+  test "form: container is a FormLayout and lays out label/control pairs":
+    let f = mount(FormScreen)
+    f.bounds = rect(0, 0, 30, 6)
+    check f.children.len == 1
+    check f.children[0] of FormLayout      # form pragma selected the container
+    f.arrange(rect(0, 0, 30, 6))
+    # label column auto-sizes to widest label ("Name"/"Note" => 4); col1 fills
+    check f.name.bounds.x == 5             # 4-wide label col + spacing 1
+    check f.note.bounds.x == 5
+
+  test "align + padding pragmas reach the widgets":
+    let f = mount(FormScreen)
+    check f.noteLbl.align == alEnd
+    check f.note.padding == 1
+
+  test "anchors pragma sets the edge set; child stretches with the parent":
+    let s = mount(AnchoredScreen)
+    check s.body.anchor.edges == {aLeft, aTop, aRight, aBottom}
+    s.body.bounds = rect(1, 1, 8, 4)
+    s.bounds = rect(0, 0, 10, 6)
+    s.arrangeChildren()                    # capture at 10x6
+    s.bounds = rect(0, 0, 20, 10)          # dw=10, dh=4
+    s.arrangeChildren()
+    check s.body.bounds == rect(1, 1, 18, 8)

@@ -12,6 +12,19 @@ func satAdd(a, b: int): int =
   if a == high(int) or b == high(int) or a > high(int) - b: high(int)
   else: a + b
 
+func alignSpan*(a: Align, avail: int, h: SizeHint): tuple[off, size: int] =
+  ## Place a child of hint `h` within `avail` cells per `a` (plan-4 D14).
+  ## alStretch fills the span (clamped to max) at offset 0 — the historical
+  ## behavior; the others size to pref and offset start/center/end.
+  if a == alStretch:
+    return (0, clamp(avail, h.min, h.max))
+  let size = clamp(h.pref, h.min, min(h.max, avail))
+  let off = case a
+    of alStart, alStretch: 0
+    of alCenter: max((avail - size) div 2, 0)
+    of alEnd: max(avail - size, 0)
+  (off, size)
+
 proc distribute*(total: int, hints: seq[SizeHint], spacing = 0): seq[int] =
   ## Sizes along one axis for children with `hints` in `total` cells
   ## (minus spacing between items). Deterministic; rounding remainders are
@@ -147,11 +160,17 @@ method arrange*(b: BoxLayout, r: Rect) {.gcsafe, raises: [].} =
   let sizes = distribute(mainTotal, main, b.spacing)
   var pos = 0
   for i, c in kids:
-    let crossSize = clamp(crossTotal, cross[i].min, cross[i].max)
+    # alStretch keeps the historical cross clamp-to-max; other aligns size to
+    # pref and offset within the cross span (plan-4 D14).
+    let (coff, csize) =
+      if c.align == alStretch:
+        (0, clamp(crossTotal, cross[i].min, cross[i].max))
+      else:
+        alignSpan(c.align, crossTotal, cross[i])
     if b.axis == axH:
-      c.arrange(rect(pos, 0, sizes[i], crossSize))
+      c.arrange(rect(pos, coff, sizes[i], csize))
     else:
-      c.arrange(rect(0, pos, crossSize, sizes[i]))
+      c.arrange(rect(coff, pos, csize, sizes[i]))
     pos += sizes[i] + b.spacing
 
 # --- Grid --------------------------------------------------------------------
@@ -217,4 +236,80 @@ method arrange*(g: Grid, r: Rect) {.gcsafe, raises: [].} =
   for i, c in kids:
     let col = i mod g.cols
     let row = i div g.cols
-    c.arrange(rect(xs[col], ys[row], widths[col], heights[row]))
+    if c.align == alStretch:
+      # historical grid behavior: fill the whole cell (ignores child max)
+      c.arrange(rect(xs[col], ys[row], widths[col], heights[row]))
+    else:
+      let m = c.outerHints()
+      let (xo, ws) = alignSpan(c.align, widths[col], m.w)
+      let (yo, hs) = alignSpan(c.align, heights[row], m.h)
+      c.arrange(rect(xs[col] + xo, ys[row] + yo, ws, hs))
+
+# --- FormLayout --------------------------------------------------------------
+
+type
+  FormLayout* = ref object of Group
+    ## Two-column form (plan-4 D14): children are (label, control) pairs in
+    ## order. Column 0 auto-sizes to the widest label's pref; column 1 takes
+    ## the rest and stretches. A trailing unpaired child gets its own row's
+    ## label column. Per-child `align` still applies within each cell.
+    spacing*: int
+
+proc newFormLayout*(spacing = 0): FormLayout =
+  result = FormLayout(spacing: spacing)
+  initView(result)
+
+proc formDims(f: FormLayout): tuple[labelW, ctrlW: int, rows: seq[SizeHint]] =
+  ## Column-0 (label) and column-1 (control) pref widths and per-row height
+  ## hints, aggregated over the (label, control) pairs.
+  let kids = f.visibleChildren
+  var i = 0
+  while i < kids.len:
+    let lw = kids[i].outerHints().w
+    result.labelW = max(result.labelW, clamp(lw.pref, lw.min, lw.max))
+    var rh = kids[i].outerHints().h
+    if i + 1 < kids.len:
+      let cm = kids[i + 1].outerHints()
+      result.ctrlW = max(result.ctrlW, clamp(cm.w.pref, cm.w.min, cm.w.max))
+      rh.min = max(rh.min, cm.h.min)
+      rh.pref = max(rh.pref, clamp(cm.h.pref, cm.h.min, cm.h.max))
+      rh.max = max(rh.max, cm.h.max)
+    result.rows.add rh
+    i += 2
+
+method measure*(f: FormLayout): tuple[w, h: SizeHint] {.gcsafe, raises: [].} =
+  let (labelW, ctrlW, rows) = f.formDims()
+  let base = labelW + f.spacing
+  result.w = SizeHint(min: base, pref: base + ctrlW, max: high(int),
+                      stretch: max(f.hint.w.stretch, 1))
+  result.h = combineMain(rows, f.spacing)
+  result.h.stretch = f.hint.h.stretch
+
+method arrange*(f: FormLayout, r: Rect) {.gcsafe, raises: [].} =
+  f.bounds = r
+  let kids = f.visibleChildren
+  if kids.len == 0:
+    return
+  let (labelW, _, rows) = f.formDims()
+  let cr = f.clientRect
+  let heights = distribute(cr.h, rows, f.spacing)
+  let col0 = min(labelW, cr.w)
+  let col1x = col0 + f.spacing
+  let col1w = max(cr.w - col1x, 0)
+  var y = 0
+  var i = 0
+  var rowIdx = 0
+  while i < kids.len:
+    let rh = heights[rowIdx]
+    let lm = kids[i].outerHints()
+    let (lxo, lws) = alignSpan(kids[i].align, col0, lm.w)
+    let (lyo, lhs) = alignSpan(kids[i].align, rh, lm.h)
+    kids[i].arrange(rect(lxo, y + lyo, lws, lhs))
+    if i + 1 < kids.len:
+      let cm = kids[i + 1].outerHints()
+      let (cxo, cws) = alignSpan(kids[i + 1].align, col1w, cm.w)
+      let (cyo, chs) = alignSpan(kids[i + 1].align, rh, cm.h)
+      kids[i + 1].arrange(rect(col1x + cxo, y + cyo, cws, chs))
+    y += rh + f.spacing
+    i += 2
+    inc rowIdx

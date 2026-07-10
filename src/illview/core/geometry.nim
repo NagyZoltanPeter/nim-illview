@@ -13,6 +13,20 @@ type
   Axis* = enum
     axH, axV
 
+  Align* = enum
+    ## Cross-axis (box) / in-cell (grid) placement of a child within the
+    ## space allotted to it. alStretch (default) fills the span — the
+    ## pre-iteration-4 behavior; the others size the child to its pref hint
+    ## and position it at the start / center / end of the span.
+    alStretch, alStart, alCenter, alEnd
+
+  Anchor* = enum
+    ## Edge-anchor mode for a dkNone child (plan-4 D14): each set edge keeps
+    ## a constant offset from the parent's matching content edge as the
+    ## parent resizes. Both edges of an axis => the child stretches on that
+    ## axis; one edge => it slides; neither => it stays put (top-left).
+    aLeft, aTop, aRight, aBottom
+
   SizeHint* = object
     min*: int
     pref*: int

@@ -170,3 +170,13 @@ wake-up (the kernel thread-pool callback only signals; it bends the
 single-thread directive in letter, not in spirit), `WINDOW_BUFFER_SIZE_EVENT`
 resize — lives in [WINDOWS-DRIVER.md](WINDOWS-DRIVER.md), including cost/risk
 and the testing blocker (no pty equivalent on Windows).
+
+## 19. The child-alignment pragma is `alignSelf`, not `align` (plan-4 D14, Phase 17)
+
+BUILD-PLAN-4 D14 names the DSL pragma `align(a)`. Nim reserves `{.align: N.}`
+as a built-in field-alignment pragma taking a power-of-two integer, and it
+wins name resolution in field-pragma position — `align: alEnd` fails with
+"power of two expected" at type-definition time, before the mount macro ever
+runs. The pragma is therefore `alignSelf` (after CSS `align-self`); the
+`View.align` field and the `Align`/`al*` enum keep their names. `padding` and
+`anchors` do not collide with any built-in pragma.

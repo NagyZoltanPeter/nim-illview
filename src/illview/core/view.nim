@@ -36,6 +36,16 @@ type
     focusFg*: ForegroundColor
     focusBg*: BackgroundColor
 
+  AnchorState* = object
+    ## Edge-anchor bookkeeping for a dkNone child (plan-4 D14). `edges`
+    ## selects which parent edges are tracked; the rest is captured lazily
+    ## on the first arrange (design-time bounds + the parent content size
+    ## they were authored against) so later resizes are relative to that.
+    edges*: set[Anchor]
+    base*: Rect          # child bounds at capture (design-time)
+    parentW*, parentH*: int
+    captured*: bool
+
   View* = ref object of RootObj
     id*: int # unique per process; UiAction.senderId
     brokerCtx*: BrokerContext # instance route (plan-3 D7): vocab events out, signals in
@@ -44,6 +54,9 @@ type
     parent*: Group
     hint*: tuple[w, h: SizeHint] # content-size hints (border added on top)
     dock*: Dock
+    align*: Align         # cross-axis / in-cell placement (plan-4 D14)
+    anchor*: AnchorState  # dkNone edge anchoring (plan-4 D14)
+    padding*: int         # content inset, composes with the border (plan-4 D14)
     visible*: bool
     enabled*: bool
     focusable*: bool
@@ -160,8 +173,9 @@ method borderKind*(v: View): BorderKind {.base, gcsafe, raises: [].} =
 
 method clientRect*(v: View): Rect {.base, gcsafe, raises: [].} =
   ## The content area (in full-rect local coords). Drawing, hit-testing and
-  ## child placement all honor it, so they can never disagree.
-  let i = if v.borderKind == bkNone: 0 else: 1
+  ## child placement all honor it, so they can never disagree. Border inset
+  ## (1 cell) plus padding (plan-4 D14) shrink it together.
+  let i = (if v.borderKind == bkNone: 0 else: 1) + v.padding
   rect(i, i, max(v.bounds.w - 2 * i, 0), max(v.bounds.h - 2 * i, 0))
 
 method borderStyle*(v: View): Style {.base, gcsafe, raises: [].} =
@@ -179,14 +193,16 @@ func contentW*(v: View): int = v.clientRect.w
 func contentH*(v: View): int = v.clientRect.h
 
 proc outerHints*(v: View): tuple[w, h: SizeHint] =
-  ## measure() plus the border cells — what layout must allocate.
+  ## measure() plus the border cells and padding — what layout must allocate
+  ## so the content still gets its pref inside the shrunken clientRect.
   result = v.measure()
-  if v.borderKind != bkNone:
+  let pad = (if v.borderKind != bkNone: 2 else: 0) + 2 * v.padding
+  if pad > 0:
     template infl(h: untyped) =
-      h.min += 2
-      h.pref += 2
+      h.min += pad
+      h.pref += pad
       if h.max != high(int):
-        h.max += 2
+        h.max += pad
     infl(result.w)
     infl(result.h)
 
@@ -295,6 +311,33 @@ proc raiseToTop*(g: Group, child: View) =
 func stripLen(h: SizeHint, remaining: int): int =
   min(clamp(h.pref, h.min, h.max), remaining)
 
+proc anchoredBounds(c: View, cr: Rect): Rect =
+  ## dkNone placement honoring c.anchor.edges as the parent content area
+  ## `cr` resizes (plan-4 D14). Design-time bounds and the parent size they
+  ## were authored against are captured on the first arrange; each set edge
+  ## then keeps its offset. No anchors => bounds are used verbatim (the
+  ## pre-iteration-4 behavior).
+  if c.anchor.edges == {}:
+    return c.bounds
+  if not c.anchor.captured:
+    c.anchor.base = c.bounds
+    c.anchor.parentW = cr.w
+    c.anchor.parentH = cr.h
+    c.anchor.captured = true
+  let
+    b = c.anchor.base
+    dw = cr.w - c.anchor.parentW
+    dh = cr.h - c.anchor.parentH
+  result = b
+  if aLeft in c.anchor.edges and aRight in c.anchor.edges:
+    result.w = max(b.w + dw, 0)
+  elif aRight in c.anchor.edges:
+    result.x = b.x + dw
+  if aTop in c.anchor.edges and aBottom in c.anchor.edges:
+    result.h = max(b.h + dh, 0)
+  elif aBottom in c.anchor.edges:
+    result.y = b.y + dh
+
 proc arrangeChildren*(g: Group) {.gcsafe, raises: [].} =
   ## Dock-aware arrangement of direct children inside clientRect (plan §1
   ## "dock anchors"). Docked children consume edge strips sized by their
@@ -308,7 +351,7 @@ proc arrangeChildren*(g: Group) {.gcsafe, raises: [].} =
     let hints = c.outerHints()
     case c.dock
     of dkNone:
-      c.arrange(c.bounds)
+      c.arrange(anchoredBounds(c, cr))
     of dkFill:
       c.arrange(rem)
     of dkTop:

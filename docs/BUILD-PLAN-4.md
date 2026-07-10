@@ -68,8 +68,9 @@ compiles, tests green, demoable, committed.
   (both axes). `anchors*: set[Anchor]` honored by Group.arrangeChildren.
 - FormLayout: Grid(cols = 2) preset with auto-sized label column
   (col 0 = max label pref, col 1 stretches); `newFormLayout(spacing)`.
-- DSL: `padding(n)`, `align(a)`, `anchors(...)` pragmas + `form` type-level
-  container pragma; mount() wiring.
+- DSL: `padding(n)`, `alignSelf(a)`, `anchors(...)` pragmas + `form`
+  type-level container pragma; mount() wiring. (`alignSelf`, not `align` —
+  Nim reserves `{.align.}`; deviation #19.)
 - Tests: distribute unchanged; new arrange tests for align/anchor/padding;
   form column sizing. Snapshot test for a padded, anchored window.
 - Exit: existing 123 tests still green (alStretch default = old behavior).
