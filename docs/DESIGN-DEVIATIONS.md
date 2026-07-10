@@ -159,3 +159,14 @@ nim-brokers; the broker MACHINERY (EventBroker/SignalBroker expansion) stays
 out of core and lives in `vocab.nim`. vocab also deliberately does not
 `export brokers`: event_broker re-exports std/tables, whose `Table` collides
 with the Table widget in the umbrella module.
+
+## 18. Windows input driver deferred by decision (plan-4 D13, Phase 16)
+
+The original plan scoped Windows *async* input out; iteration 4 makes the
+deferral explicit and documented. illview is POSIX-only (macOS/Linux/WSL)
+until a native-Windows consumer exists. The full design — INPUT_RECORD
+translation, `RegisterWaitForSingleObject` → chronos `ThreadSignalPtr`
+wake-up (the kernel thread-pool callback only signals; it bends the
+single-thread directive in letter, not in spirit), `WINDOW_BUFFER_SIZE_EVENT`
+resize — lives in [WINDOWS-DRIVER.md](WINDOWS-DRIVER.md), including cost/risk
+and the testing blocker (no pty equivalent on Windows).
