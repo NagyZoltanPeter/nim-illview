@@ -242,6 +242,15 @@ Details: [docs/DESIGN.md](docs/DESIGN.md) ·
 [build plan](docs/BUILD-PLAN.md) · [iteration 2](docs/BUILD-PLAN-2.md) ·
 [deviations & gotchas](docs/DESIGN-DEVIATIONS.md)
 
+## Documentation
+
+- [docs/REFERENCE.md](docs/REFERENCE.md) — the full option surface: every
+  pragma, every widget with its slots / vocab events / signals, generated
+  artifacts, lifecycle, bus tiers, layout, styling.
+- [docs/COOKBOOK.md](docs/COOKBOOK.md) — copy-paste recipes: forms,
+  two-way binding, validation, driving widgets from async model code,
+  focus, testing patterns, custom widgets.
+
 ## Examples
 
 ```sh
