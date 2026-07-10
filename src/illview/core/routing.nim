@@ -5,7 +5,7 @@
 ## All procs take a `scope` Group: the desktop normally, the top modal view
 ## when a modal is active (deviation #6). Events never escape the scope.
 
-import ./geometry, ./view, ./events, ./hotkey
+import ./geometry, ./view, ./events
 
 func canFocus*(v: View): bool =
   v.visible and v.enabled and v.focusable
@@ -152,7 +152,7 @@ proc findHotkey(g: Group, key: Rune): View =
   for c in g.children:
     if not c.visible:
       continue
-    if hotkeyMatches(c.hotkey, key):
+    if c.handlesHotkey(key):
       return c
     if c of Group:
       let f = findHotkey(Group(c), key)

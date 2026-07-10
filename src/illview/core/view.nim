@@ -15,7 +15,7 @@
 
 import std/unicode
 import brokers/broker_context
-import ./geometry, ./theme, ./events, ./drawcontext, ./bus
+import ./geometry, ./theme, ./events, ./drawcontext, ./bus, ./hotkey
 
 export bus.Command, bus.cmdNone, bus.UiAction
 export broker_context.BrokerContext
@@ -169,6 +169,11 @@ method arrange*(v: View, r: Rect) {.base, gcsafe, raises: [].} =
 method handleEvent*(v: View, ev: Event): bool {.base, gcsafe, raises: [].} =
   ## true = consumed (stops bubbling)
   false
+
+method handlesHotkey*(v: View, key: Rune): bool {.base, gcsafe, raises: [].} =
+  ## Whether this view claims the Alt-accelerator `key` (plan-4 P22). Base:
+  ## the single `hotkey` field. MenuBar overrides — it owns one per menu.
+  hotkeyMatches(v.hotkey, key)
 
 method triggerHotkey*(v: View, scope: Group) {.base, gcsafe, raises: [].} =
   ## Invoked when this view's Alt-accelerator fires (plan-4 P22); `scope` is
