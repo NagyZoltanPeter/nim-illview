@@ -265,9 +265,54 @@ proc dialogScene(d: Desktop) =
   d.arrange(rect(0, 0, 50, 12))
   setFocus(d, yes)
 
+# --- scene 6: the iteration-5 showcase app (ex13) ----------------------------
+
+type ShotTitleBar = ref object of View
+proc newShotTitleBar(): ShotTitleBar =
+  result = ShotTitleBar(); initView(result)
+  result.dock = dkTop; result.hint = (prefHint(0, stretch = 1), fixedHint(1))
+method draw(t: ShotTitleBar, dc: DrawContext) =
+  let st = style(fgWhite, bgMagenta, bright = true)
+  dc.fill(rect(0, 0, t.bounds.w, 1), " ", st)
+  let cap = "illview — showcase"
+  dc.write(max((t.bounds.w - cap.runeLen) div 2, 0), 0, cap, st)
+
+proc showcaseScene(d: Desktop) =
+  d.add newMenuBar(@[menu("~F~ile", @[menuItem("~Q~uit", Command(1))]),
+                     menu("~H~elp", @[menuItem("~A~bout", Command(2))])])
+  d.add newShotTitleBar()
+  let sb = newStatusBar(@[statusItem("↑↓ navigate", cmdNone),
+                          statusItem("Enter open", cmdNone),
+                          statusItem("Esc quit", cmdNone)])
+  sb.setText("14:22:07")
+  d.add sb
+  let win = newWindow("examples", rect(0, 0, 0, 0)); win.dock = dkFill
+  let tree = newTreeView(@[
+    treeNode("Widgets", @[treeNode("Buttons & choices"),
+      treeNode("Input & validation"), treeNode("List & table")]),
+    treeNode("Layout", @[treeNode("Form layout"), treeNode("Splitter")]),
+    treeNode("Dialogs", @[treeNode("Message box")])])
+  tree.roots[0].expanded = true
+  let ground = newGroup()
+  let ex = newWindow("Form layout", rect(0, 0, 0, 0)); ex.dock = dkFill
+  let f = newFormLayout(spacing = 1); f.dock = dkFill
+  f.add newLabel("Host"); f.add newInput("node.example")
+  f.add newLabel("Port"); f.add newInput("8000")
+  f.add newLabel("TLS"); f.add newCheckbox("", checked = true)
+  ex.add f
+  ground.add ex
+  let split = newSplitter(axH, tree, ground, pos = 22)
+  split.dock = dkFill
+  win.add split
+  d.add win
+  d.arrange(rect(0, 0, 84, 24))
+  tree.selected = 1 # "Buttons & choices"
+  setFocus(d, tree)
+
 when isMainModule:
   shoot("gallery", 80, 24, galleryScene)
   shoot("windows", 70, 21, windowsScene)
   shoot("features", 80, 22, featuresScene)
   shoot("dialog", 50, 12, dialogScene)
   shoot("netviz", 80, 15, netvizScene)
+  shoot("showcase", 84, 24, showcaseScene)
