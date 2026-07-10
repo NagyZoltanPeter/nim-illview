@@ -19,7 +19,7 @@ task test, "Run the test suite":
             "test_routing", "test_widgets", "test_mount", "test_bus_brokers",
             "test_bindings", "test_ctx_vocab", "test_scrollbar", "test_scroller",
             "test_splitter", "test_desktop", "test_hotkey", "test_menu",
-            "test_validators", "test_dialogs"]:
+            "test_validators", "test_dialogs", "test_tree"]:
     exec "nim c -r --mm:orc --hints:off -o:build/tests/" & t & " tests/" & t & ".nim"
 
 task examples, "Build all examples (POSIX)":

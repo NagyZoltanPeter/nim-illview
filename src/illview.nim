@@ -7,7 +7,7 @@ import illview/layout/layout
 import illview/widgets/[desktop, window, label, button, checkbox, radio,
                         list, input, textview, statusbar, menu, editor, netviz,
                         groupbox, table, progress, scrollbar, scroller, splitter,
-                        dialogs]
+                        treeview, dialogs]
 import illview/dsl/[pragmas, mount]
 import illview/vocab
 # The real nim-brokers bus lives in illview/bus_brokers — import explicitly
@@ -20,6 +20,6 @@ export decoder
 export layout
 export desktop, window, label, button, checkbox, radio, groupbox, table, progress,
        list, input, textview, statusbar, menu, editor, netviz, scrollbar, scroller,
-       splitter, dialogs
+       splitter, treeview, dialogs
 export pragmas, mount
 export vocab

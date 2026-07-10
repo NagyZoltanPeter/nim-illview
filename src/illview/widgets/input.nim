@@ -19,6 +19,8 @@ type
     scrollX*: int # first visible rune
     command*: Command
     filter*: KeyFilter # nil = accept everything
+    history*: seq[string] # most-recent-first; Down opens a picker (P26)
+    historyMax*: int      # cap; 0 = unbounded
     onChange*: proc(sender: Input) {.gcsafe, raises: [].}
     onSubmit*: proc(sender: Input) {.gcsafe, raises: [].}
     onFocus*: proc(sender: Input) {.gcsafe, raises: [].}
@@ -35,7 +37,7 @@ proc setText*(i: Input, s: string) =
   i.invalidate()
 
 proc newInput*(text = "", command = cmdNone): Input =
-  result = Input(command: command)
+  result = Input(command: command, historyMax: 50)
   initView(result)
   result.focusable = true
   result.hint = (prefHint(16, stretch = 1), fixedHint(1))
@@ -73,6 +75,82 @@ proc insertText*(i: Input, s: string) =
   i.cursor = at
   if any:
     i.changed()
+
+proc addHistory*(i: Input, s: string) =
+  ## Record `s` at the front (most recent), de-duplicated and capped.
+  if s.len == 0:
+    return
+  let idx = i.history.find(s)
+  if idx >= 0:
+    i.history.delete(idx)
+  i.history.insert(s, 0)
+  if i.historyMax > 0 and i.history.len > i.historyMax:
+    i.history.setLen(i.historyMax)
+
+# --- history dropdown (plan-4 P26) -------------------------------------------
+
+type
+  HistoryPopup = ref object of Group
+    items: seq[string]
+    selected: int
+    onPick: proc(s: string) {.gcsafe, raises: [].}
+
+method draw*(p: HistoryPopup, dc: DrawContext) {.gcsafe, raises: [].} =
+  let st = p.styleOf(tkMenu)
+  let sel = p.styleOf(tkMenuSelected)
+  dc.fill(rect(0, 0, p.contentW, p.contentH), " ", st)
+  dc.box(rect(0, 0, p.contentW, p.contentH), st)
+  for k, it in p.items:
+    let s = if k == p.selected: sel else: st
+    if k == p.selected:
+      dc.fill(rect(1, 1 + k, p.contentW - 2, 1), " ", s)
+    dc.write(2, 1 + k, it, s)
+
+method handleEvent*(p: HistoryPopup, ev: Event): bool {.gcsafe, raises: [].} =
+  case ev.kind
+  of evKey:
+    case ev.ikey.key
+    of Key.Up: p.selected = (p.selected - 1 + p.items.len) mod p.items.len; p.invalidate()
+    of Key.Down: p.selected = (p.selected + 1) mod p.items.len; p.invalidate()
+    of Key.Enter:
+      if p.onPick != nil: p.onPick(p.items[p.selected])
+      p.endModal(cmdNone)
+    of Key.Escape: p.endModal(cmdNone)
+    else: discard
+    return true
+  of evMouse:
+    let m = ev.imouse
+    if m.action == maPress:
+      if not rect(0, 0, p.contentW, p.contentH).contains(point(m.mx, m.my)):
+        p.endModal(cmdNone)
+      else:
+        let idx = m.my - 1
+        if idx >= 0 and idx < p.items.len:
+          p.selected = idx
+          if p.onPick != nil: p.onPick(p.items[idx])
+          p.endModal(cmdNone)
+    return true
+  else:
+    discard
+  false
+
+proc openHistory(i: Input) =
+  if i.history.len == 0:
+    return
+  let shown = i.history[0 ..< min(i.history.len, 8)]
+  var w = 0
+  for h in shown:
+    w = max(w, h.runeLen)
+  let o = i.absOrigin
+  let popup = HistoryPopup(items: shown, selected: 0)
+  initView(popup)
+  popup.onPick = proc(s: string) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}:
+      i.setText(s)
+      i.addHistory(s) # picking bumps recency
+      i.changed()
+  popup.bounds = rect(o.x, o.y + 1, w + 4, shown.len + 2)
+  i.runModal(popup)
 
 method draw*(i: Input, dc: DrawContext) {.gcsafe, raises: [].} =
   let focused = i.isFocused
@@ -118,7 +196,13 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
       if i.cursor < i.runes.len:
         i.runes.delete(i.cursor)
         i.changed()
+    of Key.Down:
+      if i.history.len > 0:
+        i.openHistory()
+      else:
+        return false
     of Key.Enter:
+      i.addHistory(i.text) # record before firing (recency)
       if i.onSubmit != nil:
         i.onSubmit(i)
       i.publish(i.command)
