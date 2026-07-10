@@ -58,3 +58,18 @@ func fixedHint*(n: int): SizeHint =
 
 func prefHint*(n: int, stretch = 0): SizeHint =
   SizeHint(min: 0, pref: n, stretch: stretch)
+
+# --- scroll geometry (plan-4 D15): pure int math shared by the ScrollBar -----
+# widget and the list/table/textview indicator columns so they agree exactly.
+
+func scrollMax*(total, page: int): int = max(total - page, 0)
+
+func thumbGeom*(track, total, page, pos: int): tuple[start, len: int] =
+  ## Thumb start-cell and length within a `track`-cell rail for a viewport of
+  ## `page` over `total` at offset `pos`.
+  if track <= 0 or total <= 0 or page >= total:
+    return (0, max(track, 0))          # nothing to scroll: rail is all thumb
+  let len = max(track * page div total, 1)
+  let sm = scrollMax(total, page)
+  let start = if sm == 0: 0 else: (track - len) * pos div sm
+  (min(start, track - len), len)

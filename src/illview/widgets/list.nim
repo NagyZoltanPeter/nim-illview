@@ -11,6 +11,7 @@ type
     selected*: int
     top*: int # first visible row
     command*: Command
+    showScrollbar*: bool # draw a thumb indicator in the last column when overflowing
     onSelect*: proc(sender: ListView) {.gcsafe, raises: [].}
     onActivate*: proc(sender: ListView) {.gcsafe, raises: [].}
 
@@ -71,14 +72,22 @@ proc activate*(l: ListView) =
 method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
   let normal = l.styleOf(tkText)
   let sel = l.styleOf(if l.isFocused: tkSelectionFocused else: tkSelection)
+  let bar = l.showScrollbar and l.items.len > l.contentH
+  let rowW = if bar: max(l.contentW - 1, 0) else: l.contentW
   for y in 0 ..< max(l.contentH, 0):
     let idx = l.top + y
     if idx > l.items.high:
       break
     let st = if idx == l.selected: sel else: normal
     if idx == l.selected:
-      dc.fill(rect(0, y, l.contentW, 1), " ", st)
+      dc.fill(rect(0, y, rowW, 1), " ", st)
     dc.write(0, y, l.items[idx], st)
+  if bar:
+    let sbSt = l.styleOf(tkScrollBar)
+    let (ts, tl) = thumbGeom(l.contentH, l.items.len, l.contentH, l.top)
+    for y in 0 ..< l.contentH:
+      dc.write(l.contentW - 1, y,
+               (if y >= ts and y < ts + tl: "█" else: "░"), sbSt)
 
 method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

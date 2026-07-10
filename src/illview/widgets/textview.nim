@@ -10,6 +10,7 @@ type
     lines*: seq[string]
     top*: int      # manual viewport start (used when follow == false)
     follow*: bool  # auto-scroll to the bottom
+    showScrollbar*: bool # thumb indicator in the last column when overflowing
 
 proc newTextView*(maxLines = 1000): TextView =
   result = TextView(maxLines: max(maxLines, 1), follow: true)
@@ -51,6 +52,12 @@ method draw*(tv: TextView, dc: DrawContext) {.gcsafe, raises: [].} =
     if idx > tv.lines.high:
       break
     dc.write(0, y, tv.lines[idx], st)
+  if tv.showScrollbar and tv.lines.len > tv.contentH:
+    let sbSt = tv.styleOf(tkScrollBar)
+    let (ts, tl) = thumbGeom(tv.contentH, tv.lines.len, tv.contentH, start)
+    for y in 0 ..< tv.contentH:
+      dc.write(tv.contentW - 1, y,
+               (if y >= ts and y < ts + tl: "█" else: "░"), sbSt)
 
 method handleEvent*(tv: TextView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

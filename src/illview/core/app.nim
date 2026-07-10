@@ -37,9 +37,21 @@ type
     driver: InputDriver
     lastFrame: Moment
     quitFut: Future[void]
+    lastClick: tuple[t: Moment, x, y: int, button: events.MouseButton, count: int]
     modalStack: seq[tuple[view: Group, fut: Future[Command]]]
     when compileOption("threads"):
       loopThreadId: int
+
+func nextClicks*(last: tuple[t: Moment, x, y: int, button: events.MouseButton, count: int];
+                 t: Moment; x, y: int; button: events.MouseButton;
+                 window = milliseconds(300)): int =
+  ## Click count for a fresh press given the previous one: same button, within
+  ## one cell, inside the double-click window => increment; else a new single.
+  if button == last.button and abs(x - last.x) <= 1 and abs(y - last.y) <= 1 and
+     (t - last.t) <= window:
+    last.count + 1
+  else:
+    1
 
 proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].}
 proc requestRedraw*(app: App) {.gcsafe, raises: [].}
@@ -138,7 +150,12 @@ proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].} =
   of ikKey:
     discard dispatchKey(app.scope, ev)
   of ikMouse:
-    dispatchMouse(app.scope, ev)
+    var clicks = 1
+    if ev.action == maPress:
+      let now = Moment.now()
+      clicks = nextClicks(app.lastClick, now, ev.mx, ev.my, ev.button)
+      app.lastClick = (now, ev.mx, ev.my, ev.button, clicks)
+    dispatchMouse(app.scope, ev, clicks)
   of ikPaste:
     discard dispatchPaste(app.scope, ev.text)
   of ikResize:

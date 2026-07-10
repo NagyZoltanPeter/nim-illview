@@ -83,6 +83,7 @@ type
       ikey*: InputEvent
     of evMouse:
       imouse*: InputEvent # coords translated to target-CONTENT-local
+      clicks*: int = 1    # 1 = single, 2 = double-click (synthesized, plan-4 D-mouse)
     of evCommand:
       cmd*: Command
       sender*: View

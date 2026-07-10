@@ -19,6 +19,7 @@ type
     selected*: int
     top*: int # first visible data row
     command*: Command
+    showScrollbar*: bool # thumb indicator in the last column when overflowing
     onSelect*: proc(sender: Table) {.gcsafe, raises: [].}
     onActivate*: proc(sender: Table) {.gcsafe, raises: [].}
 
@@ -99,11 +100,18 @@ func fit(s: string, w: int): string =
     result.add r.toUTF8
     inc n
 
+func barVisible(t: Table): bool =
+  t.showScrollbar and t.rows.len > t.viewportRows
+
+func bodyW(t: Table): int =
+  ## Content width available to the columns (minus the scrollbar column).
+  if t.barVisible: max(t.contentW - 1, 0) else: t.contentW
+
 proc columnWidths(t: Table): seq[int] =
   var hints: seq[SizeHint]
   for c in t.columns:
     hints.add c.hint
-  distribute(t.contentW, hints, spacing = 1)
+  distribute(t.bodyW, hints, spacing = 1)
 
 method draw*(t: Table, dc: DrawContext) {.gcsafe, raises: [].} =
   if t.columns.len == 0:
@@ -112,7 +120,8 @@ method draw*(t: Table, dc: DrawContext) {.gcsafe, raises: [].} =
   let header = t.styleOf(tkTableHeader)
   let normal = t.styleOf(tkText)
   let sel = t.styleOf(if t.isFocused: tkSelectionFocused else: tkSelection)
-  dc.fill(rect(0, 0, t.contentW, 1), " ", header)
+  let cw = t.bodyW
+  dc.fill(rect(0, 0, cw, 1), " ", header)
   var x = 0
   for i, col in t.columns:
     dc.write(x, 0, fit(col.title, widths[i]), header)
@@ -123,12 +132,19 @@ method draw*(t: Table, dc: DrawContext) {.gcsafe, raises: [].} =
       break
     let st = if idx == t.selected: sel else: normal
     if idx == t.selected:
-      dc.fill(rect(0, y, t.contentW, 1), " ", st)
+      dc.fill(rect(0, y, cw, 1), " ", st)
     x = 0
     for i, _ in t.columns:
       if i < t.rows[idx].len:
         dc.write(x, y, fit(t.rows[idx][i], widths[i]), st)
       x += widths[i] + 1
+  if t.barVisible:
+    let sbSt = t.styleOf(tkScrollBar)
+    let rows = t.viewportRows
+    let (ts, tl) = thumbGeom(rows, t.rows.len, rows, t.top)
+    for y in 0 ..< rows:
+      dc.write(t.contentW - 1, y + 1, # rows start below the header
+               (if y >= ts and y < ts + tl: "█" else: "░"), sbSt)
 
 method handleEvent*(t: Table, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

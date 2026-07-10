@@ -87,9 +87,11 @@ proc hitTest*(g: Group, p: Point): tuple[target: View, local: Point] =
       return (c, lp)
   (View(g), p)
 
-proc dispatchMouse*(scope: Group, ev: InputEvent) =
+proc dispatchMouse*(scope: Group, ev: InputEvent, clicks = 1) =
   ## Absolute coords in ev; deliver target-content-local; bubble unconsumed
-  ## events parent-ward (retranslating coords), stopping at scope.
+  ## events parent-ward (retranslating coords), stopping at scope. `clicks`
+  ## (synthesized by the App from press timing) rides on the framework Event
+  ## so widgets can distinguish a double-click from a single one.
   # Mouse capture (dragging): while set, everything goes to the captured
   # view; capture ends automatically on release.
   let rootG = Group(scope.root)
@@ -99,7 +101,7 @@ proc dispatchMouse*(scope: Group, ev: InputEvent) =
     var mev = ev
     mev.mx = ev.mx - o.x
     mev.my = ev.my - o.y
-    discard cap.handleEvent(Event(kind: evMouse, imouse: mev))
+    discard cap.handleEvent(Event(kind: evMouse, imouse: mev, clicks: clicks))
     if ev.action == maRelease:
       rootG.mouseCapture = nil
     return
@@ -135,7 +137,7 @@ proc dispatchMouse*(scope: Group, ev: InputEvent) =
     var mev = ev
     mev.mx = cp.x
     mev.my = cp.y
-    if cur.handleEvent(Event(kind: evMouse, imouse: mev)):
+    if cur.handleEvent(Event(kind: evMouse, imouse: mev, clicks: clicks)):
       return
     if cur == scope or cur.parent == nil:
       return
