@@ -218,14 +218,20 @@ or imperatively: `w.border = bkDouble`, `w.shadow = true`,
 
 | | |
 | --- | --- |
-| Containers | `Desktop`, `Window` (move/resize), `GroupBox`, `HBox`/`VBox`/`Grid`, dock anchors |
-| Controls | `Label`, `Button`, `Checkbox`, `Radio`, `Input`, `Editor` (multiline) |
-| Data | `ListView`, `Table` (header + column size hints), `TextView` (capped log), `ProgressBar`, `NetVizWidget` |
-| Chrome | `MenuBar` + modal dropdowns, `StatusBar` with command hotkeys |
+| Containers | `Desktop`, `Window` (move/resize, close/zoom, tile/cascade), `GroupBox`, `HBox`/`VBox`/`Grid`, `FormLayout`, `Splitter`, `Scroller`, dock anchors + `align`/`anchors`/`padding` |
+| Controls | `Label` (hotkey `linkTo`), `Button`, `Checkbox`, `Radio`, `Input` (validators + history), `Editor` (multiline) |
+| Data | `ListView`, `Table` (header + column size hints), `TreeView` (lazy), `TextView` (capped log), `ProgressBar`, `ScrollBar`, `NetVizWidget` |
+| Chrome | `MenuBar` + nested dropdowns + `~tilde~` accelerators, `StatusBar`, stock dialogs (`messageBox`/`confirm`/`inputBox`), command enable/disable |
+
+![tree, splitter, scrollbar, submenu bar](docs/assets/features.svg)
+
+![stock dialog](docs/assets/dialog.svg)
 
 Every interactive widget has typed closure slots (`onClick`, `onChange`,
 `onSubmit`, `onFocus`/`onBlur`, …) fired synchronously inside dispatch, plus
-an optional broker `command`.
+an optional broker `command`. Alt+letter accelerators (`~R~un`), a per-key
+`Input.filter` (`digitsOnly`, `maxLen`, `charSet`, `intRange`), and app-wide
+`enableCommand`/`disableCommand` greying round out the interaction model.
 
 ## Architecture in five lines
 
@@ -238,9 +244,11 @@ an optional broker `command`.
    (border/title/shadow), so drawing and hit-testing can never disagree.
 5. Handlers mutate state, call `invalidate()`, and the next frame shows it.
 
-Details: [docs/DESIGN.md](docs/DESIGN.md) ·
-[build plan](docs/BUILD-PLAN.md) · [iteration 2](docs/BUILD-PLAN-2.md) ·
-[deviations & gotchas](docs/DESIGN-DEVIATIONS.md)
+Details: [docs/DESIGN.md](docs/DESIGN.md) · build plan
+[1](docs/BUILD-PLAN.md) · [2](docs/BUILD-PLAN-2.md) ·
+[3](docs/BUILD-PLAN-3.md) · [4](docs/BUILD-PLAN-4.md) ·
+[deviations & gotchas](docs/DESIGN-DEVIATIONS.md) ·
+[Windows driver (deferred)](docs/WINDOWS-DRIVER.md)
 
 ## Documentation
 
@@ -268,6 +276,8 @@ nimble examples   # builds all of these into build/examples/
 | `ex07_styling` | borders, shadows, color & focus overrides |
 | `ex09_bindings` | `bindValue`/`bindRequest`/`emits` round trip |
 | `ex10_instance_ctx` | instance-ctx events & signals: two forms, one event type, zero cross-talk |
+| `ex11_scroller` | `Scroller` viewport + synced `ScrollBar`, focus auto-scroll |
+| `ex12_splitter` | draggable `Splitter` dividing a list and a log |
 
 ## Development
 

@@ -4,7 +4,7 @@
 <rect x="0" y="0" width="720" height="18" fill="#d0d0c8"/>
 <text x="0" y="14" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">  File   Help                                                                   </text>
 <rect x="0" y="18" width="720" height="18" fill="#20409a"/>
-<text x="0" y="32" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╔═══════════════════════════════ widget gallery ═══════════════════════════════╗</text>
+<text x="0" y="32" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╔[■]════════════════════════════ widget gallery ═══════════════════════════════╗</text>
 <rect x="0" y="36" width="720" height="18" fill="#20409a"/>
 <text x="0" y="50" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
 <text x="9" y="50" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">Name:                                list item 01                             </text>

@@ -2,7 +2,7 @@
 <rect width="720" height="270" fill="#1c1c1c"/>
 <g font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14">
 <rect x="0" y="0" width="720" height="18" fill="#20409a"/>
-<text x="0" y="14" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╔═════════════════════ network events - nim-brokers live ══════════════════════╗</text>
+<text x="0" y="14" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╔[■]══════════════════ network events - nim-brokers live ══════════════════════╗</text>
 <rect x="0" y="18" width="9" height="18" fill="#20409a"/>
 <rect x="9" y="18" width="702" height="18" fill="#178b8d"/>
 <rect x="711" y="18" width="9" height="18" fill="#20409a"/>

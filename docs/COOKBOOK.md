@@ -280,3 +280,72 @@ proc newDial*(): Dial =
 proc turned(d: Dial) =          # user-driven path emits; setters don't
   SelectionChanged.emit(d.brokerCtx, SelectionChanged(selected: d.value))
 ```
+
+## 16. Two-column forms, alignment & anchoring
+
+```nim
+type Settings {.view, form, spacing: 1.} = ref object of Group
+  nameLbl {.child, caption: "Name".}: Label
+  name    {.child, bindValue: "nameVal".}: Input
+  noteLbl {.child, caption: "Note", alignSelf: alEnd.}: Label
+  note    {.child, padding: 1.}: Input
+  nameVal: string
+```
+
+`form` = a two-column `FormLayout` (label col auto-sizes, control col
+stretches). `alignSelf` places a child within its cell (`alStretch` default,
+`alStart`/`alCenter`/`alEnd`); `padding(n)` insets content; `anchors({aLeft,
+aRight})` keeps a `dkNone` child's edges pinned as the parent resizes.
+
+## 17. Scrolling: Scroller + a synced ScrollBar
+
+```nim
+let sc = newScroller(bigContent)            # bigContent taller than the viewport
+let bar = newScrollBar(axV)
+bar.onScroll = proc(pos: int) = sc.scrollTo(0, pos)   # bar drives scroller
+row.add sc; row.add bar                     # side by side in an HBox
+# keep the bar in step after each input (post-routing):
+app.onInput = proc(ev: InputEvent) =
+  bar.setRange(sc.virtualSize.h, sc.contentH, sc.offY)
+```
+
+Tab into an off-screen widget and the `Scroller` auto-scrolls to reveal it.
+For a quick indicator without a live bar, set `list.showScrollbar = true`.
+
+## 18. A draggable splitter
+
+```nim
+let split = newSplitter(axH, leftPane, rightPane, pos = 20)
+split.dock = dkFill
+win.add split          # drag the divider, or Tab to it and Alt+Left/Right
+```
+
+## 19. A tree with lazy children
+
+```nim
+let root = treeNode("project")
+root.loader = proc(n: TreeNode): seq[TreeNode] =   # fires once, on first expand
+  @[treeNode("src"), treeNode("docs")]
+let tv = newTreeView(@[root])
+tv.onActivate = proc(t: TreeView) = open(t.selectedNode.label)
+```
+
+## 20. Hotkeys, command gating & stock dialogs
+
+```nim
+let run = newButton("~R~un")        # Alt+R triggers it anywhere in scope
+app.disableCommand(cmSave)          # greys + blocks every item carrying cmSave
+
+# a label that focuses its field:
+let lbl = newLabel("~N~ame"); lbl.linkTo = nameInput
+
+# modal dialogs over the app loop:
+if await confirm(app, "Save changes before exit?"):
+  save()
+let port = await inputBox(app, "Server", "Port:", filter = digitsOnly())
+if port.isSome: connect(port.get)
+```
+
+`Input.filter` rejects keystrokes live (`digitsOnly`, `maxLen(n)`,
+`charSet(s)`, `allOf(...)`); `intRange(lo, hi)` is a `bindRequest` provider for
+value-level validation. `Input.history` + Down opens a recency picker.

@@ -248,3 +248,62 @@ Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 `app.endModal(cmd)`, `app.focus`, `app.tuiActive`. Frames are dirty-driven
 and fps-capped; an idle app has zero pending timers. Everything runs on ONE
 chronos thread — no marshaling, identical under `--mm:refc` and `--mm:orc`.
+
+Command gating (P22/D19): `app.disableCommand(cmd)` / `app.enableCommand(cmd)`
+/ `app.isCommandEnabled(cmd)`. A disabled command greys and blocks any
+Button/Checkbox/StatusBar/menu item that carries it.
+
+---
+
+## 10. Iteration 4 additions (plan-4)
+
+### 10.1 Layout (P17, D14)
+
+- Field pragmas: `alignSelf(Align)` — `alStretch` (default) / `alStart` /
+  `alCenter` / `alEnd`, cross-axis in a box, in-cell for grid/form;
+  `anchors({aLeft,aTop,aRight,aBottom})` — edge-anchor a `dkNone` child (both
+  edges of an axis stretch, one slides); `padding(int)` — content inset,
+  composes with the border. (Named `alignSelf`, not `align` — Nim reserves
+  `{.align.}`; deviation #19.)
+- Type pragma `form` → `FormLayout`: two columns, (label, control) pairs;
+  col 0 auto-sizes to the widest label, col 1 stretches. `newFormLayout(spacing)`.
+- Imperative: `View.align`, `View.anchor.edges`, `View.padding`.
+
+### 10.2 New widgets
+
+| Widget | Constructor | Notes |
+|--------|-------------|-------|
+| `ScrollBar` | `newScrollBar(axis = axV)` | passive track/thumb; `setRange(total, page, pos)`, `setPos`, `onScroll`; wheel / click-page / drag |
+| `Scroller` | `newScroller(content)` | viewport over an over-sized child; wheel + PageUp/Dn; `scrollTo`/`scrollBy`/`ensureVisible`; focus auto-scroll; `onScroll` for bar sync |
+| `Splitter` | `newSplitter(axis, first, second, pos = 0)` | two panes + draggable focusable divider (`divider()`); Alt+arrows nudge; mins from child hints |
+| `TreeView` | `newTreeView(roots = @[])` | `TreeNode{label, children, expanded, loader}`; ▸/▾, Left/Right, Enter; `onSelect`/`onActivate`; `visibleRows`, `selectedNode` |
+
+`ListView`/`Table`/`TextView` gain `showScrollbar` (indicator column). Double-
+clicks arrive as `Event.clicks == 2` (synthesized by the App; 300 ms window).
+
+### 10.3 Window chrome & desktop (P21)
+
+- `Window`: `close()` (fires `onClose` or detach+dispose), `zoom()` (toggle
+  maximize), `closable`/`zoomable` flags, title-row `[■]`/`[↑]` boxes.
+- `Desktop`: `selectWindow(i)`, `tile()`, `cascade()`, `floatingWindows`;
+  Alt+1..9 selects the Nth window.
+
+### 10.4 Hotkeys & validators
+
+- `~tilde~` accelerators in Button/Checkbox/Label/menu captions; Alt+letter
+  routes via `dispatchHotkey`. `Label.linkTo` focuses a control. Menu titles
+  open with Alt+letter; item letters activate inside an open popup.
+- `Input.filter: KeyFilter` (`proc(r, text): bool`) with shipped
+  `digitsOnly()`, `charSet(s)`, `maxLen(n)`, `allOf(...)`; `intRange(lo, hi)`
+  is a value-level `bindRequest` provider. `Input.history` + Down-arrow picker.
+
+### 10.5 Stock dialogs (P25, D20)
+
+`messageBox(app, title, text, buttons, cancel = cmCancel): Future[Command]`,
+`confirm(app, text): Future[bool]`, `inputBox(app, title, prompt, initial,
+filter): Future[Option[string]]`. Standard commands `cmOk`/`cmCancel`/`cmYes`/
+`cmNo` (negative, collision-free). Esc cancels, Enter fires the default button,
+`~tilde~` accelerators pick any button.
+
+Windows input driver is **deferred** (documented in
+[WINDOWS-DRIVER.md](WINDOWS-DRIVER.md), deviation #18): POSIX only for now.

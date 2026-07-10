@@ -209,7 +209,65 @@ proc netvizScene(d: Desktop) =
   d.arrange(rect(0, 0, 80, 15))
   setFocus(d, nv)
 
+# --- scene 4: iteration-4 — tree | list split, submenu bar, scrollbar --------
+
+proc featuresScene(d: Desktop) =
+  d.add newMenuBar(@[
+    menu("~F~ile", @[menuItem("~O~pen", Command(1)),
+                     submenuItem("~R~ecent", @[menuItem("a.nim", Command(2))]),
+                     menuItem("~Q~uit", Command(3))]),
+    menu("~V~iew", @[menuItem("Refresh", Command(4))])])
+  d.add newStatusBar(@[statusItem("Tab move", Command(9)),
+                       statusItem("Esc Quit", Command(8))])
+  let win = newWindow("iteration 4 — tree | list", rect(0, 0, 0, 0))
+  win.dock = dkFill
+  let tree = newTreeView(@[
+    treeNode("src", @[
+      treeNode("core", @[treeNode("view.nim"), treeNode("routing.nim")]),
+      treeNode("widgets", @[treeNode("treeview.nim"), treeNode("splitter.nim")])]),
+    treeNode("docs", @[treeNode("README.md")])])
+  tree.roots[0].expanded = true
+  tree.roots[0].children[0].expanded = true
+  tree.roots[0].children[1].expanded = true
+  var items: seq[string]
+  for i in 1 .. 20:
+    items.add &"event {i:02}"
+  let lst = newListView(items)
+  lst.showScrollbar = true
+  let split = newSplitter(axH, tree, lst, pos = 28)
+  split.dock = dkFill
+  win.add split
+  d.add win
+  d.arrange(rect(0, 0, 80, 22))
+  lst.select(2)
+  setFocus(d, tree)
+
+# --- scene 5: a stock dialog over a backdrop ---------------------------------
+
+proc dialogScene(d: Desktop) =
+  let bg = newWindow("editor", rect(0, 0, 0, 0))
+  bg.dock = dkFill
+  d.add bg
+  let dlg = newWindow("Confirm", rect(10, 3, 30, 6))
+  dlg.closable = false
+  dlg.zoomable = false
+  dlg.shadow = true
+  let lbl = newLabel("Save changes before exit?")
+  lbl.dock = dkTop
+  dlg.add lbl
+  let row = newHBox(spacing = 1)
+  row.dock = dkBottom
+  let yes = newButton("~Y~es")
+  row.add yes
+  row.add newButton("~N~o")
+  dlg.add row
+  d.add dlg
+  d.arrange(rect(0, 0, 50, 12))
+  setFocus(d, yes)
+
 when isMainModule:
   shoot("gallery", 80, 24, galleryScene)
   shoot("windows", 70, 21, windowsScene)
+  shoot("features", 80, 22, featuresScene)
+  shoot("dialog", 50, 12, dialogScene)
   shoot("netviz", 80, 15, netvizScene)
