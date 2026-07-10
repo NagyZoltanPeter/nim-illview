@@ -18,7 +18,7 @@ import ../src/illview/dsl/mount
 import ../src/illview/dsl/uievents
 
 type
-  ConnectForm {.view, vbox, spacing: 1.} = ref object of Group
+  ConnectForm {.view, vbox, spacing: 1, border: bkDouble, shadow.} = ref object of Group
     l1 {.child, caption: "host:".}: Label
     host {.child, bindValue: "hostVal",
            on: {Submitted: "onHostDone"}.}: Input
@@ -64,6 +64,8 @@ proc main() {.async.} =
 
   let left = mount(ConnectForm)
   let right = mount(ConnectForm) # same type, same event types, own ctxs
+  left.borderTitle = "left"      # per-instance titles on the type-level
+  right.borderTitle = "right"    # bkDouble border (+ shadow)
   left.hint = (prefHint(28, stretch = 1), prefHint(0, stretch = 1))
   right.hint = (prefHint(28, stretch = 1), prefHint(0, stretch = 1))
 
