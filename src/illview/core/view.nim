@@ -65,6 +65,7 @@ type
     borderTitle*: string
     shadow*: bool
     styleOv*: StyleOverride
+    hotkey*: Rune # Alt-accelerator (plan-4 P22); Rune(0) = none
 
   Group* = ref object of View
     children*: seq[View] # z-order: index 0 = bottom, last = topmost
@@ -76,6 +77,7 @@ type
     publishCb*: proc(a: UiAction) {.gcsafe, raises: [].}
     runModalCb*: proc(g: Group) {.gcsafe, raises: [].}
     endModalCb*: proc(cmd: Command) {.gcsafe, raises: [].}
+    commandEnabledCb*: proc(cmd: Command): bool {.gcsafe, raises: [].}
 
   Event* = object
     case kind*: EventKind
@@ -168,6 +170,12 @@ method handleEvent*(v: View, ev: Event): bool {.base, gcsafe, raises: [].} =
   ## true = consumed (stops bubbling)
   false
 
+method triggerHotkey*(v: View, scope: Group) {.base, gcsafe, raises: [].} =
+  ## Invoked when this view's Alt-accelerator fires (plan-4 P22); `scope` is
+  ## the active routing scope. Base: no-op; Button clicks, Checkbox toggles,
+  ## Label focuses its linked control within `scope`.
+  discard
+
 method borderKind*(v: View): BorderKind {.base, gcsafe, raises: [].} =
   ## Effective border; widgets may compute it (Window: double when active).
   v.border
@@ -243,6 +251,16 @@ proc publish*(v: View, cmd: Command) {.gcsafe, raises: [].} =
   let r = v.root
   if r of Group and Group(r).publishCb != nil:
     Group(r).publishCb(UiAction(cmd: cmd, senderId: v.id))
+
+proc commandEnabled*(v: View, cmd: Command): bool {.gcsafe, raises: [].} =
+  ## Whether `cmd` is currently enabled (plan-4 P22/D19). cmdNone and detached
+  ## views are always enabled; the App answers the rest via a root closure.
+  if cmd == cmdNone:
+    return true
+  let r = v.root
+  if r of Group and Group(r).commandEnabledCb != nil:
+    return Group(r).commandEnabledCb(cmd)
+  true
 
 proc runModal*(v: View, g: Group) {.gcsafe, raises: [].} =
   ## Open g as a transient modal (menus, dialogs). No-op when detached.

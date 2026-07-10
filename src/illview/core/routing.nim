@@ -5,7 +5,7 @@
 ## All procs take a `scope` Group: the desktop normally, the top modal view
 ## when a modal is active (deviation #6). Events never escape the scope.
 
-import ./geometry, ./view, ./events
+import ./geometry, ./view, ./events, ./hotkey
 
 func canFocus*(v: View): bool =
   v.visible and v.enabled and v.focusable
@@ -147,6 +147,27 @@ proc dispatchMouse*(scope: Group, ev: InputEvent, clicks = 1) =
     cp.y += cur.bounds.y + cr.y
     cur = cur.parent
 
+proc findHotkey(g: Group, key: Rune): View =
+  ## First visible view in the scope whose accelerator matches (depth-first).
+  for c in g.children:
+    if not c.visible:
+      continue
+    if hotkeyMatches(c.hotkey, key):
+      return c
+    if c of Group:
+      let f = findHotkey(Group(c), key)
+      if f != nil:
+        return f
+  nil
+
+proc dispatchHotkey*(scope: Group, key: Rune): bool =
+  ## Alt-accelerator routing (plan-4 P22): trigger the matching view, if any.
+  let v = findHotkey(scope, key)
+  if v != nil:
+    v.triggerHotkey(scope)
+    return true
+  false
+
 proc dispatchKey*(scope: Group, ev: InputEvent): bool =
   ## Deliver to the focused leaf; bubble parent-ward to scope. Unconsumed
   ## Tab / Shift-Tab traverses the focus chain at the scope root.
@@ -165,6 +186,8 @@ proc dispatchKey*(scope: Group, ev: InputEvent): bool =
     else:
       focusNext(scope)
     return true
+  if modAlt in ev.keyMods and int(ev.rune) != 0:
+    return dispatchHotkey(scope, ev.rune)
   false
 
 proc dispatchPaste*(scope: Group, text: string): bool =

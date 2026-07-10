@@ -180,3 +180,14 @@ wins name resolution in field-pragma position — `align: alEnd` fails with
 runs. The pragma is therefore `alignSelf` (after CSS `align-self`); the
 `View.align` field and the `Align`/`al*` enum keep their names. `padding` and
 `anchors` do not collide with any built-in pragma.
+
+## 20. Command gating reuses `tkTextDisabled`; menu gating lands in P23 (plan-4 D19, Phase 22)
+
+D19 calls for a new `tkDisabled` theme token; `tkTextDisabled` already exists
+with identical semantics (dim, non-interactive), so greyed command items reuse
+it rather than add a redundant token. Command enable/disable is wired through
+Button, Checkbox and StatusBar in Phase 22; **menu** item greying/gating is
+deferred to Phase 23, where the menu is already being reworked for submenus —
+doing both in one pass avoids touching menu.nim twice. Alt+letter hotkeys cover
+Button/Checkbox/Label in P22; **menubar** top-level accelerators also land with
+the P23 menu rework.

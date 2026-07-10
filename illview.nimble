@@ -18,7 +18,7 @@ task test, "Run the test suite":
   for t in ["test_decoder", "test_layout", "test_render_snapshot",
             "test_routing", "test_widgets", "test_mount", "test_bus_brokers",
             "test_bindings", "test_ctx_vocab", "test_scrollbar", "test_scroller",
-            "test_splitter", "test_desktop"]:
+            "test_splitter", "test_desktop", "test_hotkey"]:
     exec "nim c -r --mm:orc --hints:off -o:build/tests/" & t & " tests/" & t & ".nim"
 
 task examples, "Build all examples (POSIX)":

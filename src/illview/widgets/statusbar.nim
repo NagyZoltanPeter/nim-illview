@@ -35,10 +35,12 @@ func itemSpan(sb: StatusBar, i: int): tuple[x, w: int] =
 method draw*(sb: StatusBar, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = sb.styleOf(tkStatusBar)
   let hot = sb.styleOf(tkStatusBarHotkey)
+  let off = sb.styleOf(tkTextDisabled)
   dc.fill(rect(0, 0, sb.contentW, 1), " ", st)
   for i, item in sb.items:
     let (x, _) = sb.itemSpan(i)
-    dc.write(x, 0, " " & item.label & " ", hot)
+    let s = if sb.commandEnabled(item.command): hot else: off # greyed (D19)
+    dc.write(x, 0, " " & item.label & " ", s)
   if sb.text.len > 0:
     let x = sb.contentW - sb.text.runeLen - 1
     dc.write(max(x, 0), 0, sb.text, st)
@@ -48,7 +50,8 @@ method handleEvent*(sb: StatusBar, ev: Event): bool {.gcsafe, raises: [].} =
     for i, item in sb.items:
       let (x, w) = sb.itemSpan(i)
       if ev.imouse.mx >= x and ev.imouse.mx < x + w:
-        sb.publish(item.command)
+        if sb.commandEnabled(item.command): # disabled items don't activate
+          sb.publish(item.command)
         return true
     return true # consume clicks on the bar background
   false

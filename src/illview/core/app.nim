@@ -38,6 +38,7 @@ type
     lastFrame: Moment
     quitFut: Future[void]
     lastClick: tuple[t: Moment, x, y: int, button: events.MouseButton, count: int]
+    disabledCommands: seq[Command] # P22/D19: greyed + non-activatable
     modalStack: seq[tuple[view: Group, fut: Future[Command]]]
     when compileOption("threads"):
       loopThreadId: int
@@ -74,11 +75,28 @@ proc newApp*(fpsCap = 30, theme: Theme = nil): App =
     discard app.execView(g) # commands flow via the bus; future unused here
   app.desktop.endModalCb = proc(cmd: Command) {.gcsafe, raises: [].} =
     app.endModal(cmd)
+  app.desktop.commandEnabledCb = proc(cmd: Command): bool {.gcsafe, raises: [].} =
+    cmd notin app.disabledCommands
   app
 
 proc focus*(app: App): View =
   ## The focused leaf of the desktop chain (deviation #5: derived, not stored).
   app.desktop.focusedLeaf
+
+proc isCommandEnabled*(app: App, cmd: Command): bool =
+  cmd notin app.disabledCommands
+
+proc disableCommand*(app: App, cmd: Command) =
+  ## Grey out and block a command across menu/status/buttons (plan-4 D19).
+  if cmd != cmdNone and cmd notin app.disabledCommands:
+    app.disabledCommands.add cmd
+    app.requestRedraw()
+
+proc enableCommand*(app: App, cmd: Command) =
+  let i = app.disabledCommands.find(cmd)
+  if i >= 0:
+    app.disabledCommands.delete(i)
+    app.requestRedraw()
 
 proc scope(app: App): Group =
   ## Routing scope: top modal view when a modal is active, else the desktop.

@@ -27,13 +27,9 @@ proc createView*(t: typedesc[ProgressBar]): ProgressBar = newProgressBar()
 
 # --- pragma appliers ----------------------------------------------------------
 
-proc setCaption*(w: Button, s: string) =
-  w.caption = s
-  w.hint = (fixedHint(s.runeLen + 4), fixedHint(1))
+proc setCaption*(w: Button, s: string) = w.applyCaption(s)
 
-proc setCaption*(w: Checkbox, s: string) =
-  w.caption = s
-  w.hint = (fixedHint(s.runeLen + 4), fixedHint(1))
+proc setCaption*(w: Checkbox, s: string) = w.applyCaption(s)
 
 proc setCaption*(w: Label, s: string) = w.setText(s)
 proc setCaption*(w: Input, s: string) = w.setText(s)
