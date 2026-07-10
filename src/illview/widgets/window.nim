@@ -21,9 +21,15 @@ type
   Window* = ref object of Group
     dragMode: DragMode
     dragOff: Point # window origin relative to the grab point (move)
+    closable*: bool # show/allow the [■] close box (plan-4 P21)
+    zoomable*: bool # show/allow the [↑]/[↓] zoom box
+    zoomed: bool
+    savedBounds: Rect # pre-zoom bounds, restored on un-zoom
+    onClose*: proc(w: Window) {.gcsafe, raises: [].}
+      ## Close override; nil = default (detach from the parent + dispose).
 
 proc newWindow*(title: string, bounds: Rect): Window =
-  result = Window(borderTitle: title)
+  result = Window(borderTitle: title, closable: true, zoomable: true)
   initView(result)
   result.bounds = bounds
   result.border = bkSingle
@@ -56,6 +62,11 @@ method drawOverlay*(w: Window, dc: DrawContext) {.gcsafe, raises: [].} =
   ## Resize handle on the frame corner (dc spans the FULL rect incl. border).
   if w.isActive and w.dock == dkNone and w.bounds.w >= 2 and w.bounds.h >= 2:
     dc.putCell(w.bounds.w - 1, w.bounds.h - 1, "◢".runeAt(0), w.borderStyle)
+  # title-row chrome (plan-4 P21): close box at the left, zoom box at the right
+  if w.closable and w.bounds.w >= 6:
+    dc.write(1, 0, "[■]", w.borderStyle)
+  if w.zoomable and w.dock == dkNone and w.bounds.w >= 10:
+    dc.write(w.bounds.w - 4, 0, (if w.zoomed: "[↓]" else: "[↑]"), w.borderStyle)
 
 func floating(w: Window): bool =
   w.dock == dkNone # docked windows are layout-owned: not movable/resizable
@@ -70,6 +81,31 @@ proc resizeTo(w: Window, width, height: int) =
   w.bounds.h = max(height, MinH)
   w.invalidate()
 
+proc close*(w: Window) {.gcsafe, raises: [].} =
+  ## Fire onClose if set, else the default: detach from the parent + dispose.
+  if w.onClose != nil:
+    w.onClose(w)
+  elif w.parent != nil:
+    let p = w.parent
+    p.remove(w)
+    dispose(w)
+    p.invalidate()
+
+proc zoom*(w: Window) {.gcsafe, raises: [].} =
+  ## Toggle maximize: fill the parent content, or restore the pre-zoom bounds.
+  if not w.floating:
+    return
+  if w.zoomed:
+    w.bounds = w.savedBounds
+    w.zoomed = false
+  else:
+    w.savedBounds = w.bounds
+    if w.parent != nil:
+      let pc = w.parent.clientRect
+      w.bounds = rect(0, 0, pc.w, pc.h)
+    w.zoomed = true
+  w.invalidate()
+
 method handleEvent*(w: Window, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evMouse:
@@ -80,6 +116,14 @@ method handleEvent*(w: Window, ev: Event): bool {.gcsafe, raises: [].} =
     let abs = point(m.mx + contentAbs.x, m.my + contentAbs.y)
     case m.action
     of maPress:
+      # title-row chrome takes precedence over the move-drag region
+      if m.my == -1 and w.closable and m.mx >= 0 and m.mx <= 2:
+        w.close()
+        return true
+      if m.my == -1 and w.zoomable and w.floating and
+         m.mx >= w.contentW - 3 and m.mx <= w.contentW - 1:
+        w.zoom()
+        return true
       if w.floating:
         if m.my == -1 and m.mx >= -1 and m.mx <= w.contentW:
           w.dragMode = dmMove

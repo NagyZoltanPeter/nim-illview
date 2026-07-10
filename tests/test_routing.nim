@@ -100,11 +100,11 @@ suite "routing: mouse hit-testing":
     # there and winB itself is not focusable -> focus falls into b1
     dispatchMouse(root, press(40, 12))
     check root.focusedLeaf == View(b1)
-    dispatchMouse(root, press(7, 5)) # winA title bar: no widget there
+    dispatchMouse(root, press(11, 5)) # winA title bar, clear of close/zoom boxes
     check root.focusedLeaf == View(a2) # remembered, not a1
 
   test "window consumes mouse; nothing reaches the root":
-    dispatchMouse(root, press(7, 5))
+    dispatchMouse(root, press(11, 5)) # title bar, clear of the close/zoom boxes
     check root.got.len == 0
 
   test "click on empty desktop reaches the root":
