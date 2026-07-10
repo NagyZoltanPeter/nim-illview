@@ -29,6 +29,14 @@ type
 
 const cmdNone* = Command(0)
 
+# Standard dialog commands (plan-4 D20). Negative so they never collide with
+# an app's own (positive) command numbering.
+const
+  cmOk* = Command(-2)
+  cmCancel* = Command(-3)
+  cmYes* = Command(-4)
+  cmNo* = Command(-5)
+
 proc `==`*(a, b: Command): bool {.borrow.}
 proc `$`*(c: Command): string {.borrow.}
 proc `==`*(a, b: SubId): bool {.borrow.}
