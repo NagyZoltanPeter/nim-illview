@@ -196,12 +196,22 @@ suite "routing: border-inset coordinates (iteration 2)":
     root.add p
     p.captureMouse()
     check root.mouseCapture == View(p)
-    # a move far outside p still reaches p, coords relative to p
-    dispatchMouse(root, mouseEvent(maMove, mbNone, 30, 15))
+    # a held-button move (real drag) far outside p still reaches p
+    dispatchMouse(root, mouseEvent(maMove, mbLeft, 30, 15))
     check p.mouseGot.len == 1
     check p.mouseGot[0].imouse.mx == 25
     check p.mouseGot[0].imouse.my == 10
     dispatchMouse(root, mouseEvent(maRelease, mbLeft, 30, 15))
+    check root.mouseCapture == nil
+
+  test "a no-button move ends the drag (1003 implicit release)":
+    let root = newRecordingRoot(40, 20)
+    let p = newProbe("p", rect(5, 5, 5, 1))
+    root.add p
+    p.captureMouse()
+    dispatchMouse(root, mouseEvent(maMove, mbLeft, 20, 10)) # held: continues
+    check root.mouseCapture == View(p)
+    dispatchMouse(root, mouseEvent(maMove, mbNone, 22, 10)) # button up => ends
     check root.mouseCapture == nil
     # after release, normal routing resumes
     dispatchMouse(root, press(30, 15))
@@ -239,7 +249,7 @@ suite "window move/resize (phase 10)":
   test "title drag moves the window; capture ends on release":
     dispatchMouse(root, press(10, 5)) # top border row: content-local y == -1
     check root.mouseCapture == View(win)
-    dispatchMouse(root, mouseEvent(maMove, mbNone, 15, 8)) # +5, +3
+    dispatchMouse(root, mouseEvent(maMove, mbLeft, 15, 8)) # +5, +3
     check win.bounds.x == 10
     check win.bounds.y == 8
     dispatchMouse(root, mouseEvent(maRelease, mbLeft, 15, 8))
@@ -248,10 +258,10 @@ suite "window move/resize (phase 10)":
   test "corner drag resizes; clamps at minimum":
     dispatchMouse(root, press(24, 14)) # bottom-right corner cell
     check root.mouseCapture == View(win)
-    dispatchMouse(root, mouseEvent(maMove, mbNone, 30, 18))
+    dispatchMouse(root, mouseEvent(maMove, mbLeft, 30, 18))
     check win.bounds.w == 26
     check win.bounds.h == 14
-    dispatchMouse(root, mouseEvent(maMove, mbNone, 2, 2))
+    dispatchMouse(root, mouseEvent(maMove, mbLeft, 2, 2))
     check win.bounds.w == 8
     check win.bounds.h == 3
     dispatchMouse(root, mouseEvent(maRelease, mbLeft, 2, 2))

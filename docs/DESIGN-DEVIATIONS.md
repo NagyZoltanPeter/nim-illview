@@ -210,3 +210,28 @@ transient-membership** — build a popup/dialog/context-menu once, `add`/`remove
 it on show/hide, `dispose` only at app teardown — allocates one instanceCtx per
 object for its whole life, so there is no churn and nothing to recycle. The
 persistent MenuBar popups + ContextMenu widget realize this.
+
+## 22. Mouse-capture release under 1003, ORC churn crash, crash-time restore
+
+Three related runtime bugs found stress-testing the showcase (ex13):
+
+- **Drag "holds tight".** illwill enables 1003 *any-event* mouse tracking; real
+  terminals often report a button-up as a no-button motion (`maMove`, `mbNone`)
+  rather than a distinct `maRelease`. Capture only cleared on `maRelease`, so a
+  splitter/window-resize grab stuck forever. Fix: `dispatchMouse` also ends a
+  capture on a no-button move (normalizing it to `maRelease` for the captor).
+
+- **SIGSEGV under --mm:orc when churning app-capturing closures.** Repeatedly
+  building + freeing views whose closures capture `app` (forming
+  app→tree→closure→app cycles) trips the ORC cycle collector (deterministic
+  crash under orc, none under refc). This is why the showcase now uses
+  persistent, cached example windows (deviation #21) — build once, add/remove,
+  never free — rather than rebuild-on-select. A splitter/grid/form also needs a
+  stretchy hint or it collapses to 0 inside a box (`newSplitter` now sets one).
+
+- **Terminal wrecked after any crash.** Nim runs `addExitProc` only on
+  `quit()`, NOT on an unhandled exception or a signal, so a crash left the
+  terminal in raw + mouse mode ("trash on mouse move"). Fix: `enableTui`
+  installs POSIX signal handlers (SIGSEGV/ABRT/BUS/ILL/FPE) that reset the
+  terminal with async-signal-safe `write(2)`/`tcsetattr` before the default
+  action. Normal exit still restores via `run()`'s `finally: disableTui`.

@@ -93,7 +93,11 @@ proc dispatchMouse*(scope: Group, ev: InputEvent, clicks = 1) =
   ## (synthesized by the App from press timing) rides on the framework Event
   ## so widgets can distinguish a double-click from a single one.
   # Mouse capture (dragging): while set, everything goes to the captured
-  # view; capture ends automatically on release.
+  # view; capture ends on release. Robustness: under illwill's 1003 "any
+  # event" mouse mode a real terminal often reports the button-up as a
+  # no-button motion (maMove with mbNone) rather than a distinct maRelease —
+  # so a bare motion with no button held also ends the drag (else the grab
+  # sticks forever). See bug: "splitter/window resize holds tight".
   let rootG = Group(scope.root)
   if rootG.mouseCapture != nil:
     let cap = rootG.mouseCapture
@@ -101,8 +105,12 @@ proc dispatchMouse*(scope: Group, ev: InputEvent, clicks = 1) =
     var mev = ev
     mev.mx = ev.mx - o.x
     mev.my = ev.my - o.y
+    let ended = ev.action == maRelease or
+                (ev.action == maMove and ev.button == mbNone)
+    if ended:
+      mev.action = maRelease # normalize so the captured view tears down its drag
     discard cap.handleEvent(Event(kind: evMouse, imouse: mev, clicks: clicks))
-    if ev.action == maRelease:
+    if ended:
       rootG.mouseCapture = nil
     return
 

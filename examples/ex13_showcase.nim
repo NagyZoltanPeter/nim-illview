@@ -10,7 +10,7 @@
 ## menu that acts on the selected node. Menu: File > Quit, Help > About. Esc
 ## quits. The clock on the status bar ticks once a second.
 
-import std/[times, strformat, unicode]
+import std/[times, strformat, unicode, tables]
 import chronos
 import brokers
 import ../src/illview
@@ -47,13 +47,11 @@ method draw(t: TitleBar, dc: DrawContext) =
 
 # --- example windows (opened in the ground on tree selection) ----------------
 
-proc clearGround(g: Group) =
-  ## Example windows are genuinely-transient content: dispose (drop wiring)
-  ## then detach. Contrast the menus, which are persistent and only detached.
-  while g.children.len > 0:
-    let c = g.children[^1]
-    g.remove(c)
-    dispose(c)
+var exCache: tables.Table[string, Window]
+  ## Persistent-membership (deviation #21): each example window is built ONCE
+  ## and cached, then only add/removed from the ground. No dispose/rebuild
+  ## churn — which also sidesteps the ORC cycle-collector SIGSEGV that hits
+  ## when app-capturing closures are repeatedly freed under --mm:orc.
 
 proc fillExample(app: App, body: Group, name: string) =
   case name
@@ -82,7 +80,7 @@ proc fillExample(app: App, body: Group, name: string) =
     body.add newTreeView(@[treeNode("root", @[treeNode("a"), treeNode("b")])])
   of "Box / grid":
     let g = newGrid(cols = 3, spacing = 1)
-    g.dock = dkFill
+    g.hint = (prefHint(0, stretch = 1), prefHint(0, stretch = 1)) # fill the box body
     for i in 1 .. 6:
       let l = newLabel(&"cell {i}")
       l.styleOv.bg = (if i mod 2 == 0: bgBlue else: bgGreen)
@@ -90,7 +88,7 @@ proc fillExample(app: App, body: Group, name: string) =
     body.add g
   of "Form layout":
     let f = newFormLayout(spacing = 1)
-    f.dock = dkFill
+    f.hint = (prefHint(0, stretch = 1), prefHint(0, stretch = 1)) # fill the box body
     f.add newLabel("Host"); f.add newInput("node.example")
     f.add newLabel("Port"); f.add newInput("8000")
     f.add newLabel("TLS"); f.add newCheckbox("", checked = true)
@@ -146,13 +144,19 @@ proc fillExample(app: App, body: Group, name: string) =
     body.add newLabel("select an example on the left")
 
 proc openExample(app: App, ground: Group, name: string) =
-  clearGround(ground)
-  let win = newWindow(name, rect(0, 0, 0, 0))
-  win.dock = dkFill
-  let body = newVBox(spacing = 1)
-  body.dock = dkFill
-  fillExample(app, body, name)
-  win.add body
+  # detach whatever is showing (kept alive in the cache), then show `name`
+  while ground.children.len > 0:
+    ground.remove(ground.children[^1])
+  var win = exCache.getOrDefault(name) # non-raising lookup
+  if win == nil:
+    win = newWindow(name, rect(0, 0, 0, 0))
+    # floating (dkNone) + sized to the ground => movable + resizable (◢ handle)
+    win.bounds = rect(0, 0, max(ground.contentW, 8), max(ground.contentH, 4))
+    let body = newVBox(spacing = 1)
+    body.dock = dkFill
+    fillExample(app, body, name)
+    win.add body
+    exCache[name] = win
   ground.add win
   app.requestRedraw()
 

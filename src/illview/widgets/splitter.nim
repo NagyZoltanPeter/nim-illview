@@ -99,6 +99,9 @@ proc newSplitter*(axis: Axis, first, second: View, pos = 0): Splitter =
   ## pos = 0 means "split down the middle on first arrange".
   result = Splitter(axis: axis, first: first, second: second, pos: pos)
   initView(result)
+  # a splitter divides available space, so it should fill by default — else it
+  # collapses to 0 inside a box layout (bug: "splitter example is empty").
+  result.hint = (prefHint(0, stretch = 1), prefHint(0, stretch = 1))
   result.handle = SplitHandle(owner: result)
   initView(result.handle)
   result.handle.focusable = true

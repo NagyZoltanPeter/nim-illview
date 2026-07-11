@@ -12,6 +12,11 @@
 
 import chronos
 import ../backend/illwill_vendored
+when defined(posix):
+  from std/termios import Termios, tcGetAttr, tcSetAttr, TCSANOW
+  # posix stays qualified (`posix.`): its `write`/`signal` clash with chronos'
+  # and its `Group` clashes with view.Group.
+  from std/posix import nil
 import ../widgets/desktop
 import ./events, ./view, ./routing, ./geometry, ./drawcontext, ./bus, ./theme
 
@@ -56,6 +61,38 @@ func nextClicks*(last: tuple[t: Moment, x, y: int, button: events.MouseButton, c
 
 proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].}
 proc requestRedraw*(app: App) {.gcsafe, raises: [].}
+
+# --- terminal restore on a fatal crash (POSIX) -------------------------------
+# Nim runs `addExitProc` only on quit(), NOT on an unhandled exception or a
+# signal, so a crash would otherwise leave the terminal in raw + mouse-tracking
+# mode ("trash on mouse move"). A signal handler using only async-signal-safe
+# write(2)/tcsetattr fixes this, including for the SIGSEGV the ORC collector can
+# raise. Normal exit still goes through run()'s `finally: disableTui`.
+when defined(posix):
+  var gOrigTermios: Termios
+  var gTermiosSaved = false
+  var gSignalRestoreInstalled = false
+  const RestoreSeq =
+    "\e[?1002l\e[?1003l\e[?1006l" & # mouse tracking off
+    "\e[?2004l" &                   # bracketed paste off
+    "\e[?25h" &                     # show cursor
+    "\e[?1049l" &                   # leave the alt screen
+    "\e[0m"                         # reset attributes
+
+  proc restoreOnSignal(sig: cint) {.noconv.} =
+    discard posix.write(cint(1), cast[pointer](cstring(RestoreSeq)), RestoreSeq.len)
+    if gTermiosSaved:
+      discard tcSetAttr(cint(0), TCSANOW, addr gOrigTermios)
+    posix.signal(sig, posix.SIG_DFL) # return re-runs the faulting op -> default
+
+  proc installCrashRestore() =
+    if gSignalRestoreInstalled:
+      return
+    gSignalRestoreInstalled = true
+    gTermiosSaved = tcGetAttr(cint(0), addr gOrigTermios) == 0
+    for s in [posix.SIGSEGV, posix.SIGABRT, posix.SIGBUS, posix.SIGILL,
+              posix.SIGFPE]:
+      posix.signal(s, restoreOnSignal)
 proc execView*(app: App, v: Group): Future[Command] {.gcsafe, raises: [].}
 proc endModal*(app: App, cmd: Command) {.gcsafe, raises: [].}
 
@@ -208,6 +245,8 @@ proc enableTui*(app: App) =
   ## SGR mouse, bracketed paste) and start the async input driver.
   if app.tuiActive:
     return
+  when defined(posix):
+    installCrashRestore() # capture the cooked termios BEFORE illwill goes raw
   illwillInit(fullScreen = true, mouse = true)
   hideCursor()
   stdout.write("\e[?2004h") # bracketed paste on
