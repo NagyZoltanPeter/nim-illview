@@ -245,7 +245,7 @@ proc enableTui*(app: App) =
   ## SGR mouse, bracketed paste) and start the async input driver.
   if app.tuiActive:
     return
-  when defined(posix):
+  when defined(posix) and not defined(noCrashRestore):
     installCrashRestore() # capture the cooked termios BEFORE illwill goes raw
   illwillInit(fullScreen = true, mouse = true)
   hideCursor()

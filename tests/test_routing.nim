@@ -204,6 +204,16 @@ suite "routing: border-inset coordinates (iteration 2)":
     dispatchMouse(root, mouseEvent(maRelease, mbLeft, 30, 15))
     check root.mouseCapture == nil
 
+  test "clicking a docked child does not reorder it (bars stay put)":
+    let root = newRecordingRoot(40, 20)
+    let bar1 = newProbe("bar1", rect(0, 0, 40, 1)); bar1.dock = dkTop
+    let bar2 = newProbe("bar2", rect(0, 1, 40, 1)); bar2.dock = dkTop
+    root.add bar1
+    root.add bar2
+    dispatchMouse(root, press(5, 0)) # click the top (menu-bar-like) docked child
+    check root.children[0] == View(bar1) # NOT raised to the end -> no visual swap
+    check root.children[1] == View(bar2)
+
   test "a no-button move ends the drag (1003 implicit release)":
     let root = newRecordingRoot(40, 20)
     let p = newProbe("p", rect(5, 5, 5, 1))

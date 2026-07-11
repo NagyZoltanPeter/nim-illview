@@ -241,3 +241,26 @@ Standalone reproducer: [repro/orc_churn_crash.nim](../repro/orc_churn_crash.nim)
 minimization below the full-app graph (pure-stdlib closure churn and several
 smaller illview subsets did not reproduce it), so the reproducer is the
 showcase with caching disabled.
+
+## 23. Docked-child raise flip; async-closure ORC churn; MDI tile (showcase)
+
+More showcase issues found in a second pass:
+
+- **Menu/title bar "flip" on click.** `dispatchMouse` raised the scope's clicked
+  direct child for window z-order — but that also reordered *docked* children
+  (menu/title/status bars), and since dock arrangement follows child order they
+  visibly swapped. Fix: only raise `dkNone` (floating) children.
+
+- **Dialog examples still SIGSEGV'd.** The prior fix cached example windows, but
+  the Confirm/Input-box buttons still built an `app`-capturing *async* onClick
+  closure — and *building* that under the churn (or even in a startup bulk
+  build) trips the ORC collector (deviation #22). Fix: the buttons emit a plain
+  broker event that captures nothing; a single persistent listener (wired once)
+  opens the dialog. Example windows are also pre-built once at startup, not
+  during the poll loop.
+
+- **File > Tile did nothing.** The ground showed one example at a time, so there
+  was nothing to tile. Reworked to MDI: Enter opens a leaf as a floating window
+  in the ground (several coexist, movable/resizable/closable), and Tile
+  arranges them in a grid. `-d:noCrashRestore` added to `enableTui` to opt out
+  of the crash-restore signal handlers (for getting clean tracebacks).

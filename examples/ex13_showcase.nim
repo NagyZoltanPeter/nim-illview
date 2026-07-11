@@ -5,9 +5,10 @@
 ##   [ tree of grouped examples | example ground    ]  <- Splitter
 ##   [ status bar: info items ...        clock (rt) ]
 ##
-## Navigate the tree (Up/Down, Left/Right to fold); landing on a leaf opens
-## that example as a window in the ground. Right-click the tree for a context
-## menu that acts on the selected node. Menu: File > Quit, Help > About. Esc
+## Navigate the tree (Up/Down, Left/Right to fold); Enter opens the selected
+## leaf as a floating window in the ground (open several — they're movable,
+## resizable, closable). File > Tile arranges the open windows in a grid.
+## Right-click the tree for a context menu; File > Quit, Help > About; Esc
 ## quits. The clock on the status bar ticks once a second.
 
 import std/[times, strformat, unicode, tables]
@@ -26,6 +27,12 @@ EventBroker:
     tag: int
 EventBroker:
   type TileRequested = object
+    tag: int
+EventBroker:
+  type ShowConfirm = object
+    tag: int
+EventBroker:
+  type ShowInput = object
     tag: int
 
 # --- a centered title-bar strip ----------------------------------------------
@@ -119,46 +126,80 @@ proc fillExample(app: App, body: Group, name: string) =
         discard messageBox(app, "Info", "Hello from illview!", @[("~O~K", cmOk)])
     body.add btn
   of "Confirm":
-    let ans = newLabel("answer: —")
+    # NB: the button emits a plain broker event that captures NOTHING; a
+    # persistent listener (wired once, at startup) opens the dialog. Capturing
+    # `app` in a per-example closure and rebuilding it churns app->…->closure->
+    # app cycles that trip the ORC collector (deviation #22).
     let btn = newButton("~a~sk")
-    btn.onClick = proc(s: Button) {.gcsafe, raises: [].} =
-      {.cast(gcsafe).}:
-        proc run() {.async.} =
-          let yes = await confirm(app, "Proceed?")
-          ans.setText("answer: " & (if yes: "yes" else: "no"))
-        asyncSpawn run()
+    btn.onClick = proc(s: Button) {.gcsafe, raises: [].} = emit(ShowConfirm())
     body.add btn
-    body.add ans
+    body.add newLabel("(click to open a confirm dialog)")
   of "Input box":
-    let ans = newLabel("name: —")
     let btn = newButton("~e~nter name")
-    btn.onClick = proc(s: Button) {.gcsafe, raises: [].} =
-      {.cast(gcsafe).}:
-        proc run() {.async.} =
-          let v = await inputBox(app, "Name", "Your name:")
-          if v.isSome: ans.setText("name: " & v.get)
-        asyncSpawn run()
+    btn.onClick = proc(s: Button) {.gcsafe, raises: [].} = emit(ShowInput())
     body.add btn
-    body.add ans
+    body.add newLabel("(click to open an input dialog)")
   else:
     body.add newLabel("select an example on the left")
 
-proc openExample(app: App, ground: Group, name: string) =
-  # detach whatever is showing (kept alive in the cache), then show `name`
-  while ground.children.len > 0:
-    ground.remove(ground.children[^1])
-  var win = exCache.getOrDefault(name) # non-raising lookup
-  if win == nil:
-    win = newWindow(name, rect(0, 0, 0, 0))
-    # floating (dkNone) + sized to the ground => movable + resizable (◢ handle)
-    win.bounds = rect(0, 0, max(ground.contentW, 8), max(ground.contentH, 4))
+const exampleNames = [
+  "Buttons & choices", "Input & validation", "List & table", "Progress & tree",
+  "Box / grid", "Form layout", "Splitter",
+  "Borders & shadows", "Colors & focus",
+  "Message box", "Confirm", "Input box"]
+
+proc prebuildExamples(app: App, ground: Group) =
+  ## Build every example window ONCE, up front — SYNCHRONOUSLY, before the
+  ## event loop starts. (Building app-capturing closures *inside* the poll loop
+  ## trips the ORC cycle collector — deviation #22 — and the example buttons
+  ## deliberately capture nothing.) The windows are floating MDI children of the
+  ## ground: movable, resizable (◢), and closable ([■], which just detaches so
+  ## the cache keeps them).
+  for name in exampleNames:
+    let win = newWindow(name, rect(0, 0, 34, 10)) # floating; cascaded on open
+    win.onClose = proc(w: Window) {.gcsafe, raises: [].} = # detach, don't dispose
+      if w.parent != nil:
+        let p = w.parent
+        p.remove(w)
+        p.invalidate()
     let body = newVBox(spacing = 1)
     body.dock = dkFill
     fillExample(app, body, name)
     win.add body
     exCache[name] = win
-  ground.add win
+
+proc openExample(app: App, ground: Group, name: string) =
+  ## Open a pre-built example as a floating window in the ground. Already open?
+  ## raise it. Multiple can coexist so File > Tile can arrange them.
+  let win = exCache.getOrDefault(name)
+  if win == nil:
+    return
+  if win.parent == ground: # already open -> bring to front
+    raiseToTop(ground, win)
+  else:
+    let n = ground.children.len # cascade the new window
+    win.bounds = rect(min(n * 2, max(ground.contentW - 34, 0)),
+                      min(n * 1, max(ground.contentH - 10, 0)), 34, 10)
+    ground.add win
   app.requestRedraw()
+
+proc tileGround(ground: Group) =
+  ## Arrange the ground's floating windows in a near-square grid (like
+  ## Desktop.tile, but over the ground pane).
+  var ws: seq[View]
+  for c in ground.children:
+    if c.visible and c.dock == dkNone: ws.add c
+  if ws.len == 0:
+    return
+  var cols = 1
+  while cols * cols < ws.len:
+    inc cols
+  let rows = (ws.len + cols - 1) div cols
+  let cw = max(ground.contentW div cols, 1)
+  let ch = max(ground.contentH div rows, 1)
+  for i, w in ws:
+    w.bounds = rect((i mod cols) * cw, (i div cols) * ch, cw, ch)
+  ground.invalidate()
 
 # --- the app -----------------------------------------------------------------
 
@@ -203,7 +244,7 @@ proc main() {.async.} =
     treeNode("Dialogs", @[
       treeNode("Message box"), treeNode("Confirm"), treeNode("Input box")])])
   tree.roots[0].expanded = true
-  tree.onSelect = proc(t: TreeView) {.gcsafe, raises: [].} =
+  tree.onActivate = proc(t: TreeView) {.gcsafe, raises: [].} = # Enter opens a leaf
     {.cast(gcsafe).}:
       let n = t.selectedNode
       if n != nil and not n.hasKids:
@@ -235,7 +276,24 @@ proc main() {.async.} =
       "illview showcase — iteration 5", @[("~O~K", cmOk)]))
   discard TileRequested.listen(proc(ev: TileRequested): Future[void] {.
     async: (raises: []), gcsafe.} =
-    {.cast(gcsafe).}: app.desktop.tile())
+    {.cast(gcsafe).}: (tileGround(ground); app.requestRedraw()))
+  # dialog examples: one persistent listener each (no per-example app capture)
+  discard ShowConfirm.listen(proc(ev: ShowConfirm): Future[void] {.
+    async: (raises: []), gcsafe.} =
+    {.cast(gcsafe).}:
+      try:
+        let yes = await confirm(app, "Proceed?")
+        discard messageBox(app, "Result", "you chose: " & (if yes: "yes" else: "no"),
+          @[("~O~K", cmOk)])
+      except CatchableError: discard)
+  discard ShowInput.listen(proc(ev: ShowInput): Future[void] {.
+    async: (raises: []), gcsafe.} =
+    {.cast(gcsafe).}:
+      try:
+        let v = await inputBox(app, "Name", "Your name:")
+        discard messageBox(app, "Result",
+          (if v.isSome: "you typed: " & v.get else: "(cancelled)"), @[("~O~K", cmOk)])
+      except CatchableError: discard)
 
   app.onInput = proc(ev: InputEvent) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}:
@@ -247,6 +305,7 @@ proc main() {.async.} =
            ev.my >= o.y and ev.my < o.y + tree.contentH:
           ctx.openAt(tree, point(ev.mx, ev.my))
 
+  {.cast(gcsafe).}: prebuildExamples(app, ground) # build all windows up front
   setFocus(app.desktop, tree) # start with the tree focused so arrows work
   sb.setText("--:--:--")
   asyncSpawn clockLoop(app, sb)

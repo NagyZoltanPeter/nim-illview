@@ -118,10 +118,12 @@ proc dispatchMouse*(scope: Group, ev: InputEvent, clicks = 1) =
   let p = point(ev.mx - so.x, ev.my - so.y)
 
   if ev.action == maPress:
-    # raise the scope's direct child (window) under the cursor
+    # raise the scope's direct FLOATING child (window) under the cursor.
+    # Docked children (menu/title/status bars) must NOT be reordered — raising
+    # them changes the dock arrangement order and they visibly swap places.
     for i in countdown(scope.children.high, 0):
       let c = scope.children[i]
-      if c.visible and c.bounds.contains(p):
+      if c.visible and c.dock == dkNone and c.bounds.contains(p):
         raiseToTop(scope, c)
         break
 
