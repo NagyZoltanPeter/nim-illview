@@ -264,3 +264,23 @@ More showcase issues found in a second pass:
   in the ground (several coexist, movable/resizable/closable), and Tile
   arranges them in a grid. `-d:noCrashRestore` added to `enableTui` to opt out
   of the crash-restore signal handlers (for getting clean tracebacks).
+
+## 24. Modal focus restore; nested-window raise; window move clamp
+
+MDI follow-ups (nested floating windows in a sub-group):
+
+- **Focus lost after a modal closed.** `execView` focus-into'd the modal but
+  never saved the prior focus, and `endModal` never restored it — so after a
+  menu/dialog closed, keys went to the detached modal (e.g. Tile a window, then
+  the tree stopped responding to Enter). `execView` now records the pre-modal
+  `focusedLeaf`; `endModal` restores it in the layer below.
+
+- **Nested windows never raised.** The raise-on-press only reordered the
+  *scope's* direct children, so a floating window inside a sub-group (the MDI
+  ground) never came to front (a maximized one hid behind its neighbours). Now
+  `dispatchMouse` raises every floating view on the target→scope path, each
+  within its own parent.
+
+- **A dragged window could be lost.** A parent group clips its children, so a
+  window dragged out was unreachable. `Window.moveTo` now clamps the window to
+  the parent's content area.

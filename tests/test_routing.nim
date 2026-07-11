@@ -204,6 +204,18 @@ suite "routing: border-inset coordinates (iteration 2)":
     dispatchMouse(root, mouseEvent(maRelease, mbLeft, 30, 15))
     check root.mouseCapture == nil
 
+  test "clicking a nested floating window raises it within its parent (MDI)":
+    let root = newRecordingRoot(40, 20)
+    let ground = newGroup()
+    ground.bounds = rect(0, 0, 40, 20)
+    root.add ground
+    let w1 = newProbe("w1", rect(0, 0, 10, 5))  # dkNone by default
+    let w2 = newProbe("w2", rect(5, 0, 10, 5))  # overlaps, added last => on top
+    ground.add w1
+    ground.add w2
+    dispatchMouse(root, press(2, 2)) # over w1 only (w2 starts at x=5)
+    check ground.children[^1] == View(w1) # w1 raised to the front, not just top-level
+
   test "clicking a docked child does not reorder it (bars stay put)":
     let root = newRecordingRoot(40, 20)
     let bar1 = newProbe("bar1", rect(0, 0, 40, 1)); bar1.dock = dkTop
@@ -255,6 +267,16 @@ suite "window move/resize (phase 10)":
     setFocus(root, p)
     check not dispatchKey(root, keyEvent(Key.Right, mods = {modAlt}))
     check win.bounds == rect(5, 5, 20, 10)
+
+  test "window move is clamped to the parent content (can't be lost)":
+    let sroot = newRecordingRoot(30, 12)  # small parent
+    let w = newWindow("W", rect(5, 3, 20, 8))
+    sroot.add w
+    dispatchMouse(sroot, press(10, 3))                      # grab the title row
+    dispatchMouse(sroot, mouseEvent(maMove, mbLeft, 200, 200)) # drag way off
+    check w.bounds.x <= 30 - w.bounds.w  # <= 10
+    check w.bounds.y <= 12 - w.bounds.h  # <= 4
+    check w.bounds.x >= 0 and w.bounds.y >= 0
 
   test "title drag moves the window; capture ends on release":
     dispatchMouse(root, press(10, 5)) # top border row: content-local y == -1

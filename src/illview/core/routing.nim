@@ -117,17 +117,19 @@ proc dispatchMouse*(scope: Group, ev: InputEvent, clicks = 1) =
   let so = scope.absOrigin
   let p = point(ev.mx - so.x, ev.my - so.y)
 
-  if ev.action == maPress:
-    # raise the scope's direct FLOATING child (window) under the cursor.
-    # Docked children (menu/title/status bars) must NOT be reordered — raising
-    # them changes the dock arrangement order and they visibly swap places.
-    for i in countdown(scope.children.high, 0):
-      let c = scope.children[i]
-      if c.visible and c.dock == dkNone and c.bounds.contains(p):
-        raiseToTop(scope, c)
-        break
-
   let (target, local) = hitTest(scope, p)
+
+  if ev.action == maPress:
+    # raise every FLOATING (dkNone) view on the path from the hit target up to
+    # the scope, each within its own parent — so nested MDI windows (e.g. in a
+    # sub-group) come to front, not just the scope's direct children. Docked
+    # children (menu/title/status bars) are never raised: reordering them would
+    # change the dock arrangement and they'd visibly swap places.
+    var raiseV: View = target
+    while raiseV != nil and raiseV != scope:
+      if raiseV.dock == dkNone and raiseV.parent != nil:
+        raiseToTop(raiseV.parent, raiseV)
+      raiseV = raiseV.parent
 
   if ev.action == maPress:
     var f: View = target

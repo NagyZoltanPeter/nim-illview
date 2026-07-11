@@ -72,8 +72,16 @@ func floating(w: Window): bool =
   w.dock == dkNone # docked windows are layout-owned: not movable/resizable
 
 proc moveTo(w: Window, x, y: int) =
-  w.bounds.x = x
-  w.bounds.y = y
+  # keep the window within the parent's content area so a drag can't push it
+  # off and lose it (the parent group clips its children).
+  var nx = x
+  var ny = y
+  if w.parent != nil:
+    let pc = w.parent.clientRect
+    nx = clamp(nx, 0, max(pc.w - w.bounds.w, 0))
+    ny = clamp(ny, 0, max(pc.h - w.bounds.h, 0))
+  w.bounds.x = nx
+  w.bounds.y = ny
   w.invalidate()
 
 proc resizeTo(w: Window, width, height: int) =

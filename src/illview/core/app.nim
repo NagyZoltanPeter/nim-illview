@@ -44,7 +44,7 @@ type
     quitFut: Future[void]
     lastClick: tuple[t: Moment, x, y: int, button: events.MouseButton, count: int]
     disabledCommands: seq[Command] # P22/D19: greyed + non-activatable
-    modalStack: seq[tuple[view: Group, fut: Future[Command]]]
+    modalStack: seq[tuple[view: Group, fut: Future[Command], prevFocus: View]]
     when compileOption("threads"):
       loopThreadId: int
 
@@ -222,20 +222,24 @@ proc execView*(app: App, v: Group): Future[Command] {.gcsafe, raises: [].} =
   ## Modal loop (deviation #6): adds v on top of the desktop, confines
   ## routing to it and returns a future completed by endModal(). No nested
   ## event loop.
+  let prevFocus = app.scope.focusedLeaf # remember focus BEFORE the modal steals it
   app.desktop.add v
   raiseToTop(app.desktop, v)
   let fut = newFuture[Command]("illview.execView")
-  app.modalStack.add (v, fut)
+  app.modalStack.add (v, fut, prevFocus)
   focusInto(app.scope, v)
   app.requestRedraw()
   fut
 
 proc endModal*(app: App, cmd: Command) {.gcsafe, raises: [].} =
-  ## Close the topmost modal view and complete its execView future.
+  ## Close the topmost modal view, restore the pre-modal focus, and complete
+  ## its execView future.
   if app.modalStack.len == 0:
     return
-  let (v, fut) = app.modalStack.pop()
+  let (v, fut, prevFocus) = app.modalStack.pop()
   app.desktop.remove v
+  if prevFocus != nil: # else the caller/next frame decides focus
+    setFocus(app.scope, prevFocus) # scope is now the layer below the closed modal
   app.requestRedraw()
   if not fut.finished:
     fut.complete(cmd)
