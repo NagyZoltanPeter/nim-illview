@@ -235,3 +235,9 @@ Three related runtime bugs found stress-testing the showcase (ex13):
   installs POSIX signal handlers (SIGSEGV/ABRT/BUS/ILL/FPE) that reset the
   terminal with async-signal-safe `write(2)`/`tcsetattr` before the default
   action. Normal exit still restores via `run()`'s `finally: disableTui`.
+
+Standalone reproducer: [repro/orc_churn_crash.nim](../repro/orc_churn_crash.nim)
+— SIGSEGVs under `--mm:orc`, clean under `--mm:refc`. The crash resisted
+minimization below the full-app graph (pure-stdlib closure churn and several
+smaller illview subsets did not reproduce it), so the reproducer is the
+showcase with caching disabled.
