@@ -216,6 +216,34 @@ suite "routing: border-inset coordinates (iteration 2)":
     dispatchMouse(root, press(2, 2)) # over w1 only (w2 starts at x=5)
     check ground.children[^1] == View(w1) # w1 raised to the front, not just top-level
 
+  test "nested Desktop as MDI ground: tile, click-activate, then resize":
+    # the ex13 showcase model (deviation #25): example windows are floating
+    # children of a nested Desktop, so Desktop.tile and click-to-activate +
+    # ◢ resize all run the framework's tested window code.
+    let root = newRecordingRoot(40, 20)
+    let ground = newDesktop()
+    ground.bounds = rect(0, 0, 40, 20)
+    root.add ground
+    let w1 = newWindow("one", rect(0, 0, 12, 6))
+    let w2 = newWindow("two", rect(3, 3, 12, 6))
+    ground.add w1
+    ground.add w2
+    ground.tile()                    # tested grid over the nested ground
+    check w1.bounds.w > 12           # grew into a tile cell
+    check not w1.isActive            # focus is elsewhere after tile -> no active window
+    let o1 = w1.absOrigin
+    dispatchMouse(root, press(o1.x + 6, o1.y - 1)) # title, clear of [■]/[↑]
+    dispatchMouse(root, mouseEvent(maRelease, mbNone, o1.x + 6, o1.y - 1))
+    check w1.isActive                # activated -> ◢ grip is drawn
+    let before = w1.bounds
+    let cx = o1.x + w1.contentW
+    let cy = o1.y + w1.contentH
+    dispatchMouse(root, press(cx, cy))                         # grab the ◢ corner
+    dispatchMouse(root, mouseEvent(maMove, mbLeft, cx + 5, cy + 3))
+    dispatchMouse(root, mouseEvent(maRelease, mbNone, cx + 5, cy + 3))
+    check w1.bounds.w == before.w + 5
+    check w1.bounds.h == before.h + 3
+
   test "clicking a docked child does not reorder it (bars stay put)":
     let root = newRecordingRoot(40, 20)
     let bar1 = newProbe("bar1", rect(0, 0, 40, 1)); bar1.dock = dkTop

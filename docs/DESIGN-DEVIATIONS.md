@@ -284,3 +284,33 @@ MDI follow-ups (nested floating windows in a sub-group):
 - **A dragged window could be lost.** A parent group clips its children, so a
   window dragged out was unreachable. `Window.moveTo` now clamps the window to
   the parent's content area.
+
+## 25. Showcase MDI ground is a nested Desktop; click activates content-less windows
+
+Iterations 4–5 repeatedly hit rough edges putting the ex13 example windows in a
+plain `Group` "ground": no `tile`/`cascade`, subtly different z-order and
+activation than the desktop. Root cause: the ground was an *untested* window
+container. Fix (deviation #25, driven by the user's redesign call):
+
+- **The example ground is now a nested `Desktop`** — the framework's primary,
+  tested window surface. `Desktop.tile`/`cascade`/`selectWindow`/
+  `floatingWindows` operate on `d.clientRect`/`d.children` and never required
+  the desktop to be the app root, so a `Desktop` nested as the splitter's right
+  pane gives real MDI (tile, cascade, raise, move, resize) for free. The tree +
+  splitter stay docked on the left, as required. `tileGround` (a hand-rolled
+  copy of `Desktop.tile`) was deleted; `File > Tile` calls `ground.tile()`.
+
+- **A floating window with no focusable content couldn't be activated.**
+  `dispatchMouse`'s frame-click path only did `focusInto`, which is a no-op when
+  the window has no focusable descendant (e.g. the label-only "Box / grid"
+  pane) — so clicking it never made it the active window, so no double border,
+  no ◢ grip, no keyboard move/resize. Now, when no focusable widget is hit,
+  routing walks up to the nearest floating (`dock == dkNone`) view and selects
+  the window itself if its content took no focus. `focusInto`-into-remembered-
+  child is preserved for windows that *do* have focusable content. This is a
+  general framework fix, not showcase-specific.
+
+Interaction note (not a bug): after `Tile`, focus is on the tree, so no example
+window is active. Click a window to activate it (double border + ◢), then drag
+◢ or Alt+Shift+Arrows to resize. Regression test: "nested Desktop as MDI ground:
+tile, click-activate, then resize" in `tests/test_routing.nim`.

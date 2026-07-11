@@ -89,13 +89,11 @@ template installSignal*(w: typed, S: typedesc, body: untyped) =
 proc installFocusMe*(v: View) =
   ## Focusable widget constructors call this: `FocusMe.signal(v.brokerCtx)`
   ## then focuses the widget (no-op while detached or not focusable).
-  discard FocusMe.onSignal(
-    v.brokerCtx,
-    proc(): Future[void] {.async: (raises: []), gcsafe.} =
-      {.cast(gcsafe).}:
-        let r = v.root
-        if r of Group and canFocus(v):
-          setFocus(Group(r), v))
+  discard FocusMe.onSignalIt(v.brokerCtx): # void signal: nothing injected
+    {.cast(gcsafe).}:
+      let r = v.root
+      if r of Group and canFocus(v):
+        setFocus(Group(r), v)
   v.disposers.add(
     proc() {.gcsafe, raises: [].} =
       asyncSpawn FocusMe.dropSignalHandler(v.brokerCtx))

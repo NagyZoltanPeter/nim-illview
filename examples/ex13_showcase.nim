@@ -6,10 +6,12 @@
 ##   [ status bar: info items ...        clock (rt) ]
 ##
 ## Navigate the tree (Up/Down, Left/Right to fold); Enter opens the selected
-## leaf as a floating window in the ground (open several — they're movable,
-## resizable, closable). File > Tile arranges the open windows in a grid.
-## Right-click the tree for a context menu; File > Quit, Help > About; Esc
-## quits. The clock on the status bar ticks once a second.
+## leaf as a floating window in the ground — a nested Desktop, the framework's
+## tested MDI surface. Open several: click a window to activate it (double
+## border + ◢ grip), drag its title to move, drag ◢ or Alt+Shift+Arrows to
+## resize, [■] to close. File > Tile arranges them in a grid (click one
+## afterwards to resize it). Right-click the tree for a context menu; File >
+## Quit, Help > About; Esc quits. The status-bar clock ticks once a second.
 
 import std/[times, strformat, unicode, tables]
 import chronos
@@ -183,24 +185,6 @@ proc openExample(app: App, ground: Group, name: string) =
     ground.add win
   app.requestRedraw()
 
-proc tileGround(ground: Group) =
-  ## Arrange the ground's floating windows in a near-square grid (like
-  ## Desktop.tile, but over the ground pane).
-  var ws: seq[View]
-  for c in ground.children:
-    if c.visible and c.dock == dkNone: ws.add c
-  if ws.len == 0:
-    return
-  var cols = 1
-  while cols * cols < ws.len:
-    inc cols
-  let rows = (ws.len + cols - 1) div cols
-  let cw = max(ground.contentW div cols, 1)
-  let ch = max(ground.contentH div rows, 1)
-  for i, w in ws:
-    w.bounds = rect((i mod cols) * cw, (i div cols) * ch, cw, ch)
-  ground.invalidate()
-
 # --- the app -----------------------------------------------------------------
 
 proc clockLoop(app: App, sb: StatusBar) {.async.} =
@@ -229,10 +213,13 @@ proc main() {.async.} =
     statusItem("Esc quit", cmdNone)])
   app.desktop.add sb
 
-  # main window: tree | ground, split
+  # main window: tree | ground, split. The ground is a nested Desktop — the
+  # framework's tested MDI surface (deviation #25): example windows are its
+  # floating children, so tile/cascade/raise/resize all run the same code as
+  # the top-level desktop. The tree + splitter stay docked on the left.
   let win = newWindow("examples", rect(0, 0, 0, 0))
   win.dock = dkFill
-  let ground = newGroup()
+  let ground = newDesktop()
   let tree = newTreeView(@[
     treeNode("Widgets", @[
       treeNode("Buttons & choices"), treeNode("Input & validation"),
@@ -266,34 +253,29 @@ proc main() {.async.} =
         let n = tree.selectedNode
         if n != nil and not n.hasKids: openExample(app, ground, n.label))])
 
-  # menu action listeners (the model side)
-  discard QuitRequested.listen(proc(ev: QuitRequested): Future[void] {.
-    async: (raises: []), gcsafe.} =
-    {.cast(gcsafe).}: app.stop())
-  discard AboutRequested.listen(proc(ev: AboutRequested): Future[void] {.
-    async: (raises: []), gcsafe.} =
+  # menu action listeners (the model side) — listenIt body sugar (brokers 3.2.1)
+  discard QuitRequested.listenIt:
+    {.cast(gcsafe).}: app.stop()
+  discard AboutRequested.listenIt:
     {.cast(gcsafe).}: discard messageBox(app, "About",
-      "illview showcase — iteration 5", @[("~O~K", cmOk)]))
-  discard TileRequested.listen(proc(ev: TileRequested): Future[void] {.
-    async: (raises: []), gcsafe.} =
-    {.cast(gcsafe).}: (tileGround(ground); app.requestRedraw()))
+      "illview showcase — iteration 5", @[("~O~K", cmOk)])
+  discard TileRequested.listenIt:
+    {.cast(gcsafe).}: (ground.tile(); app.requestRedraw())
   # dialog examples: one persistent listener each (no per-example app capture)
-  discard ShowConfirm.listen(proc(ev: ShowConfirm): Future[void] {.
-    async: (raises: []), gcsafe.} =
+  discard ShowConfirm.listenIt:
     {.cast(gcsafe).}:
       try:
         let yes = await confirm(app, "Proceed?")
         discard messageBox(app, "Result", "you chose: " & (if yes: "yes" else: "no"),
           @[("~O~K", cmOk)])
-      except CatchableError: discard)
-  discard ShowInput.listen(proc(ev: ShowInput): Future[void] {.
-    async: (raises: []), gcsafe.} =
+      except CatchableError: discard
+  discard ShowInput.listenIt:
     {.cast(gcsafe).}:
       try:
         let v = await inputBox(app, "Name", "Your name:")
         discard messageBox(app, "Result",
           (if v.isSome: "you typed: " & v.get else: "(cancelled)"), @[("~O~K", cmOk)])
-      except CatchableError: discard)
+      except CatchableError: discard
 
   app.onInput = proc(ev: InputEvent) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}:

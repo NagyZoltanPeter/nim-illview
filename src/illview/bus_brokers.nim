@@ -40,9 +40,8 @@ method subscribeDomain*(bus: BrokersBus, pattern: string,
   ## events published by anyone — this bus or other IvDomainEvent emitters —
   ## fan out to matching illview subscribers on the chronos loop.
   if not bus.listening:
-    let res = IvDomainEvent.listen(
-      proc(ev: IvDomainEvent): Future[void] {.async: (raises: []), gcsafe.} =
-        bus.dispatchDomain(ev.topic, ev.payload))
+    let res = IvDomainEvent.listenIt:
+      bus.dispatchDomain(it.topic, it.payload)
     if res.isOk:
       bus.listening = true
   procCall subscribeDomain(EventBus(bus), pattern, handler)
@@ -56,12 +55,10 @@ method publishDomain*(bus: BrokersBus, topic: string,
 
 proc onUiAction*(handler: proc(a: UiAction) {.gcsafe, raises: [].}):
     Result[IvUiActionListener, string] =
-  IvUiAction.listen(
-    proc(ev: IvUiAction): Future[void] {.async: (raises: []), gcsafe.} =
-      handler(UiAction(cmd: Command(ev.cmd), senderId: ev.senderId)))
+  IvUiAction.listenIt:
+    handler(UiAction(cmd: Command(it.cmd), senderId: it.senderId))
 
 proc onDomainEvent*(handler: proc(topic, payload: string) {.gcsafe, raises: [].}):
     Result[IvDomainEventListener, string] =
-  IvDomainEvent.listen(
-    proc(ev: IvDomainEvent): Future[void] {.async: (raises: []), gcsafe.} =
-      handler(ev.topic, ev.payload))
+  IvDomainEvent.listenIt:
+    handler(it.topic, it.payload)

@@ -140,8 +140,21 @@ proc dispatchMouse*(scope: Group, ev: InputEvent, clicks = 1) =
       f = f.parent
     if f != nil:
       setFocus(scope, f)
-    elif target != scope and target of Group:
-      focusInto(scope, Group(target)) # frame click: focus into the window
+    elif target != scope:
+      # No focusable widget was hit. If the click landed on a floating window
+      # (dock == dkNone), make it the active window anyway — double border, ◢
+      # resize grip, keyboard move/resize — even when it has no focusable
+      # content (e.g. a label-only pane). Then refine focus into its content if
+      # there is any (preserving frame-click -> remembered-child).
+      var win: View = target
+      while win != nil and win != scope and win.dock != dkNone:
+        win = win.parent
+      if win != nil and win != scope and win of Group:
+        focusInto(scope, Group(win))
+        if win.parent != nil and win.parent.focused != win:
+          setFocus(scope, win) # no content took focus -> select the window itself
+      elif target of Group:
+        focusInto(scope, Group(target)) # non-floating container
 
   var cur: View = target
   var cp = local
