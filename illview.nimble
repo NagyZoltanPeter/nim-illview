@@ -11,7 +11,7 @@ skipDirs      = @["tests", "examples", "docs"]
 
 requires "nim >= 2.2.4"
 requires "chronos >= 4.0.0"
-requires "brokers >= 3.2.1" # nim-brokers; bus_brokers (Phase 6) + listenIt/onSignalIt handler sugar (3.2.1)
+requires "brokers >= 3.3.0" # nim-brokers; bus_brokers (Phase 6) + listenIt/onSignalIt handler sugar (3.3.0)
 
 task test, "Run the test suite":
   mkDir "build/tests"
