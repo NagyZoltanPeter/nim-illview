@@ -17,6 +17,7 @@ when defined(posix):
   # posix stays qualified (`posix.`): its `write`/`signal` clash with chronos'
   # and its `Group` clashes with view.Group.
   from std/posix import nil
+import brokers/broker_context
 import ../widgets/desktop
 import ./events, ./view, ./routing, ./geometry, ./drawcontext, ./bus, ./theme
 
@@ -31,6 +32,7 @@ type
   App* = ref object
     desktop*: Desktop
     bus*: EventBus # StubBus by default; real nim-brokers bus in Phase 6
+    sessionCtx*: BrokerContext # session scope every view under this app shares
     fpsCap*: int
     running*: bool
     onInput*: proc(ev: InputEvent) {.gcsafe, raises: [].}
@@ -96,8 +98,23 @@ when defined(posix):
 proc execView*(app: App, v: Group): Future[Command] {.gcsafe, raises: [].}
 proc endModal*(app: App, cmd: Command) {.gcsafe, raises: [].}
 
-proc newApp*(fpsCap = 30, theme: Theme = nil): App =
-  let app = App(fpsCap: fpsCap)
+proc newApp*(fpsCap = 30, theme: Theme = nil,
+             sessionCtx = BrokerContext(0)): App =
+  ## Each App owns a session broker context, installed as this thread's global
+  ## broker context BEFORE the desktop is built so every view created afterwards
+  ## adopts it. Resolution: an explicit `sessionCtx` wins; else the thread's
+  ## already-installed context (a user sandbox) is adopted; else a fresh
+  ## `NewBrokerContext()`. The stored value is normalized to instanceCtx 0 so it
+  ## equals `someView.sessionCtx`. uiEvents `emits:` events fire here — listen
+  ## with `Event.listen(app.sessionCtx, handler)`.
+  let raw =
+    if sessionCtx != BrokerContext(0): sessionCtx
+    else:
+      let g = threadGlobalBrokerContext()
+      if g == DefaultBrokerContext: NewBrokerContext() else: g
+  let sc = makeBrokerContext(classCtx(raw), 0'u16)
+  setThreadBrokerContext(sc)
+  let app = App(fpsCap: fpsCap, sessionCtx: sc)
   app.driver = newInputDriver(
     proc(ev: InputEvent) {.gcsafe, raises: [].} = app.handleInput(ev))
   app.bus = newStubBus()

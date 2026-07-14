@@ -18,6 +18,7 @@ import brokers/broker_context
 import ./geometry, ./theme, ./events, ./drawcontext, ./bus, ./hotkey
 
 export bus.Command, bus.cmdNone, bus.UiAction
+export broker_context # BrokerContext + session-ctx API (Set/NewBrokerContext, …)
 export broker_context.BrokerContext
 
 type
@@ -97,17 +98,38 @@ type
 var gNextViewId: int # plain int: safe to touch from gcsafe code; single loop thread
 
 let gAppClassCtx = NewBrokerContext()
-  ## One classCtx for the whole process; every View gets an instanceCtx under
-  ## it (plan-3 D7). The id is not recycled (nim-brokers 3.2.0) — see dispose().
+  ## Fallback session scope: the process-wide classCtx a view hangs off when NO
+  ## per-thread broker context is installed (standalone widgets, tests). `newApp`
+  ## installs its own session ctx (see viewSessionParent), so app-built views use
+  ## THAT instead. Either way the id is not recycled — see dispose().
+
+proc viewSessionParent(): BrokerContext =
+  ## The context a fresh view's instance ctx is allocated under. Honors an
+  ## explicitly installed thread broker context — an App session, or a user
+  ## sandbox via `setThreadBrokerContext` / a saved `globalBrokerContext` — and
+  ## falls back to `gAppClassCtx` while the thread is still on the bare
+  ## `DefaultBrokerContext`, so views are NEVER on the global default scope.
+  let g = threadGlobalBrokerContext()
+  if g == DefaultBrokerContext: gAppClassCtx else: g
 
 proc initView*(v: View) =
   ## Every widget constructor must call this.
   inc gNextViewId
   v.id = gNextViewId
-  v.brokerCtx = newInstanceCtx(gAppClassCtx)
+  v.brokerCtx = newInstanceCtx(viewSessionParent())
   v.visible = true
   v.enabled = true
   v.hint = (SizeHint(), SizeHint()) # defaults: max unbounded
+
+func sessionCtx*(v: View): BrokerContext =
+  ## The session-scoped broker context common to every view built under the same
+  ## session: the shared classCtx with the per-instance high-16 stripped. This
+  ## is `gAppClassCtx` by default, or the App's / a user-installed session ctx
+  ## (see viewSessionParent). uiEvents `emits:` events fire on THIS context —
+  ## session-wide, but isolated from the global DefaultBrokerContext other broker
+  ## users share. Subscribe with `SomeEvent.listen(v.sessionCtx, handler)` (or
+  ## `app.sessionCtx`, or your own saved ctx if you installed one).
+  makeBrokerContext(classCtx(v.brokerCtx), 0'u16)
 
 proc newGroup*(): Group =
   result = Group()

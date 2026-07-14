@@ -132,38 +132,67 @@ suite "set<Field> writers (plan-3 D10)":
     dispose(form)
 
 suite "emits: auto-generated typed events (plan-2 D5)":
-  test "button activation emits RunClicked with senderId":
+  test "button activation emits RunClicked on the session ctx, not the default":
     var got: seq[int]
-    check RunClicked.listen(
-      proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
-        {.cast(gcsafe).}:
-          got.add ev.senderId).isOk
+    var gotDefault: seq[int]
     let root = newGroup()
     root.bounds = rect(0, 0, 60, 20)
     let form = mount(BoundForm)
     root.add form
+    # emits: fires on the view's session ctx (shared classCtx, instance 0)
+    check RunClicked.listen(form.sessionCtx,
+      proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}:
+          got.add ev.senderId).isOk
+    # a listener on the global default ctx must receive nothing
+    check RunClicked.listen(
+      proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}:
+          gotDefault.add ev.senderId).isOk
     setFocus(root, form.run)
     discard dispatchKey(root, keyEvent(Key.Enter))
     waitFor sleepAsync(10.milliseconds)
     check got == @[form.run.id]
+    check gotDefault.len == 0
+    waitFor RunClicked.dropAllListeners(form.sessionCtx)
     waitFor RunClicked.dropAllListeners()
 
   test "input submit emits FormSubmitted with the text payload":
     var got: seq[string]
-    check FormSubmitted.listen(
-      proc(ev: FormSubmitted): Future[void] {.async: (raises: []), gcsafe.} =
-        {.cast(gcsafe).}:
-          got.add ev.text).isOk
     let root = newGroup()
     root.bounds = rect(0, 0, 60, 20)
     let form = mount(BoundForm)
     root.add form
+    check FormSubmitted.listen(form.sessionCtx,
+      proc(ev: FormSubmitted): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}:
+          got.add ev.text).isOk
     setFocus(root, form.submit)
     typeText(root, "hi")
     discard dispatchKey(root, keyEvent(Key.Enter))
     waitFor sleepAsync(10.milliseconds)
     check got == @["Gohi"] # caption "Go" is the initial text, "hi" typed
-    waitFor FormSubmitted.dropAllListeners()
+    waitFor FormSubmitted.dropAllListeners(form.sessionCtx)
+
+  test "a user-installed session ctx sandboxes emits (setThreadBrokerContext)":
+    let uiCtx = NewBrokerContext()   # a saved/sandbox context
+    setThreadBrokerContext(uiCtx)    # install it for this thread
+    var got: seq[int]
+    let root = newGroup()
+    root.bounds = rect(0, 0, 60, 20)
+    let form = mount(BoundForm)      # views built now hang off uiCtx
+    root.add form
+    check form.sessionCtx == uiCtx   # the session ctx IS the installed one
+    check RunClicked.listen(uiCtx,   # listen on the saved ctx directly
+      proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}:
+          got.add ev.senderId).isOk
+    setFocus(root, form.run)
+    discard dispatchKey(root, keyEvent(Key.Enter))
+    waitFor sleepAsync(10.milliseconds)
+    check got == @[form.run.id]
+    waitFor RunClicked.dropAllListeners(uiCtx)
+    setThreadBrokerContext(DefaultBrokerContext) # restore for other tests
 
 suite "opened bus: subscribe + wildcards (plan-2 D6)":
   test "topic matching rules":

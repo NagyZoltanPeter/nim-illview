@@ -8,8 +8,11 @@
 ##                        # Radio/ListView/Table: selected; Button: none
 ##
 ## plus a `uiEmit(sender, Name)` snapshot emitter that mount() wires to the
-## widget's primary slot. Per `bindRequest: "Name"` it generates a SYNC
-## RequestBroker
+## widget's primary slot. The event fires on the sender's `sessionCtx` — the
+## classCtx shared by every view (app-wide) but isolated from the global
+## DefaultBrokerContext — so listeners subscribe with `Name.listen(v.sessionCtx,
+## …)`, not the bare default-context `Name.listen(…)`. Per `bindRequest: "Name"`
+## it generates a SYNC RequestBroker
 ##
 ##   proc Name*(value: VT): Result[VT, string]
 ##
@@ -116,8 +119,8 @@ macro uiEvents*(T: typedesc): untyped =
         payloadCtor = ""
       result.add parseStmt(
         "proc uiEmit*(sender: " & typeName & ", _: typedesc[" & evName &
-        "]) {.gcsafe.} =\n  emit(" & evName & "(senderId: sender.id" &
-        payloadCtor & "))")
+        "]) {.gcsafe.} =\n  emit(" & evName & ", sender.sessionCtx, " & evName &
+        "(senderId: sender.id" & payloadCtor & "))")
 
     let reqArg = pragmaArg(fprag, "bindRequest")
     if reqArg != nil:

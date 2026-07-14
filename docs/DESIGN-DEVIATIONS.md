@@ -314,3 +314,29 @@ Interaction note (not a bug): after `Tile`, focus is on the tree, so no example
 window is active. Click a window to activate it (double border + ◢), then drag
 ◢ or Alt+Shift+Arrows to resize. Regression test: "nested Desktop as MDI ground:
 tile, click-activate, then resize" in `tests/test_routing.nim`.
+
+## 26. uiEvents `emits:` fire on a session ctx, not DefaultBrokerContext
+
+Generated `emits:` events (`uiEmit`) used to `emit(Ev(…))` on the global
+`DefaultBrokerContext`, colliding with every other broker user in the process and
+offering no way to sandbox two UIs. They now fire on the sender's **session
+ctx** — the shared classCtx common to all views, per-instance high-16 stripped —
+via `emit(Ev, sender.sessionCtx, Ev(…))`. Listeners subscribe with
+`Ev.listen(view.sessionCtx, …)` (or `app.sessionCtx`), never the bare default.
+
+The session ctx is resolved at view construction by `viewSessionParent()`:
+
+- No thread broker context installed → the process-wide `gAppClassCtx` (still off
+  the global default). Preserves prior behavior for standalone widgets/tests.
+- `newApp` installs its own session ctx (`app.sessionCtx`, a fresh
+  `NewBrokerContext()` unless one is passed) as the thread global BEFORE building
+  the desktop, so every app view adopts it — each App is its own sandbox.
+- A user can install their own: `setThreadBrokerContext(myCtx)` before building,
+  then `Ev.listen(myCtx, …)`. The broker-context API is re-exported from illview.
+
+`emits:` uses the **session** part deliberately (common to all widgets, keyed by
+`ev.senderId`); instance-ctx vocab events (`Clicked`/`TextChanged`, the `on: {}`
+path) still route on the full per-widget `brokerCtx` and are unchanged. The
+opened-bus `UiAction`/domain events stay on `DefaultBrokerContext` by design.
+Regression tests in `tests/test_bindings.nim`: emits land on the session ctx (not
+the default), and a `setThreadBrokerContext` sandbox routes to the saved ctx.
