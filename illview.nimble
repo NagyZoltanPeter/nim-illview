@@ -27,7 +27,7 @@ task examples, "Build all examples (POSIX)":
   for ex in ["ex00_echo", "ex01_loop", "ex02_windows", "ex03_layout",
              "ex04_widgets_gallery", "ex05_declarative", "ex06_netviz", "ex07_styling",
              "ex09_bindings", "ex10_instance_ctx", "ex11_scroller",
-             "ex12_splitter", "ex13_showcase"]:
+             "ex12_splitter", "ex13_showcase", "ex14_logpane"]:
     exec "nim c --mm:orc --hints:off -o:build/examples/" & ex & " examples/" & ex & ".nim"
 
 task screenshots, "Regenerate the README screenshots (docs/assets/*.svg)":

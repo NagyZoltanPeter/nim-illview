@@ -68,10 +68,11 @@ proc onRun(self: F) {.gcsafe, raises: [].} = ...
 
 # tier 3b — semantic event the MODEL listens to (survives UI restructuring):
 run {.child, emits: "RunRequested".}: Button
-# model side, no form knowledge:
-discard RunRequested.listen(
-  proc(ev: RunRequested): Future[void] {.async: (raises: []), gcsafe.} =
-    asyncSpawn model.startRun())
+# model side, no form knowledge. emits: fires on the app's SESSION ctx —
+# never the global DefaultBrokerContext — so listen there (recipe 21).
+# listenIt = brokers listener-body sugar; the event value is injected as `it`.
+discard RunRequested.listenIt(app.sessionCtx):
+  asyncSpawn model.startRun()
 
 # tier 2 — command palette (menus/statusbar share the same channel):
 run {.child, action: cmdRun.}: Button   # -> UiAction on app.bus
@@ -153,12 +154,14 @@ Instance-ctx listening is the escape hatch for widget-bound concerns.
 Model-attached listeners are YOURS to drop (see recipe 12):
 
 ```nim
-let h = TextChanged.listen(form.host.brokerCtx,
-  proc(ev: TextChanged): Future[void] {.async: (raises: []), gcsafe.} =
-    model.hostDraft = ev.text)
+let h = TextChanged.listenIt(form.host.brokerCtx):  # `it` = the event
+  model.hostDraft = it.text
 # ... later:
 waitFor TextChanged.dropAllListeners(form.host.brokerCtx)
 ```
+
+(`listenIt`/`onSignalIt` expand to the same `{.async: (raises: []), gcsafe.}`
+listener proc you would write by hand — pure sugar, `await` allowed.)
 
 ## 9. Live domain feeds (NetViz)
 
@@ -189,6 +192,24 @@ sb.dock = dkBottom
 
 discard onUiAction(proc(a: UiAction) {.gcsafe, raises: [].} =
   if a.cmd == cmdQuit: app.stop())   # needs app.bus = newBrokersBus()
+```
+
+Declarative alternative — items emit typed broker events (the type IS the
+action; `~X~` marks the accelerator):
+
+```nim
+EventBroker:
+  type TileRequested = object
+
+let mb = menuBar(
+  menu("~F~ile", @[
+    item("~T~ile windows", TileRequested),   # activation auto-emits
+    sep(),
+    submenu("~R~ecent", @[item("a.nim", cmdOpenA)]),
+    item("~Q~uit", QuitRequested)]))
+
+discard TileRequested.listenIt:   # NB: menu items emit on the DEFAULT ctx
+  ground.tile()                   # (not the session ctx — see recipe 21)
 ```
 
 ## 11. Dynamic / conditional content
@@ -349,3 +370,84 @@ if port.isSome: connect(port.get)
 `Input.filter` rejects keystrokes live (`digitsOnly`, `maxLen(n)`,
 `charSet(s)`, `allOf(...)`); `intRange(lo, hi)` is a `bindRequest` provider for
 value-level validation. `Input.history` + Down opens a recency picker.
+
+## 21. Session context: where events fire & sandboxing
+
+Every view's `brokerCtx` = a shared session `classCtx` + a unique per-instance
+id. `view.sessionCtx` / `app.sessionCtx` is the shared part — common to all
+widgets of the app, but isolated from the global `DefaultBrokerContext`.
+
+Who emits where (deviation #26):
+
+| Source                                | Context                     |
+| ------------------------------------- | --------------------------- |
+| `emits:` fields (uiEvents)            | `app.sessionCtx`            |
+| vocab events (`Clicked`, `TextChanged`) | the widget's `brokerCtx`  |
+| menu `item(label, EventType)`         | `DefaultBrokerContext` (for now) |
+| bus `UiAction` / domain topics        | `DefaultBrokerContext`      |
+
+`newApp()` allocates the session ctx and installs it as the thread's broker
+context before building the desktop. Two UIs on one process stay isolated;
+to bring your own scope (and keep a handle for deep model code):
+
+```nim
+let myCtx = NewBrokerContext()
+setThreadBrokerContext(myCtx)     # BEFORE building any view
+let app = newApp()                # adopts myCtx: app.sessionCtx == myCtx
+discard RunRequested.listenIt(myCtx):   # your saved ctx receives emits
+  asyncSpawn model.startRun()
+```
+
+## 22. MDI: floating windows in a nested Desktop
+
+`Desktop` is the tested window surface — and it nests. Use one as the "ground"
+pane whenever windows should float inside a sub-area (tile/cascade/raise/
+move/resize all run the same framework code as the top level):
+
+```nim
+let ground = newDesktop()                 # right pane of a splitter, say
+let split = newSplitter(axH, tree, ground, pos = 22)
+split.dock = dkFill
+
+let w = newWindow("peer list", rect(2, 1, 34, 10))   # dkNone = floating
+ground.add w                               # movable, resizable, closable
+ground.tile()                              # or ground.cascade()
+```
+
+Click a window to activate it (double border + `◢` resize grip) — that works
+even for windows with no focusable content. After `tile()` focus is unchanged,
+so click one before resizing. `onClose` that only detaches (no `dispose`) makes
+windows reopenable from a cache — the persistent-object pattern (recipe 12).
+
+## 23. Chronicles logs in a pane + TUI suspend/resume
+
+Chronicles defaults to **stdout — the renderer owns stdout**, so route logs
+through the `dynamic` sink instead (full demo: `examples/ex14_logpane.nim`).
+Build with (per-file `.nim.cfg` works):
+
+```
+--define:"chronicles_sinks=textlines[dynamic]"
+--define:chronicles_colors=off
+```
+
+One persistent writer routes by mode — pane while the TUI is up, plain stderr
+when it is not (exactly what the program would print without a TUI):
+
+```nim
+defaultChroniclesStream.outputs[0].writer =
+  proc(level: LogLevel, rec: LogOutputStr) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}:
+      if gApp != nil and gApp.tuiActive:
+        gLogView.addLine rec.strip(leading = false, chars = {'\r', '\n'})
+        gApp.requestRedraw()
+      else:
+        try: stderr.write rec except IOError: discard
+```
+
+`app.disableTui()` / `app.enableTui()` are re-entrant: suspend leaves the alt
+screen (shell scrollback returns, logs stream to the terminal); resume
+re-registers input and forces a full redraw. The input driver stops with the
+TUI, so wait for the resume key on a **dedicated tty fd** with a private
+`O_NONBLOCK` — never on fd 0, whose flags are shared with stdout (see
+`terminalMode` in ex14). For foreign code writing straight to fd 2, redirect
+via `pipe()` + `dup2` and drain with a chronos reader instead.
