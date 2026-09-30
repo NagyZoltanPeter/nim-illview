@@ -23,6 +23,9 @@ proc newScroller*(content: View): Scroller =
   result = Scroller(content: content, wheelStep: 3, autoFocusScroll: true)
   initView(result)
   result.focusable = false
+  # a viewport wants the slot it is given; the default zero hint made a
+  # Scroller in a box collapse to nothing (plan-5 P36, same fix as Splitter)
+  result.hint = (prefHint(0, stretch = 1), prefHint(0, stretch = 1))
   add(Group(result), content) # the sole child; z-order irrelevant
 
 proc virtualSize*(s: Scroller): tuple[w, h: int] =

@@ -3,11 +3,13 @@
 ## dispatch; command-bearing widgets publish to the StubBus. No terminal.
 
 import std/[unittest, strformat, unicode, strutils]
+import chronos
 import ../src/illview/backend/illwill_vendored
+import ../src/illview/vocab
 import ../src/illview/core/[geometry, theme, drawcontext, events, bus, view, routing]
 import ../src/illview/widgets/[button, checkbox, radio, list, input, textview,
                                editor, statusbar, menu, groupbox, table,
-                               progress, label]
+                               progress, label, sparkline]
 
 proc rowStr(tb: TerminalBuffer, y, w: int): string =
   for x in 0 ..< w:
@@ -318,3 +320,56 @@ suite "progressbar (iteration 2)":
     let tb = renderInto(p, 12, 1)
     check rowStr(tb, 0, 12).contains(" 40% ")
     check p.value == 40
+
+# --- console widgets (plan-5 P36) -----------------------------------------------
+
+suite "live-data widgets (plan-5 P36)":
+  test "Table.setRows keeps the selection and viewport; clamps when shorter":
+    var rows: seq[seq[string]]
+    for i in 1 .. 10:
+      rows.add @[&"row{i:02}", &"val{i:02}"]
+    let t = newTable(@[tableColumn("id", fixedHint(6)),
+                       tableColumn("value", prefHint(0, stretch = 1))], rows)
+    discard renderInto(t, 16, 4) # 3 data rows visible
+    for _ in 1 .. 5:
+      discard t.handleEvent(keyEv(Key.Down))
+    check t.selected == 5
+    check t.top == 3
+    var fresh: seq[seq[string]]
+    for i in 1 .. 10:
+      fresh.add @[&"new{i:02}", "x"]
+    t.setRows(fresh)              # a refresh must not jump to the top
+    check t.selected == 5
+    check t.top == 3
+    t.setRows(fresh[0 .. 1])      # shorter data: clamped, still visible
+    check t.selected == 1
+    check t.top == 0
+
+  test "TextView ring buffer keeps the cap; lineStyle colors a line":
+    let tv = newTextView(maxLines = 3)
+    for i in 1 .. 1000:
+      tv.addLine &"line{i}"
+    check tv.lines.len == 3
+    check tv.lines[0] == "line998"
+    var styled: seq[string]
+    tv.lineStyle = proc(line: string): ThemeToken {.gcsafe, raises: [].} =
+      {.cast(gcsafe).}: styled.add line
+      if line.endsWith("999"): tkSelection else: tkText
+    let tb = renderInto(tv, 8, 3)
+    check rowStr(tb, 1, 7) == "line999"
+    check styled == @["line998", "line999", "line1000"] # consulted per drawn line
+
+  test "Sparkline: right-aligned window, ceiling scale, SetProgress drives it":
+    let s = newSparkline(capacity = 5)
+    for v in 1 .. 10:
+      s.push(v)
+    check s.len == 5 and s.last == 10
+    var tb = renderInto(s, 5, 1)
+    check rowStr(tb, 0, 5) == "▆▆▇██" # window 6..10 scaled to 10
+    let s2 = newSparkline(capacity = 5, maxValue = 10)
+    s2.push(10)
+    tb = renderInto(s2, 5, 1)
+    check rowStr(tb, 0, 5) == "    █" # fewer samples than cells: right-aligned
+    check SetProgress.signal(s2.brokerCtx, SetProgress(value: 5)).isOk
+    waitFor sleepAsync(5.milliseconds)
+    check s2.last == 5

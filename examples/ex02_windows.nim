@@ -5,7 +5,7 @@
 
 import std/strformat
 import chronos
-import ../src/illview
+import illview
 
 type
   FocusBox = ref object of View

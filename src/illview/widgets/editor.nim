@@ -47,7 +47,7 @@ proc lineLen(e: Editor, i: int): int =
 proc changed(e: Editor) =
   if e.onChange != nil:
     e.onChange(e)
-  TextChanged.emit(e.brokerCtx, TextChanged(text: e.text))
+  if e.hasBrokerCtx: TextChanged.emit(e.brokerCtx, TextChanged(text: e.text))
   e.invalidate()
 
 proc clampCursor(e: Editor) =

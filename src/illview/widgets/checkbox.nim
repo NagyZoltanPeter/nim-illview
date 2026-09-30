@@ -42,7 +42,7 @@ proc toggle*(c: Checkbox) =
   if c.onToggle != nil:
     c.onToggle(c)
   c.publish(c.command)
-  Toggled.emit(c.brokerCtx, Toggled(checked: c.checked))
+  if c.hasBrokerCtx: Toggled.emit(c.brokerCtx, Toggled(checked: c.checked))
   c.invalidate()
 
 method triggerHotkey*(c: Checkbox, scope: Group) {.gcsafe, raises: [].} =

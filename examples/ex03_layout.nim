@@ -5,8 +5,7 @@
 
 import std/strformat
 import chronos
-import ../src/illview
-import ../src/illview/layout/layout
+import illview
 
 type
   Pane = ref object of View

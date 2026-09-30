@@ -105,8 +105,8 @@ nim-illview/
     04_widgets_gallery.nim 05_declarative.nim 06_netviz.nim
 ```
 
-`illview.nimble`: name `illview`, requires `nim >= 2.0`, `chronos`, `nim-brokers`. No illwill dep
-(it's vendored).
+`illview.nimble`: name `illview`, requires `nim >= 2.2.4` (raised from 2.0 with brokers 3.x), `chronos`,
+`nim-brokers`. No illwill dep (it's vendored).
 
 ---
 

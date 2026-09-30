@@ -32,11 +32,29 @@ import graph). Wiring `enableTui`/`disableTui` into the LogosDelivery daemon
 happens in the `logos-delivery` repo — see
 [DESIGN-DEVIATIONS.md §9](DESIGN-DEVIATIONS.md).
 
+## Dataflow (model / view / control)
+
+Three channels, each one-directional, none of them holding a widget
+reference on the model side (plan-5 P35 wording; mechanics unchanged):
+
+| Direction | Channel | Carrier |
+| --- | --- | --- |
+| widget → app (intent) | `emits:` / `item(label, EventType)` | typed EventBroker event on `app.sessionCtx`, `senderId` only — a controller never needs a `View` |
+| widget → model (state) | `bindValue: "field"` / `"model.field"` | store on the view or on a `ref` model the view holds; `bindRequest` routes through a replaceable validator |
+| model → widget | `set<Field>` writer, `notify<Field>`, or a vocab signal (`SetText.signal(w.brokerCtx, …)`) | SignalBroker on the widget's instance ctx; stale handle → `err`; never re-emits |
+
+Rendering is dirty-flag driven: any of the above ends in `invalidate()` →
+root closure → `requestRedraw()` → one fps-capped `frame()`. Model state
+mutated behind the framework's back repaints only after `notify<Field>` or
+a signal. Contexts: [EMBEDDING.md §2](EMBEDDING.md).
+
 ## Build & test
 
 ```sh
 nimble test
 ```
 
-Requires Nim >= 2.0 (`--mm:orc`). POSIX terminals only for now; Windows async
-input is a documented stub (see plan §0.7).
+Requires Nim >= 2.2.4; `--mm:orc` and `--mm:refc` are both CI-gated. POSIX
+terminals only for now; Windows async input is a documented stub (see plan
+§0.7). Embedding in a host process: [EMBEDDING.md](EMBEDDING.md); extending
+the widget set: [EXTENDING.md](EXTENDING.md).

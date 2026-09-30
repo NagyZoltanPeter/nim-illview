@@ -5,8 +5,8 @@ menus, tables and forms on a single-threaded [chronos](https://github.com/status
 event loop, with a declarative macro DSL and [nim-brokers](https://github.com/NagyZoltanPeter/nim-brokers)
 as the typed event bus.
 
-![Nim 2.x](https://img.shields.io/badge/nim-2.x-orange) ![mm:orc](https://img.shields.io/badge/mm-orc-blue)
-![tests](https://img.shields.io/badge/tests-223%20passing-brightgreen) ![license MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+![Nim ≥ 2.2.4](https://img.shields.io/badge/nim-%E2%89%A5%202.2.4-orange) ![mm: orc | refc](https://img.shields.io/badge/mm-orc%20%7C%20refc-blue)
+![tests](https://img.shields.io/badge/tests-247%20passing-brightgreen) ![license MIT](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ![illview showcase — menubar, title bar, tree split from an example ground, status bar with clock](docs/assets/showcase.svg)
 
@@ -286,13 +286,18 @@ nimble examples   # builds all of these into build/examples/
 ## Development
 
 ```sh
-nimble test          # 106 tests, no terminal required
-nimble examples      # build all demos into build/examples/
+nimble test          # the suite under --mm:orc, no terminal required
+nimble testRefc      # the same suite under --mm:refc
+nimble testAsan      # orc + AddressSanitizer
+nimble examples      # build all demos into build/examples/ (ILLVIEW_MM=refc for refc)
 nimble screenshots   # regenerate docs/assets/*.svg
 ```
 
-Requires Nim ≥ 2.0 (`--mm:orc`). Depends on `chronos` and `brokers` only;
-illwill is vendored (single file, WTFPL, provenance header kept).
+Requires Nim ≥ 2.2.4; `--mm:orc` and `--mm:refc` are both CI-gated on macOS
+and Linux (`.github/workflows/ci.yml`). Depends on `chronos`, `brokers`
+(nim-brokers ≥ 3.4.0) and, for `ex14`, `chronicles`; versions are pinned in
+`nimble.lock`. illwill is vendored (single file, WTFPL, provenance header
+kept). Embedding illview in a host process: [docs/EMBEDDING.md](docs/EMBEDDING.md).
 
 ## License
 

@@ -31,7 +31,7 @@ export illwill_vendored.TerminalBuffer
 type
   App* = ref object
     desktop*: Desktop
-    bus*: EventBus # StubBus by default; real nim-brokers bus in Phase 6
+    bus*: EventBus # NullBus by default; set newBrokersBus() for real routing
     sessionCtx*: BrokerContext # session scope every view under this app shares
     fpsCap*: int
     running*: bool
@@ -68,12 +68,20 @@ proc requestRedraw*(app: App) {.gcsafe, raises: [].}
 # Nim runs `addExitProc` only on quit(), NOT on an unhandled exception or a
 # signal, so a crash would otherwise leave the terminal in raw + mouse-tracking
 # mode ("trash on mouse move"). A signal handler using only async-signal-safe
-# write(2)/tcsetattr fixes this, including for the SIGSEGV the ORC collector can
-# raise. Normal exit still goes through run()'s `finally: disableTui`.
+# write(2)/tcsetattr/sigaction fixes this, including for the SIGSEGV the ORC
+# collector can raise. Normal exit still goes through run()'s `finally:
+# disableTui`. The handler CHAINS (plan-5 P30): whatever action was installed
+# before it — a host's crash reporter, Nim's own traceback handler — is
+# re-installed and invoked, so embedding illview in a daemon does not silence
+# the daemon's crash handling.
 when defined(posix):
+  type SigInfoHandler = proc (x: cint, y: ptr posix.SigInfo, z: pointer) {.noconv.}
   var gOrigTermios: Termios
   var gTermiosSaved = false
   var gSignalRestoreInstalled = false
+  var gPrevActions: array[0 .. 63, posix.Sigaction] # indexed by signal number
+  let CrashSignals = [posix.SIGSEGV, posix.SIGABRT, posix.SIGBUS, posix.SIGILL,
+                      posix.SIGFPE] # importc vars, not compile-time constants
   const RestoreSeq =
     "\e[?1002l\e[?1003l\e[?1006l" & # mouse tracking off
     "\e[?2004l" &                   # bracketed paste off
@@ -81,43 +89,55 @@ when defined(posix):
     "\e[?1049l" &                   # leave the alt screen
     "\e[0m"                         # reset attributes
 
-  proc restoreOnSignal(sig: cint) {.noconv.} =
+  proc restoreOnSignal(sig: cint, info: ptr posix.SigInfo, ctx: pointer) {.noconv.} =
     discard posix.write(cint(1), cast[pointer](cstring(RestoreSeq)), RestoreSeq.len)
     if gTermiosSaved:
       discard tcSetAttr(cint(0), TCSANOW, addr gOrigTermios)
-    posix.signal(sig, posix.SIG_DFL) # return re-runs the faulting op -> default
+    # Hand the signal on. sa_handler/sa_sigaction share one union slot on every
+    # POSIX we build for, so the cast reads whichever the previous owner set.
+    var prev = gPrevActions[int(sig)]
+    discard posix.sigaction(sig, prev, nil)
+    if (prev.sa_flags and posix.SA_SIGINFO) != 0:
+      cast[SigInfoHandler](prev.sa_handler)(sig, info, ctx)
+    elif prev.sa_handler != posix.SIG_DFL and prev.sa_handler != posix.SIG_IGN:
+      prev.sa_handler(sig)
+    # else: returning re-runs the faulting op under the default action
 
-  proc installCrashRestore() =
+  proc installCrashRestore*() =
+    ## Idempotent; called by `enableTui` unless `-d:noCrashRestore`. Exported
+    ## so the chaining behavior is testable without a terminal.
     if gSignalRestoreInstalled:
       return
     gSignalRestoreInstalled = true
     gTermiosSaved = tcGetAttr(cint(0), addr gOrigTermios) == 0
-    for s in [posix.SIGSEGV, posix.SIGABRT, posix.SIGBUS, posix.SIGILL,
-              posix.SIGFPE]:
-      posix.signal(s, restoreOnSignal)
+    var act: posix.Sigaction
+    act.sa_handler = cast[proc (x: cint) {.noconv.}](restoreOnSignal)
+    act.sa_flags = posix.SA_SIGINFO
+    discard posix.sigemptyset(act.sa_mask)
+    for s in CrashSignals:
+      discard posix.sigaction(s, act, gPrevActions[int(s)])
 proc execView*(app: App, v: Group): Future[Command] {.gcsafe, raises: [].}
 proc endModal*(app: App, cmd: Command) {.gcsafe, raises: [].}
 
 proc newApp*(fpsCap = 30, theme: Theme = nil,
              sessionCtx = BrokerContext(0)): App =
-  ## Each App owns a session broker context, installed as this thread's global
-  ## broker context BEFORE the desktop is built so every view created afterwards
-  ## adopts it. Resolution: an explicit `sessionCtx` wins; else the thread's
-  ## already-installed context (a user sandbox) is adopted; else a fresh
-  ## `NewBrokerContext()`. The stored value is normalized to instanceCtx 0 so it
-  ## equals `someView.sessionCtx`. uiEvents `emits:` events fire here — listen
-  ## with `Event.listen(app.sessionCtx, handler)`.
-  let raw =
-    if sessionCtx != BrokerContext(0): sessionCtx
-    else:
-      let g = threadGlobalBrokerContext()
-      if g == DefaultBrokerContext: NewBrokerContext() else: g
+  ## The App's session broker context: the scope uiEvents `emits:` events fire
+  ## on and every view built under it shares (normalized to instanceCtx 0 so it
+  ## equals `someView.sessionCtx`). Resolution (plan-5 P29, deviation #27): an
+  ## explicit `sessionCtx` wins and is bound for views built afterwards;
+  ## otherwise the thread's `globalBrokerContext()` is adopted AS-IS —
+  ## `DefaultBrokerContext` included — so the UI lives on the same scope its
+  ## host process keys everything on. `newApp` never installs a thread broker
+  ## context; to sandbox, `setThreadBrokerContext(myCtx)` before building or
+  ## pass it here. Listen with `Event.listen(app.sessionCtx, handler)`.
+  let explicit = sessionCtx != BrokerContext(0)
+  let raw = if explicit: sessionCtx else: globalBrokerContext()
   let sc = makeBrokerContext(classCtx(raw), 0'u16)
-  setThreadBrokerContext(sc)
+  bindSessionCtx(if explicit: sc else: BrokerContext(0))
   let app = App(fpsCap: fpsCap, sessionCtx: sc)
   app.driver = newInputDriver(
     proc(ev: InputEvent) {.gcsafe, raises: [].} = app.handleInput(ev))
-  app.bus = newStubBus()
+  app.bus = newNullBus()
   app.desktop = newDesktop(theme)
   app.desktop.invalidateCb = proc() {.gcsafe, raises: [].} =
     app.requestRedraw()

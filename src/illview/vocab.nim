@@ -5,8 +5,9 @@
 ## handle these signals on it. No senderId fields anywhere: listen on a
 ## widget's ctx to hear exactly that widget; signal a widget's ctx to direct
 ## exactly that widget. App-level SEMANTIC events (`emits:` / uiEvents) stay
-## separate on the default ctx — models should listen there by default and
-## reach for instance-ctx listening only for genuinely widget-bound concerns.
+## separate on the session ctx (`view.sessionCtx`, deviation #27) — models
+## should listen there by default and reach for instance-ctx listening only
+## for genuinely widget-bound concerns.
 ##
 ## Signal application deliberately bypasses change slots and re-emission:
 ## programmatic setters (setText & co.) have never fired onChange in illview,
@@ -76,24 +77,29 @@ SignalBroker:
 
 template installSignal*(w: typed, S: typedesc, body: untyped) =
   ## Install the single `S` handler on w's brokerCtx (payload injected as
-  ## `sig`) and record the teardown in w.disposers for dispose().
-  discard S.onSignal(
-    w.brokerCtx,
-    proc(sig {.inject.}: S): Future[void] {.async: (raises: []), gcsafe.} =
-      {.cast(gcsafe).}:
-        body)
-  w.disposers.add(
-    proc() {.gcsafe, raises: [].} =
-      asyncSpawn S.dropSignalHandler(w.brokerCtx))
+  ## `sig`) and record the teardown in w.disposers for dispose(). Deferred
+  ## until the ctx is first materialized (plan-5 P33): a widget nobody signals
+  ## costs no instanceCtx.
+  deferWiring(w, proc() {.gcsafe, raises: [].} =
+    discard S.onSignal(
+      w.brokerCtx,
+      proc(sig {.inject.}: S): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}:
+          body)
+    w.disposers.add(
+      proc() {.gcsafe, raises: [].} =
+        asyncSpawn S.dropSignalHandler(w.brokerCtx)))
 
 proc installFocusMe*(v: View) =
   ## Focusable widget constructors call this: `FocusMe.signal(v.brokerCtx)`
-  ## then focuses the widget (no-op while detached or not focusable).
-  discard FocusMe.onSignalIt(v.brokerCtx): # void signal: nothing injected
-    {.cast(gcsafe).}:
-      let r = v.root
-      if r of Group and canFocus(v):
-        setFocus(Group(r), v)
-  v.disposers.add(
-    proc() {.gcsafe, raises: [].} =
-      asyncSpawn FocusMe.dropSignalHandler(v.brokerCtx))
+  ## then focuses the widget (no-op while detached or not focusable). Deferred
+  ## like installSignal.
+  deferWiring(v, proc() {.gcsafe, raises: [].} =
+    discard FocusMe.onSignalIt(v.brokerCtx): # void signal: nothing injected
+      {.cast(gcsafe).}:
+        let r = v.root
+        if r of Group and canFocus(v):
+          setFocus(Group(r), v)
+    v.disposers.add(
+      proc() {.gcsafe, raises: [].} =
+        asyncSpawn FocusMe.dropSignalHandler(v.brokerCtx)))

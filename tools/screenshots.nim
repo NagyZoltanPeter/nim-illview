@@ -193,7 +193,7 @@ proc netvizScene(d: Desktop) =
   d.add newStatusBar(@[statusItem("Esc Quit", Command(1))])
   let win = newWindow("network events - nim-brokers live", rect(0, 0, 0, 0))
   win.dock = dkFill
-  let nv = newNetVizWidget()
+  let nv = newNetViz()
   nv.dock = dkFill
   for (t, p) in [("peer", "connected 16Uiu2HAm...  #1"),
                  ("relay", "subscribed /waku/2/rs/0/1  #2"),

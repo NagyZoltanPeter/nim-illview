@@ -3,9 +3,9 @@
 ## see focus overrides; ESC quits.
 
 import chronos
-import ../src/illview
-import ../src/illview/dsl/pragmas
-import ../src/illview/dsl/mount
+import illview
+import illview/dsl/pragmas
+import illview/dsl/mount
 
 type
   StyledForm {.view, vbox, spacing: 1.} = ref object of Group

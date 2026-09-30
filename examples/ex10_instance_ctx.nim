@@ -12,10 +12,10 @@
 ## ESC quits.
 
 import chronos
-import ../src/illview
-import ../src/illview/dsl/pragmas
-import ../src/illview/dsl/mount
-import ../src/illview/dsl/uievents
+import illview
+import illview/dsl/pragmas
+import illview/dsl/mount
+import illview/dsl/uievents
 
 type
   ConnectForm {.view, vbox, spacing: 1, border: bkDouble, shadow.} = ref object of Group

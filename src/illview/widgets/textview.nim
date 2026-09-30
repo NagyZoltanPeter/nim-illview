@@ -2,15 +2,18 @@
 ## buffer + viewport + scrolling. `follow` keeps the view pinned to the
 ## bottom while new lines arrive (until the user scrolls up).
 
+import std/deques
 import ../core/[geometry, theme, view, drawcontext, events]
 
 type
   TextView* = ref object of View
     maxLines*: int # buffer cap; oldest lines are dropped
-    lines*: seq[string]
+    lines*: Deque[string] # ring: O(1) at the cap (plan-5 P36); len/[] as before
     top*: int      # manual viewport start (used when follow == false)
     follow*: bool  # auto-scroll to the bottom
     showScrollbar*: bool # thumb indicator in the last column when overflowing
+    lineStyle*: proc(line: string): ThemeToken {.gcsafe, raises: [].}
+      ## Optional per-line token (a log level colorer); nil = tkText.
 
 proc newTextView*(maxLines = 1000): TextView =
   result = TextView(maxLines: max(maxLines, 1), follow: true)
@@ -19,15 +22,15 @@ proc newTextView*(maxLines = 1000): TextView =
   result.hint = (prefHint(0, stretch = 1), prefHint(0, stretch = 1))
 
 proc addLine*(tv: TextView, s: string) =
-  tv.lines.add s
+  tv.lines.addLast s
   if tv.lines.len > tv.maxLines:
-    tv.lines.delete(0)
+    discard tv.lines.popFirst()
     if not tv.follow:
       tv.top = max(tv.top - 1, 0) # keep the same content in view
   tv.invalidate()
 
 proc clear*(tv: TextView) =
-  tv.lines.setLen(0)
+  tv.lines.clear()
   tv.top = 0
   tv.follow = true
   tv.invalidate()
@@ -49,9 +52,10 @@ method draw*(tv: TextView, dc: DrawContext) {.gcsafe, raises: [].} =
   let start = tv.effectiveTop
   for y in 0 ..< max(tv.contentH, 0):
     let idx = start + y
-    if idx > tv.lines.high:
+    if idx >= tv.lines.len:
       break
-    dc.write(0, y, tv.lines[idx], st)
+    let line = tv.lines[idx]
+    dc.write(0, y, line, if tv.lineStyle != nil: tv.styleOf(tv.lineStyle(line)) else: st)
   if tv.showScrollbar and tv.lines.len > tv.contentH:
     let sbSt = tv.styleOf(tkScrollBar)
     let (ts, tl) = thumbGeom(tv.contentH, tv.lines.len, tv.contentH, start)

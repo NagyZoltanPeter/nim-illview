@@ -4,7 +4,7 @@
 ## dependency: subscription glue calls addEvent(), e.g. via
 ## bus_brokers.onDomainEvent.
 
-import std/[tables, strformat]
+import std/[tables, strformat, deques]
 import ../core/[geometry, theme, view, drawcontext]
 import ./textview
 
@@ -13,7 +13,8 @@ type
     total*: int
     perTopic*: OrderedTable[string, int]
 
-proc newNetVizWidget*(maxLines = 500): NetVizWidget =
+proc newNetViz*(maxLines = 500): NetVizWidget =
+  ## (Renamed from newNetVizWidget, plan-5 P37: the only `…Widget` constructor.)
   result = NetVizWidget(maxLines: maxLines, follow: true)
   initView(result)
   result.focusable = true
@@ -41,6 +42,6 @@ method draw*(nv: NetVizWidget, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = nv.styleOf(tkText)
   for y in 0 ..< bodyH:
     let idx = start + y
-    if idx > nv.lines.high:
+    if idx >= nv.lines.len:
       break
     dc.write(0, 1 + y, nv.lines[idx], st)

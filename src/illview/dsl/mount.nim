@@ -3,9 +3,10 @@
 ## selection and action/slot binding. The nested `ui:` template is the
 ## escape hatch for dynamic/loop/conditional content.
 
-import std/[macros, unicode]
+import std/[macros, unicode, strutils]
 import ../core/[geometry, view, bus]
 import ../layout/layout
+import ./pragmas
 import ../widgets/[window, label, button, checkbox, radio, list, input,
                    textview, statusbar, editor, groupbox, table, progress]
 
@@ -42,7 +43,7 @@ proc setStretch*(v: View, n: int) =
 
 type SlotProc[W] = proc(sender: W) {.gcsafe, raises: [].}
 
-proc chain[W](a, b: SlotProc[W]): SlotProc[W] =
+proc chain*[W](a, b: SlotProc[W]): SlotProc[W] =
   ## mount-generated consumers APPEND to a slot (plan-2 D4): value store ->
   ## bindTo handler -> emits, in wiring order.
   if a == nil:
@@ -76,6 +77,54 @@ proc widgetValue*(w: Radio): int = w.selected
 proc widgetValue*(w: ListView): int = w.selected
 proc widgetValue*(w: Table): int = w.selected
 
+# value shape for emits:/bindValue (plan-5 P34): resolved at the expansion
+# site through overloads, so a third-party widget joins by declaring one —
+# never by matching a type NAME (a user type called `Input` is not ours).
+type UiPayloadKind* = enum
+  upNone, upText, upChecked, upSelected
+
+template uiValueKind*(t: typedesc[Input]): UiPayloadKind = upText
+template uiValueKind*(t: typedesc[Editor]): UiPayloadKind = upText
+template uiValueKind*(t: typedesc[Checkbox]): UiPayloadKind = upChecked
+template uiValueKind*(t: typedesc[Radio]): UiPayloadKind = upSelected
+template uiValueKind*(t: typedesc[ListView]): UiPayloadKind = upSelected
+template uiValueKind*(t: typedesc[Table]): UiPayloadKind = upSelected
+template uiValueKind*(t: typedesc): UiPayloadKind = upNone
+
+# --- pragma placement (plan-5 P34) --------------------------------------------
+# A DSL pragma in the wrong position, or on a field without {.child.}, used to
+# be ignored silently. Typos are already Nim errors (every DSL pragma is a
+# {.pragma.} template), so only KNOWN names are checked here.
+
+const
+  stylePragmaNames = ["border", "boxTitle", "shadow", "fg", "bg", "focusFg", "focusBg"]
+  typePragmaNames = ["view", "title", "dock", "hbox", "vbox", "grid", "form", "spacing"]
+  fieldPragmaNames = ["child", "caption", "dock", "stretch", "alignSelf", "anchors",
+                      "padding", "action", "bindTo", "bindValue", "bindRequest",
+                      "emits", "on"]
+
+proc pragmaNames(prag: NimNode): seq[string] =
+  if prag == nil or prag.kind != nnkPragma:
+    return
+  for p in prag:
+    case p.kind
+    of nnkIdent, nnkSym:
+      result.add p.strVal
+    of nnkExprColonExpr, nnkCall:
+      if p[0].kind in {nnkIdent, nnkSym}:
+        result.add p[0].strVal
+    else:
+      discard
+
+proc rejectMisplaced(prag: NimNode, atType: bool, what: string) =
+  for n in pragmaNames(prag):
+    if n in stylePragmaNames:
+      continue
+    if atType and n in fieldPragmaNames and n notin typePragmaNames:
+      error("{." & n & ".} is a field-level pragma; not valid on " & what, prag)
+    if not atType and n in typePragmaNames and n notin fieldPragmaNames:
+      error("{." & n & ".} is a type-level pragma; not valid on " & what, prag)
+
 # --- the macro ----------------------------------------------------------------
 
 proc pragmaArg*(prag: NimNode, name: string): NimNode =
@@ -101,6 +150,13 @@ proc typePragmas*(impl: NimNode): NimNode =
     impl[0][1]
   else:
     nil
+
+proc storeTarget*(self: NimNode, path: string): NimNode =
+  ## `bindValue: "field"` -> self.field; `"model.field"` -> self.model.field
+  ## (plan-5 P35): the store may live on a ref model the view holds.
+  result = self
+  for part in path.split('.'):
+    result = newDotExpr(result, ident(part))
 
 proc fieldInfo*(identDefs: NimNode): tuple[name: NimNode, prag: NimNode,
                                           typ: NimNode] =
@@ -160,6 +216,7 @@ macro mount*(T: typedesc): untyped =
     error("mount(T): T must be a ref object view type", T)
   let recList = objTy[2]
   let tprag = typePragmas(impl)
+  rejectMisplaced(tprag, atType = true, "type " & sym.strVal)
 
   let self = genSym(nskLet, "self")
   let cont = genSym(nskLet, "container")
@@ -215,7 +272,12 @@ macro mount*(T: typedesc): untyped =
     if identDefs.kind != nnkIdentDefs:
       continue
     let (fname, fprag, ftyp) = fieldInfo(identDefs)
+    rejectMisplaced(fprag, atType = false, "field '" & $fname & "'")
     if pragmaArg(fprag, "child") == nil:
+      for n in pragmaNames(fprag):
+        if n in fieldPragmaNames or n in stylePragmaNames:
+          error("field '" & $fname & "' has {." & n &
+                ".} but no {.child.}: it would not be mounted", identDefs)
       continue
     # user {.view.} component types mount recursively; everything else goes
     # through the createView overloads (bound at the expansion site).
@@ -270,7 +332,7 @@ macro mount*(T: typedesc): untyped =
         error("bindRequest expects a string literal request name", bindReqArg)
       let reqId = ident(bindReqArg.strVal)
       if bindValArg != nil:
-        let bf = ident(bindValArg.strVal)
+        let store = storeTarget(self, bindValArg.strVal)
         stmts.add quote do:
           bindValueSlot(`self`.`fname`,
                         proc(sender: `ftypId`) {.gcsafe, raises: [].} =
@@ -278,7 +340,7 @@ macro mount*(T: typedesc): untyped =
                             {.cast(raises: []).}:
                               let r = request(`reqId`, widgetValue(sender))
                               if r.isOk:
-                                `self`.`bf` = r.get)
+                                `store` = r.get)
       else:
         stmts.add quote do:
           bindValueSlot(`self`.`fname`,
@@ -289,12 +351,12 @@ macro mount*(T: typedesc): untyped =
     elif bindValArg != nil:
       if bindValArg.kind notin {nnkStrLit, nnkRStrLit}:
         error("bindValue expects a string literal field name", bindValArg)
-      let bf = ident(bindValArg.strVal)
+      let store = storeTarget(self, bindValArg.strVal)
       stmts.add quote do:
         bindValueSlot(`self`.`fname`,
                       proc(sender: `ftypId`) {.gcsafe, raises: [].} =
                         {.cast(gcsafe).}:
-                          `self`.`bf` = widgetValue(sender))
+                          `store` = widgetValue(sender))
     let bindArg = pragmaArg(fprag, "bindTo")
     if bindArg != nil:
       if bindArg.kind notin {nnkStrLit, nnkRStrLit, nnkTripleStrLit}:
@@ -335,6 +397,11 @@ macro mount*(T: typedesc): untyped =
           error("on: entries must be EventType: \"handlerName\"", pair)
         let evId = ident(if pair[0].kind == nnkSym: pair[0].strVal else: $pair[0])
         let handler = ident(pair[1].strVal)
+        # a handler with neither accepted shape is named in the error instead
+        # of falling through to a confusing mismatch (plan-5 P34)
+        let shapeErr = newLit("on: handler '" & pair[1].strVal &
+          "' must be proc(self: " & sym.strVal & ") or proc(self: " &
+          sym.strVal & ", ev: " & evId.strVal & ")")
         stmts.add quote do:
           when compiles(`evId`.listen(`self`.`fname`.brokerCtx,
               proc(): Future[void] {.async: (raises: []), gcsafe.} = discard)):
@@ -342,15 +409,20 @@ macro mount*(T: typedesc): untyped =
             discard `evId`.listen(`self`.`fname`.brokerCtx,
               proc(): Future[void] {.async: (raises: []), gcsafe.} =
                 {.cast(gcsafe).}:
-                  `handler`(`self`))
+                  when compiles(`handler`(`self`)):
+                    `handler`(`self`)
+                  else:
+                    {.error: `shapeErr`.})
           else:
             discard `evId`.listen(`self`.`fname`.brokerCtx,
               proc(ev: `evId`): Future[void] {.async: (raises: []), gcsafe.} =
                 {.cast(gcsafe).}:
                   when compiles(`handler`(`self`, ev)):
                     `handler`(`self`, ev)
+                  elif compiles(`handler`(`self`)):
+                    `handler`(`self`)
                   else:
-                    `handler`(`self`))
+                    {.error: `shapeErr`.})
           # teardown rides the WIDGET's disposers: the listener lives on the
           # widget's ctx and must drop before that ctx is released
           `self`.`fname`.disposers.add(
@@ -364,8 +436,15 @@ macro mount*(T: typedesc): untyped =
   result = newBlockStmt(stmts)
 
 proc createView*[T: View](t: typedesc[T]): T =
-  ## Fallback for user-defined {.view.} component types: mount recursively.
-  mount(T)
+  ## Fallback for a `{.child.}` field type mount() could not classify from
+  ## the record AST: a `{.view.}` component mounts recursively; anything else
+  ## is a compile error — a silent `T()` here would skip the widget's own
+  ## constructor (plan-5 P34). Custom widgets provide
+  ## `proc createView*(t: typedesc[X]): X = newX()` (docs/EXTENDING.md).
+  when T.hasCustomPragma(pragmas.view):
+    mount(T)
+  else:
+    {.error: "mount: no createView overload for this {.child.} field type — add {.view.} to it, or define `proc createView*(t: typedesc[X]): X = newX()` in scope (see docs/EXTENDING.md)".}
 
 template ui*(g: Group, body: untyped) =
   ## Escape hatch for dynamic/loop/conditional content: exposes the target

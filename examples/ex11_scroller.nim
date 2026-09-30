@@ -5,8 +5,7 @@
 
 import std/strformat
 import chronos
-import ../src/illview
-import ../src/illview/layout/layout
+import illview
 
 proc main() {.async.} =
   let app = newApp()

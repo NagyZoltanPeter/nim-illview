@@ -59,9 +59,13 @@ proc newTable*(columns: seq[TableColumn] = @[],
   t.installFocusMe()
 
 proc setRows*(t: Table, rows: seq[seq[string]]) =
+  ## Replace the rows, keeping the selection and the viewport where they were
+  ## (clamped): a live table refreshed every second must not jump to the top
+  ## (plan-5 P36).
   t.rows = rows
   t.selected = clamp(t.selected, 0, max(rows.high, 0))
-  t.top = 0
+  t.top = clamp(t.top, 0, max(rows.len - max(t.viewportRows, 1), 0))
+  t.ensureVisible()
   t.recomputeHint()
   t.invalidate()
 
@@ -78,7 +82,7 @@ proc select*(t: Table, i: int) =
   t.ensureVisible()
   if t.onSelect != nil:
     t.onSelect(t)
-  SelectionChanged.emit(t.brokerCtx, SelectionChanged(selected: t.selected))
+  if t.hasBrokerCtx: SelectionChanged.emit(t.brokerCtx, SelectionChanged(selected: t.selected))
   t.invalidate()
 
 proc activate*(t: Table) =
@@ -87,7 +91,7 @@ proc activate*(t: Table) =
   if t.onActivate != nil:
     t.onActivate(t)
   t.publish(t.command)
-  Activated.emit(t.brokerCtx, Activated(selected: t.selected))
+  if t.hasBrokerCtx: Activated.emit(t.brokerCtx, Activated(selected: t.selected))
 
 func fit(s: string, w: int): string =
   ## First w runes (draw clipping would bleed into the next column).

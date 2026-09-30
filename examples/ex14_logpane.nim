@@ -18,7 +18,7 @@ import std/strutils
 import chronos
 import chronicles
 from std/posix import nil # qualified: write/signal/raise clash with chronos
-import ../src/illview
+import illview
 
 # --- log routing (the point of the demo) --------------------------------------
 
@@ -28,7 +28,10 @@ var gLogView: TextView
 proc installLogRouter() =
   ## chronicles -> widget while the TUI is up, else -> stderr (plain terminal
   ## behavior). The record arrives as one plain-text line (colors are off in
-  ## the .cfg) with a trailing newline.
+  ## the .cfg) with a trailing newline. The writer runs on whichever thread
+  ## logs: here that is the single chronos loop thread. A host with logging
+  ## worker threads must not route them through this sink into the widget —
+  ## bring such records to the loop thread first (nim-brokers `(mt)`).
   defaultChroniclesStream.outputs[0].writer =
     proc(logLevel: LogLevel, logRecord: LogOutputStr) {.gcsafe, raises: [].} =
       {.cast(gcsafe).}:

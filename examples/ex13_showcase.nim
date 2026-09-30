@@ -16,8 +16,7 @@
 import std/[times, strformat, unicode, tables]
 import chronos
 import brokers
-import ../src/illview
-import ../src/illview/layout/layout
+import illview
 
 # --- menu action events (2b: item(label, EventType) auto-emits these) --------
 

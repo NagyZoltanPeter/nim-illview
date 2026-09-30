@@ -103,6 +103,10 @@ EventBroker:
   type OpenReq = object
     tag*: int
 
+EventBroker:
+  type OpenReqFrom = object
+    senderId*: int
+
 suite "persistent popups (iteration-5, item 2)":
   test "opening the same menu twice reuses ONE popup object":
     let root = newHarness()
@@ -143,6 +147,30 @@ suite "onActivate + declarative items (iteration-5, 2b)":
     waitFor sleepAsync(10.milliseconds)
     check got == 1
     waitFor OpenReq.dropAllListeners()
+
+  test "item(label, EventType) emits on the host's session ctx with senderId":
+    let uiCtx = NewBrokerContext()
+    setThreadBrokerContext(uiCtx)   # a host-installed scope (deviation #27)
+    var got: seq[int]
+    var gotDefault = 0
+    check OpenReqFrom.listen(uiCtx,
+      proc(ev: OpenReqFrom): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}: got.add ev.senderId).isOk
+    check OpenReqFrom.listen(
+      proc(ev: OpenReqFrom): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}: inc gotDefault).isOk
+    let root = newHarness()
+    let mb = menuBar(menu("~F~ile", @[item("~O~pen", OpenReqFrom)]))
+    mb.dock = dkTop; root.add mb; root.arrangeChildren()
+    check mb.sessionCtx == uiCtx
+    discard dispatchKey(root, keyEvent(Key.None, "f".runeAt(0), {modAlt}))
+    discard dispatchKey(top(), keyEvent(Key.None, "o".runeAt(0)))
+    waitFor sleepAsync(10.milliseconds)
+    check got == @[mb.id]   # senderId = the popup's host: the menu bar
+    check gotDefault == 0   # nothing leaks to the ambient default ctx
+    waitFor OpenReqFrom.dropAllListeners(uiCtx)
+    waitFor OpenReqFrom.dropAllListeners()
+    setThreadBrokerContext(DefaultBrokerContext)
 
   test "sep() is skipped by keyboard navigation":
     let root = newHarness()

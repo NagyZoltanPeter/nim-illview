@@ -8,9 +8,8 @@
 import std/[strformat, random]
 import chronos
 import results
-import ../src/illview
-import ../src/illview/bus_brokers
-import ../src/illview/widgets/netviz
+import illview
+import illview/bus_brokers
 
 const cmdQuit = Command(101)
 
@@ -18,11 +17,15 @@ proc main() {.async.} =
   let app = newApp()
   app.bus = newBrokersBus() # the real thing, not the stub
 
-  let nv = newNetVizWidget()
+  let nv = newNetViz()
   nv.dock = dkFill
+  let rate = newSparkline(capacity = 60) # events per second, last minute
+  rate.dock = dkTop
   let win = newWindow("network events - nim-brokers live", rect(0, 0, 0, 0))
   win.dock = dkFill
+  win.add rate
   win.add nv
+  var eventsThisSecond = 0
   app.desktop.add newStatusBar(@[statusItem("Esc Quit", cmdQuit)])
   app.desktop.add win
 
@@ -50,10 +53,20 @@ proc main() {.async.} =
       if not app.running: # checked after the first sleep: run() started by then
         break
       inc n
+      inc eventsThisSecond
       let (topic, msgs) = topics[rng.rand(topics.high)]
       app.bus.publishDomain(topic, msgs[rng.rand(msgs.high)] & &"  #{n}")
 
+  proc rateLoop() {.async.} =
+    while true:
+      await sleepAsync(1000)
+      if not app.running:
+        break
+      rate.push(eventsThisSecond) # model -> widget; the sparkline redraws itself
+      eventsThisSecond = 0
+
   asyncSpawn producer()
+  asyncSpawn rateLoop()
 
   app.onInput = proc(ev: InputEvent) {.gcsafe, raises: [].} =
     if ev.kind == ikKey and ev.key == Key.Escape:
