@@ -1,7 +1,7 @@
 ## Phase 6: BrokersBus over the real nim-brokers single-thread EventBroker.
 ## publish/publishDomain -> emit -> listeners fire on the same chronos loop.
 
-import std/[unittest, tables]
+import std/[unittest, tables, deques]
 import chronos
 import results
 import ../src/illview/core/bus
@@ -23,7 +23,7 @@ suite "BrokersBus":
     check got[0].senderId == 99
 
   test "domain events fan out to a NetVizWidget with no input plumbing":
-    let nv = newNetVizWidget()
+    let nv = newNetViz()
     check onDomainEvent(
       proc(topic, payload: string) {.gcsafe, raises: [].} =
         {.cast(gcsafe).}:

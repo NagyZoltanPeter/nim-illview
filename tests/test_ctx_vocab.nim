@@ -200,3 +200,32 @@ suite "instance-ctx vocab":
     dispose(root) # second dispose: strict no-op, must not crash
     pump()
     check inner.text == "alive"
+
+suite "lazy instance ctx (deviation #28)":
+  test "construction allocates no instance ctx; first use does, in use order":
+    var labels: seq[Label]
+    for i in 0 ..< 1000:
+      labels.add newLabel("l" & $i)
+    for l in labels:
+      check not l.hasBrokerCtx
+    let late = newButton("late")
+    let lateCtx = late.brokerCtx        # materialized first
+    let earlyCtx = labels[0].brokerCtx  # built earlier, materialized second
+    check instanceCtx(earlyCtx) > instanceCtx(lateCtx)
+    check labels[0].hasBrokerCtx and late.hasBrokerCtx
+    check not labels[1].hasBrokerCtx
+    # deferred wiring ran on materialization: the Set-signal handler is live
+    check SetText.signal(earlyCtx, SetText(text: "hi")).isOk
+    pump()
+    check labels[0].text == "hi"
+    dispose(late)
+    dispose(labels[0])
+
+  test "a widget that never handed out its ctx emits to nobody, no crash":
+    let b = newButton("quiet")
+    b.activate()
+    pump()
+    check not b.hasBrokerCtx
+    dispose(b)
+    check not b.hasBrokerCtx
+    check b.brokerCtx == BrokerContext(0) # disposed: never materializes

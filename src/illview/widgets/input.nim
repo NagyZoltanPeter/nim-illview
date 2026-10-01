@@ -51,7 +51,7 @@ proc newInput*(text = "", command = cmdNone): Input =
 proc changed(i: Input) =
   if i.onChange != nil:
     i.onChange(i)
-  TextChanged.emit(i.brokerCtx, TextChanged(text: i.text))
+  if i.hasBrokerCtx: TextChanged.emit(i.brokerCtx, TextChanged(text: i.text))
   i.invalidate()
 
 proc ensureCursorVisible(i: Input) =
@@ -206,7 +206,7 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
       if i.onSubmit != nil:
         i.onSubmit(i)
       i.publish(i.command)
-      Submitted.emit(i.brokerCtx, Submitted(text: i.text))
+      if i.hasBrokerCtx: Submitted.emit(i.brokerCtx, Submitted(text: i.text))
     else:
       # printable rune with no Ctrl/Alt chord -> insert (if the filter allows)
       if k.rune.int32 >= 32 and k.keyMods * {modCtrl, modAlt} == {}:

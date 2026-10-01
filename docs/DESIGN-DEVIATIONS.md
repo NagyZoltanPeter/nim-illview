@@ -196,7 +196,8 @@ the P23 menu rework.
 
 Iteration 3 (deviation #16) had `dispose()` call `releaseInstanceCtx` to recycle
 a View's broker instanceCtx id, needing a local nim-brokers 3.3.0. That whole
-mechanism is **reverted**: `requires "brokers >= 3.2.0"`, `dispose()` no longer
+mechanism is **reverted**: `requires "brokers >= 3.2.0"` at the time (now
+`>= 3.4.0`, still without `releaseInstanceCtx`), `dispose()` no longer
 recycles (it drops listeners via the recorded disposers and marks the ctx
 inert), and the one `hasListeners` test assertion became a behavioral check
 (activate a disposed widget → reaches nobody).
@@ -340,3 +341,183 @@ path) still route on the full per-widget `brokerCtx` and are unchanged. The
 opened-bus `UiAction`/domain events stay on `DefaultBrokerContext` by design.
 Regression tests in `tests/test_bindings.nim`: emits land on the session ctx (not
 the default), and a `setThreadBrokerContext` sandbox routes to the saved ctx.
+
+**Superseded in part by #27**: the "each App is its own sandbox by default"
+resolution (fresh `NewBrokerContext()` + `setThreadBrokerContext`) is gone.
+
+## 27. The session ctx IS the thread's global broker context
+
+Deviation #26 made `newApp` allocate a fresh session ctx and **install it as
+the thread's global broker context**. An external audit flagged this as the
+main obstacle to embedding illview in a host that keys its own brokers on
+`globalBrokerContext()` (logos-delivery captures it at construction in ~20
+places): depending on whether the node or the TUI was built first, the node
+silently adopted illview's private scope or the two never met.
+
+New resolution, `core/app.nim` `newApp` + `core/view.nim` `viewSessionParent`:
+
+- No argument → **adopt `globalBrokerContext()` as-is**, `DefaultBrokerContext`
+  included. `app.sessionCtx == globalBrokerContext()`, and every view built on
+  the thread derives its instance ctx from the same class. `newApp` never
+  calls `setThreadBrokerContext`.
+- Host-installed scope (`setThreadBrokerContext(myCtx)` before building) →
+  adopted, exactly as before. This remains the sandbox path.
+- Explicit `newApp(sessionCtx = x)` → `x` is bound through an illview-private
+  `{.threadvar.}` (`bindSessionCtx`) so views built afterwards land on it
+  without touching the brokers threadvar. A later plain `newApp()` clears the
+  binding. `gAppClassCtx` is deleted.
+
+Consequence: on a bare thread, `emits:` events now fire on
+`DefaultBrokerContext` — by decision: the UI shares the scope its host process
+already uses, and isolation is opt-in (install or pass a ctx). Two UIs in one
+process each pass their own `sessionCtx`.
+
+Same phase: menu `item(label, EventType)` no longer emits on the ambient
+default ctx. It emits on the popup **host's** `sessionCtx` (menu bar /
+context-menu opener) with `senderId = host.id` when the type declares that
+field (default-constructed otherwise), via a new `MenuItem.onActivateFrom`
+slot. Closes the open item noted under #26.
+
+Tests: `tests/test_bindings.nim` "session ctx resolution (deviation #27)" (adopt
+host ctx + thread ctx untouched; bare thread → default; explicit binding), and
+`tests/test_menu.nim` "emits on the host's session ctx with senderId".
+
+## 28. Instance ctx materialized on first use
+
+`initView` allocated `newInstanceCtx` for **every** view — each Label, each
+layout box — from nim-brokers' process-wide, monotonic, 16-bit instanceCtx
+counter (`doAssert` at 65 535), the same counter a host's own broker
+sub-instances draw from. Persistent-object/transient-membership (#21) keeps
+the churn down but not the base cost: a 300-widget screen was 300 ids at
+construction, most of them never listened to or signalled.
+
+Now `View.brokerCtx` is an accessor (`core/view.nim`): the id is allocated
+the first time anyone asks for the route — a listener, a `SetText.signal`, a
+`bindValue` writer, an `on:` lowering. `initView` only captures the session
+classCtx. Widget constructors still declare their signal handlers, but
+`installSignal`/`installFocusMe` (`vocab.nim`) now go through
+`deferWiring`, which runs the install at materialization (or immediately if
+the ctx already exists). Widgets emit vocab events only `if w.hasBrokerCtx`
+— nobody can be listening on a route that was never handed out. `dispose`
+marks the view so the accessor stays inert (`BrokerContext(0)`) afterwards.
+
+Source-compatible: `x.brokerCtx` reads unchanged; only `view.nim` ever
+assigned the field. refc notes: (1) a deferred wiring closure captures its
+own view (view → closure → view cycle) until materialization or `dispose`
+clears it; the eager install held the same view alive through the broker
+registry, so the "dispose exactly once" contract (#16) is unchanged. (2) The
+accessor takes the pending list with `swap`, not `let pending = v.wiring`:
+under `--mm:refc` that `let` aliases the seq field, so the following
+`setLen 0` emptied both and no wiring ever ran — every Set-signal returned
+`err` under refc while ORC (which copies) was green. Caught by the refc CI
+leg (deviation #31) the first time it ran.
+
+Test: `tests/test_ctx_vocab.nim` "lazy instance ctx" — 1 000 Labels
+allocate nothing; ids are handed out in use order, not construction order;
+deferred wiring is live after materialization; a never-materialized widget
+activates without emitting and without crashing.
+
+## 29. The DSL fails loudly, and third-party widgets are first-class
+
+Four silent failure modes in `dsl/mount.nim` / `dsl/uievents.nim`, all found
+by the audit, all now compile errors:
+
+1. **Misplaced pragmas.** A known DSL pragma in the wrong position
+   (`{.caption.}` on a type, `{.vbox.}` on a field) or any DSL pragma on a
+   field without `{.child.}` compiled and did nothing. `rejectMisplaced`
+   checks type-level and field-level names against explicit tables. Typos
+   were never silent — every DSL pragma is a `{.pragma.}` template — so only
+   known names are checked.
+2. **Generic `createView[T]` fallback.** A `{.child.}` field of a type that
+   is neither `{.view.}` nor covered by a `createView` overload fell to
+   `mount(T)`, i.e. `T()` + `initView` — the widget's own constructor never
+   ran. Now `when T.hasCustomPragma(view): mount(T) else: {.error.}`.
+   COOKBOOK §15 shows the one-line overload.
+3. **`payloadKind` by type NAME.** `uiEvents` chose the `emits:` payload and
+   the `set<Field>` writer by string-matching `"Input"`, `"Checkbox"`, …: a
+   user type named `Input` was misclassified, and a third-party widget could
+   never take part. Replaced by an overload hook resolved at the expansion
+   site: `template uiValueKind*(t: typedesc[W]): UiPayloadKind` (stock
+   overloads in `mount.nim`, generic fallback `upNone`). `uiEvents(T)` now
+   expands to `uiEventsImpl(T, @[uiValueKind(F1), uiValueKind(F2), …])` with
+   a `static seq` parameter, so the kinds are known at macro time exactly as
+   before. The payload snapshot goes through `widgetValue(sender)` instead of
+   `sender.text`/`.checked`/`.selected`, the same overload `bindValue` uses.
+   `chain` is exported so custom `bindSlot`/`bindValueSlot` overloads append
+   like the stock ones.
+4. **`on:` handler fallback.** `when compiles(handler(self, ev)) … else
+   handler(self)` turned a handler-signature typo into a confusing type
+   mismatch at the generated call. Both arities stay accepted; anything else
+   hits `{.error: "on: handler 'x' must be proc(self: T) or proc(self: T,
+   ev: E)".}`.
+
+Tests: `tests/test_mount.nim` "mount(T) fail-fast" (positive `createView`
+overload; `not compiles` for the bad child, three misplacements, and the bad
+handler) and `tests/test_bindings.nim` "third-party widget joins
+bindValue/emits" (a `Dialish` widget with `uiValueKind = upSelected` gets a
+typed `DialTurned.selected` payload, a store, and a `setDialVal` writer that
+drives it through `SetSelected`). The full contract: `docs/EXTENDING.md`.
+
+## 30. Model binding, console widgets, examples hygiene
+
+**`bindValue` stores on a model.** `bindValue: "model.field"` targets
+a field of a `ref` object the view holds (`storeTarget` in `dsl/mount.nim`
+builds `self.model.field`); the generated writer is still `set<Field>` (last
+path segment), and a new `notify<Field>(self)` pushes the store's current
+value to the widget after the model was mutated behind the framework's back.
+The view keeps only a pointer to the model — the audit's "domain state lives
+inside the widget tree" finding. `examples/ex09_bindings.nim` now binds to a
+`FormState` ref; DESIGN.md gained a dataflow section. Test:
+`tests/test_bindings.nim` "bindValue on an external model".
+
+**Widgets a status console needs.**
+- `Scroller` gets the same stretchy default hint `Splitter` got in #22, so a
+  scroller in a box no longer collapses to nothing (COOKBOOK §17 relied on
+  the hand-set hint it did not show).
+- `Table.setRows` keeps `selected` and `top` (clamped) instead of jumping to
+  the top on every refresh.
+- `TextView.lines` is a `std/deques.Deque[string]`: O(1) eviction at the
+  cap instead of `delete(0)`; `len`/`[]` unchanged, `.high` callers
+  (`netviz.nim`) use `len - 1`. New optional `lineStyle: proc(line):
+  ThemeToken` for per-line coloring (log levels).
+- New `widgets/sparkline.nim`: fixed-capacity ring of samples, block glyphs,
+  auto or fixed scale, right-aligned, `SetProgress`-drivable like a
+  ProgressBar. `examples/ex06_netviz.nim` shows events/second with it.
+Tests: `tests/test_widgets.nim` "live-data widgets".
+
+**Hygiene.** `examples/nim.cfg` adds `--path:"../src"` so every
+example imports `illview` exactly as a downstream project does (no more
+`../src/illview/...` teaching internal paths; the redundant `ivlayout`
+aliases are gone). `newNetVizWidget` → `newNetViz` (the one `…Widget`
+constructor). Nim floor reconciled to `>= 2.2.4` at all five sites; README
+build section documents `testRefc`/`testAsan`, the lockfile, and links
+`EMBEDDING.md`; `EXTENDING.md` documents the widget/DSL extension contract.
+
+## 31. Embedding hygiene: NullBus default, chained crash handlers, refc/ASAN CI
+
+Three changes so illview behaves inside a long-running host process
+(`docs/EMBEDDING.md`):
+
+- **`NullBus` is the default `app.bus`** (`core/bus.nim`). `StubBus`
+  appended every `UiAction` and domain event to a seq forever — fine for
+  tests, an unbounded history in a daemon. `NullBus` dispatches domain
+  subscriptions synchronously and records nothing. `StubBus` stays for tests;
+  `newBrokersBus()` is still the real routing.
+- **Crash-restore handlers chain** (`core/app.nim` `installCrashRestore`).
+  `posix.signal(s, restoreOnSignal)` replaced whatever the host had for
+  SIGSEGV/ABRT/BUS/ILL/FPE. Now `sigaction` with `SA_SIGINFO` saves the
+  previous action per signal; after restoring the terminal the handler
+  re-installs that action and invokes it (`SA_SIGINFO` or plain handler), or
+  returns to re-fault under the default when it was `SIG_DFL`/`SIG_IGN`.
+  `CrashSignals` is a `let`, not a `const`: Nim's posix signal numbers are
+  importc vars. `-d:noCrashRestore` still opts out.
+- **refc and ASAN are gated**, not claimed. `nimble test` reads
+  `ILLVIEW_MM` (default orc), plus `testRefc` and `testAsan` (orc +
+  `-d:useMalloc`, `-fsanitize=address`); `ci/nimble-strict.sh` fails a step
+  whenever a task raised even if nimble exited 0; `.github/workflows/ci.yml`
+  runs {orc, refc} × {ubuntu, macos} × Nim {2.2.4, 2.2.12} and one ASAN job.
+  The refc leg caught the aliasing bug recorded in #28 on its first run.
+
+Tests: `tests/test_app.nim` (NullBus records nothing; a SIGSEGV raised after
+`installCrashRestore` reaches the previously installed handler, which is then
+the current action again).

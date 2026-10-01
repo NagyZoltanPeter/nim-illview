@@ -49,7 +49,10 @@ type
 
   View* = ref object of RootObj
     id*: int # unique per process; UiAction.senderId
-    brokerCtx*: BrokerContext # instance route (plan-3 D7): vocab events out, signals in
+    ctx: BrokerContext       # instance route (plan-3 D7), materialized by brokerCtx()
+    sessionClass: uint16     # classCtx captured at construction (viewSessionParent)
+    disposed: bool
+    wiring: seq[proc() {.gcsafe, raises: [].}] # deferred broker installs (deviation #28)
     disposers*: seq[proc() {.gcsafe, raises: [].}] # broker teardowns, run by dispose()
     bounds*: Rect # relative to parent's CONTENT area
     parent*: Group
@@ -97,26 +100,32 @@ type
 
 var gNextViewId: int # plain int: safe to touch from gcsafe code; single loop thread
 
-let gAppClassCtx = NewBrokerContext()
-  ## Fallback session scope: the process-wide classCtx a view hangs off when NO
-  ## per-thread broker context is installed (standalone widgets, tests). `newApp`
-  ## installs its own session ctx (see viewSessionParent), so app-built views use
-  ## THAT instead. Either way the id is not recycled — see dispose().
+var gSessionCtx {.threadvar.}: BrokerContext
+  ## illview-private session override, 0 = none. Set by `newApp` only when the
+  ## caller passed an explicit `sessionCtx`; otherwise views follow the thread's
+  ## `globalBrokerContext()` (deviation #27). This is NOT the
+  ## brokers threadvar: illview never installs a thread broker context.
+
+proc bindSessionCtx*(ctx: BrokerContext) =
+  ## Route views built from now on (this thread) under `ctx`'s classCtx;
+  ## `BrokerContext(0)` restores "follow globalBrokerContext()". Called by
+  ## `newApp`; standalone users normally `setThreadBrokerContext` instead.
+  gSessionCtx = ctx
 
 proc viewSessionParent(): BrokerContext =
-  ## The context a fresh view's instance ctx is allocated under. Honors an
-  ## explicitly installed thread broker context — an App session, or a user
-  ## sandbox via `setThreadBrokerContext` / a saved `globalBrokerContext` — and
-  ## falls back to `gAppClassCtx` while the thread is still on the bare
-  ## `DefaultBrokerContext`, so views are NEVER on the global default scope.
-  let g = threadGlobalBrokerContext()
-  if g == DefaultBrokerContext: gAppClassCtx else: g
+  ## The context a fresh view's instance ctx is allocated under: an explicitly
+  ## bound App session if any, else the thread's global broker context —
+  ## `DefaultBrokerContext` included — so a plain app shares the scope its host
+  ## process already keys everything on. The instance id is never recycled —
+  ## see dispose().
+  if gSessionCtx != BrokerContext(0): gSessionCtx else: globalBrokerContext()
 
 proc initView*(v: View) =
-  ## Every widget constructor must call this.
+  ## Every widget constructor must call this. Captures the session scope; the
+  ## instance ctx itself is allocated on first `brokerCtx` use.
   inc gNextViewId
   v.id = gNextViewId
-  v.brokerCtx = newInstanceCtx(viewSessionParent())
+  v.sessionClass = classCtx(viewSessionParent())
   v.visible = true
   v.enabled = true
   v.hint = (SizeHint(), SizeHint()) # defaults: max unbounded
@@ -124,12 +133,44 @@ proc initView*(v: View) =
 func sessionCtx*(v: View): BrokerContext =
   ## The session-scoped broker context common to every view built under the same
   ## session: the shared classCtx with the per-instance high-16 stripped. This
-  ## is `gAppClassCtx` by default, or the App's / a user-installed session ctx
-  ## (see viewSessionParent). uiEvents `emits:` events fire on THIS context —
-  ## session-wide, but isolated from the global DefaultBrokerContext other broker
-  ## users share. Subscribe with `SomeEvent.listen(v.sessionCtx, handler)` (or
+  ## is the thread's `globalBrokerContext()` at construction time (the default
+  ## scope unless the host installed one), or the App's explicitly bound session
+  ## ctx (see viewSessionParent). uiEvents `emits:` events fire on THIS context.
+  ## Subscribe with `SomeEvent.listen(v.sessionCtx, handler)` (or
   ## `app.sessionCtx`, or your own saved ctx if you installed one).
-  makeBrokerContext(classCtx(v.brokerCtx), 0'u16)
+  makeBrokerContext(v.sessionClass, 0'u16)
+
+func hasBrokerCtx*(v: View): bool =
+  ## True once `brokerCtx` has been handed out (and the view is not disposed).
+  ## Widgets emit vocab events only then: nobody can listen on a route that
+  ## was never materialized.
+  v.ctx != BrokerContext(0) and not v.disposed
+
+proc brokerCtx*(v: View): BrokerContext {.gcsafe, raises: [].} =
+  ## The view's instance broker route (plan-3 D7): vocab events out, signals
+  ## in. Materialized on FIRST use (deviation #28): a view nobody
+  ## listens to or signals never consumes one of the process-wide 65 535
+  ## instanceCtx ids. Deferred wiring (`installSignal`/`installFocusMe`) runs
+  ## here. Inert `BrokerContext(0)` after dispose().
+  if v.disposed:
+    return BrokerContext(0)
+  if v.ctx == BrokerContext(0):
+    v.ctx = newInstanceCtx(makeBrokerContext(v.sessionClass, 0'u16))
+    # take the list by swap: under refc `let pending = v.wiring` aliases the
+    # field, so a setLen 0 afterwards would empty both and run nothing
+    var pending: seq[proc() {.gcsafe, raises: [].}]
+    swap(pending, v.wiring)
+    for install in pending:
+      install()
+  v.ctx
+
+proc deferWiring*(v: View, install: proc() {.gcsafe, raises: [].}) =
+  ## Register a broker install (signal handler, listener) to run when the
+  ## view's ctx is first materialized — or right away if it already is.
+  if v.hasBrokerCtx:
+    install()
+  else:
+    v.wiring.add install
 
 proc newGroup*(): Group =
   result = Group()
@@ -323,17 +364,19 @@ proc dispose*(v: View) {.gcsafe, raises: [].} =
   ## hold strong refs to the view (closure captures), so an undisposed view is
   ## kept alive by the broker registry under refc and ORC alike.
   ##
-  ## nim-brokers 3.2.0: the instanceCtx id is NOT reclaimed here (no
-  ## releaseInstanceCtx). We rely on persistent-object / transient-membership
-  ## instead of churn (build a popup/dialog once, add/remove it, dispose only
-  ## at teardown), so the monotonic instanceCtx counter is not pressured.
+  ## The instanceCtx id is NOT reclaimed here (no releaseInstanceCtx). We rely
+  ## on persistent-object / transient-membership instead of churn (build a
+  ## popup/dialog once, add/remove it, dispose only at teardown), and on lazy
+  ## materialization (deviation #28), so the monotonic counter is not pressured.
   if v of Group:
     for c in Group(v).children:
       dispose(c)
   for d in v.disposers:
     d()
   v.disposers.setLen 0
-  v.brokerCtx = BrokerContext(0) # inert: signals err, emits reach nobody
+  v.wiring.setLen 0
+  v.ctx = BrokerContext(0) # inert: signals err, emits reach nobody
+  v.disposed = true
 
 # --- tree mutation ------------------------------------------------------------
 

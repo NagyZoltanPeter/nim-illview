@@ -43,7 +43,7 @@ proc select*(r: Radio, i: int) =
   if r.onSelect != nil:
     r.onSelect(r)
   r.publish(r.command)
-  SelectionChanged.emit(r.brokerCtx, SelectionChanged(selected: r.selected))
+  if r.hasBrokerCtx: SelectionChanged.emit(r.brokerCtx, SelectionChanged(selected: r.selected))
   r.invalidate()
 
 method draw*(r: Radio, dc: DrawContext) {.gcsafe, raises: [].} =

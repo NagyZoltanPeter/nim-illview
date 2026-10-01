@@ -5,3 +5,4 @@ nimble.paths
 build/
 illview.log
 nimbledeps
+.local/

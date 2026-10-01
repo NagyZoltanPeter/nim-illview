@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    paths-ignore: ['**.md', 'docs/assets/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Every platform x Nim x memory-manager cell gates a PR. refc is a first-
+    # class target (hosts such as logos-delivery build refc); ORC is the
+    # recommended default. Nim 2.2.4 is the floor in illview.nimble.
+    name: ${{ matrix.os }} / Nim ${{ matrix.nim }} / ${{ matrix.mm }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        nim: ["2.2.4", "2.2.12"]
+        mm: [orc, refc]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: ${{ matrix.nim }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies (lockfile)
+        run: |
+          nimble setup -l
+          nimble install -d -y
+
+      - name: Tests (${{ matrix.mm }})
+        env:
+          ILLVIEW_MM: ${{ matrix.mm }}
+        run: ci/nimble-strict.sh test
+
+      - name: Examples build (${{ matrix.mm }})
+        env:
+          ILLVIEW_MM: ${{ matrix.mm }}
+        run: ci/nimble-strict.sh examples
+
+  asan:
+    # AddressSanitizer over the whole suite, ORC + -d:useMalloc so the
+    # sanitizer sees every allocation. Linux only: fastest runner, same code.
+    name: ubuntu / Nim 2.2.12 / asan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: "2.2.12"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          nimble setup -l
+          nimble install -d -y
+      - run: ci/nimble-strict.sh testAsan

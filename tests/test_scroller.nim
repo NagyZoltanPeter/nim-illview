@@ -118,3 +118,23 @@ suite "Scroller focus-driven auto-scroll":
     setFocus(root, Group(sc.content).children[2])
     root.arrangeChildren()
     check sc.offY == 0
+
+suite "Scroller default size hint (deviation #30)":
+  test "in a box, a Scroller with no hand-set hint fills its slot":
+    # before: default SizeHint() (pref 0, stretch 0) collapsed it to width 0
+    let root = newGroup()
+    root.bounds = rect(0, 0, 30, 5)
+    let row = newHBox()
+    row.dock = dkFill
+    let vb = newVBox()
+    for i in 0 ..< 20:
+      vb.add newRow(i)
+    let sc = newScroller(vb)
+    let side = newRow(99)
+    side.hint = (fixedHint(4), prefHint(0, stretch = 1))
+    row.add sc
+    row.add side
+    root.add row
+    root.arrangeChildren()
+    check sc.bounds.w == 26 # everything the fixed-width sibling leaves
+    check sc.bounds.h == 5

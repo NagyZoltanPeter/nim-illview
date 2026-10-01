@@ -172,7 +172,7 @@ dynamic topics beat typed payloads:
 import illview/bus_brokers
 
 app.bus = newBrokersBus()
-let nv = newNetVizWidget()
+let nv = newNetViz()
 discard app.bus.subscribeDomain("relay/*",
   proc(topic, payload: string) {.gcsafe, raises: [].} =
     nv.addEvent(topic, payload))
@@ -290,17 +290,29 @@ type Dial* = ref object of View
 
 proc newDial*(): Dial =
   result = Dial()
-  initView(result)              # allocates result.brokerCtx
-  result.focusable = true
+  initView(result)              # captures the session scope; the instance
+  result.focusable = true       # ctx is allocated on first brokerCtx use
   let d = result
-  d.installSignal(SetProgress): # single handler on d's ctx + teardown
-    d.value = clamp(sig.value, 0, 100)
+  d.installSignal(SetProgress): # single handler on d's ctx + teardown,
+    d.value = clamp(sig.value, 0, 100) # installed when the ctx materializes
     d.invalidate()
   d.installFocusMe()
 
 proc turned(d: Dial) =          # user-driven path emits; setters don't
-  SelectionChanged.emit(d.brokerCtx, SelectionChanged(selected: d.value))
+  if d.hasBrokerCtx:            # nobody can listen on a route never handed out
+    SelectionChanged.emit(d.brokerCtx, SelectionChanged(selected: d.value))
+
+# to use Dial as a {.child.} field in a {.view.} type, tell mount() how to
+# build one (without this, mount() is a compile error, not a silent Dial()):
+proc createView*(t: typedesc[Dial]): Dial = newDial()
+# optional: let it join emits:/bindValue with a `selected` payload
+template uiValueKind*(t: typedesc[Dial]): UiPayloadKind = upSelected
+proc widgetValue*(w: Dial): int = w.value
+proc bindValueSlot*(w: Dial, h: proc(sender: Dial) {.gcsafe, raises: [].}) =
+  w.onTurn = h                  # whatever change slot your widget exposes
 ```
+
+See [EXTENDING.md](EXTENDING.md) for the full extension contract.
 
 ## 16. Two-column forms, alignment & anchoring
 
@@ -322,6 +334,8 @@ aRight})` keeps a `dkNone` child's edges pinned as the parent resizes.
 
 ```nim
 let sc = newScroller(bigContent)            # bigContent taller than the viewport
+# newScroller sets a stretchy size hint (deviation #30), so the viewport fills its
+# slot; give it a fixed hint instead if you want a specific size.
 let bar = newScrollBar(axV)
 bar.onScroll = proc(pos: int) = sc.scrollTo(0, pos)   # bar drives scroller
 row.add sc; row.add bar                     # side by side in an HBox
@@ -374,28 +388,35 @@ value-level validation. `Input.history` + Down opens a recency picker.
 ## 21. Session context: where events fire & sandboxing
 
 Every view's `brokerCtx` = a shared session `classCtx` + a unique per-instance
-id. `view.sessionCtx` / `app.sessionCtx` is the shared part — common to all
-widgets of the app, but isolated from the global `DefaultBrokerContext`.
+id, allocated the first time something asks for it (a listener, a signal, a
+binding — deviation #28); a widget nobody talks to costs no id.
+`view.sessionCtx` / `app.sessionCtx` is the shared part — common to all
+widgets of the app. It is **the thread's `globalBrokerContext()`** at build
+time (deviation #27): a plain `newApp()` on a bare thread lands on
+`DefaultBrokerContext`, the same scope a host process (a node embedding the
+TUI) keys its own brokers on. `newApp` never installs a thread context.
 
-Who emits where (deviation #26):
+Who emits where (deviations #26/#27):
 
 | Source                                | Context                     |
 | ------------------------------------- | --------------------------- |
 | `emits:` fields (uiEvents)            | `app.sessionCtx`            |
 | vocab events (`Clicked`, `TextChanged`) | the widget's `brokerCtx`  |
-| menu `item(label, EventType)`         | `DefaultBrokerContext` (for now) |
+| menu `item(label, EventType)`         | the host view's `sessionCtx`, `senderId = host.id` |
 | bus `UiAction` / domain topics        | `DefaultBrokerContext`      |
 
-`newApp()` allocates the session ctx and installs it as the thread's broker
-context before building the desktop. Two UIs on one process stay isolated;
-to bring your own scope (and keep a handle for deep model code):
+Isolation is opt-in. To sandbox a UI (or keep a handle for deep model code),
+install your own scope before building, or pass it explicitly:
 
 ```nim
 let myCtx = NewBrokerContext()
-setThreadBrokerContext(myCtx)     # BEFORE building any view
-let app = newApp()                # adopts myCtx: app.sessionCtx == myCtx
+setThreadBrokerContext(myCtx)     # BEFORE building any view: adopted by all
+let app = newApp()                # app.sessionCtx == myCtx
 discard RunRequested.listenIt(myCtx):   # your saved ctx receives emits
   asyncSpawn model.startRun()
+
+let app2 = newApp(sessionCtx = otherCtx) # bound for views built after it,
+                                         # thread ctx left untouched
 ```
 
 ## 22. MDI: floating windows in a nested Desktop

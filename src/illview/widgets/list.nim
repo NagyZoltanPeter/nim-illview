@@ -58,7 +58,7 @@ proc select*(l: ListView, i: int) =
   l.ensureVisible()
   if l.onSelect != nil:
     l.onSelect(l)
-  SelectionChanged.emit(l.brokerCtx, SelectionChanged(selected: l.selected))
+  if l.hasBrokerCtx: SelectionChanged.emit(l.brokerCtx, SelectionChanged(selected: l.selected))
   l.invalidate()
 
 proc activate*(l: ListView) =
@@ -67,7 +67,7 @@ proc activate*(l: ListView) =
   if l.onActivate != nil:
     l.onActivate(l)
   l.publish(l.command)
-  Activated.emit(l.brokerCtx, Activated(selected: l.selected))
+  if l.hasBrokerCtx: Activated.emit(l.brokerCtx, Activated(selected: l.selected))
 
 method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
   let normal = l.styleOf(tkText)

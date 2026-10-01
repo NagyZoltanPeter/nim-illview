@@ -3,9 +3,9 @@
 
 import std/[strformat, unicode]
 import chronos
-import ../src/illview/core/app
-import ../src/illview/core/events
-import ../src/illview/backend/illwill_vendored
+import illview/core/app
+import illview/core/events
+import illview/backend/illwill_vendored
 
 proc describe(ev: InputEvent): string =
   case ev.kind

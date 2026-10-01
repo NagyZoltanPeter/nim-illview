@@ -8,7 +8,8 @@
 ## Declarative surface (iteration-5): `menuBar(menu("~F~ile", @[
 ##   item("~O~pen", OpenRequested), sep(), submenu("~R~ecent", @[...]),
 ##   item("~Q~uit", cmQuit)]))` — `item(label, EventType)` auto-emits the
-## EventBroker type on activation (the type IS the semantic).
+## EventBroker type on activation (the type IS the semantic) on the host view's
+## session ctx, `senderId = host.id` when the type has one (deviation #27).
 ##
 ## Keyboard — bar: Left/Right pick, Enter/Down open. Popup: Up/Down (skips
 ## separators + disabled), Enter/Right open-or-activate, Left/Escape close.
@@ -27,6 +28,10 @@ type
     accel*: Rune
     command*: Command     # tier-2 publish on activation (cmdNone = none)
     onActivate*: MenuAction
+    onActivateFrom*: proc(host: View) {.gcsafe, raises: [].}
+      ## Like onActivate but receives the popup's host (menu bar / context-menu
+      ## opener), the still-attached view whose session ctx and id identify
+      ## the source. `item(label, EventType)` emits through this.
     separator*: bool      # a non-selectable divider line
     submenu*: seq[MenuItem]
 
@@ -81,10 +86,22 @@ proc item*(label: string, act: MenuAction): MenuItem =
   let hk = parseHotkey(label)
   MenuItem(label: hk.text, hlCol: hk.col, accel: hk.key, onActivate: act)
 
+proc itemFrom*(label: string,
+               act: proc(host: View) {.gcsafe, raises: [].}): MenuItem =
+  let hk = parseHotkey(label)
+  MenuItem(label: hk.text, hlCol: hk.col, accel: hk.key, onActivateFrom: act)
+
 template item*(label: string, EventType: typedesc): MenuItem =
-  ## Activation auto-emits the EventBroker `EventType` (default-constructed).
+  ## Activation emits `EventType` on the host view's session ctx (the menu
+  ## bar's / context-menu opener's `sessionCtx`), with `senderId = host.id`
+  ## when the type declares that field (uiEvents-style) and default-constructed
+  ## otherwise. Never the ambient default ctx (deviation #27).
   mixin emit
-  item(label, proc() {.gcsafe, raises: [].} = emit(EventType()))
+  itemFrom(label, proc(host: View) {.gcsafe, raises: [].} =
+    when compiles(EventType(senderId: host.id)):
+      emit(EventType, host.sessionCtx, EventType(senderId: host.id))
+    else:
+      emit(EventType, host.sessionCtx, EventType()))
 
 proc sep*(): MenuItem = MenuItem(separator: true, hlCol: -1)
 
@@ -164,6 +181,8 @@ proc activateItem(p: MenuPopup) =
   p.closeAll()                 # menu gone first (action may open a dialog)
   if item.onActivate != nil:
     item.onActivate()          # free closure — safe after detach
+  if item.onActivateFrom != nil:
+    item.onActivateFrom(if host != nil: host else: View(p))
   if item.command != cmdNone and host != nil:
     host.publish(item.command) # via the still-attached host, not the detached popup
 

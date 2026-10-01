@@ -5,7 +5,7 @@
 
 import std/[unittest, strutils]
 import chronos
-import ../src/illview/core/[geometry, events, bus, view, routing]
+import ../src/illview/core/[geometry, events, bus, view, routing, app]
 import ../src/illview/widgets/[window, checkbox, input, button]
 import ../src/illview/dsl/pragmas
 import ../src/illview/dsl/mount
@@ -132,30 +132,25 @@ suite "set<Field> writers (plan-3 D10)":
     dispose(form)
 
 suite "emits: auto-generated typed events (plan-2 D5)":
-  test "button activation emits RunClicked on the session ctx, not the default":
+  test "button activation emits RunClicked on the session ctx (== the thread's global ctx)":
     var got: seq[int]
-    var gotDefault: seq[int]
     let root = newGroup()
     root.bounds = rect(0, 0, 60, 20)
     let form = mount(BoundForm)
     root.add form
-    # emits: fires on the view's session ctx (shared classCtx, instance 0)
+    # emits: fires on the view's session ctx (shared classCtx, instance 0). On a
+    # bare thread that IS the thread's global broker ctx — the UI shares the
+    # scope its host process keys on (deviation #27).
+    check form.sessionCtx == globalBrokerContext()
     check RunClicked.listen(form.sessionCtx,
       proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
         {.cast(gcsafe).}:
           got.add ev.senderId).isOk
-    # a listener on the global default ctx must receive nothing
-    check RunClicked.listen(
-      proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
-        {.cast(gcsafe).}:
-          gotDefault.add ev.senderId).isOk
     setFocus(root, form.run)
     discard dispatchKey(root, keyEvent(Key.Enter))
     waitFor sleepAsync(10.milliseconds)
     check got == @[form.run.id]
-    check gotDefault.len == 0
     waitFor RunClicked.dropAllListeners(form.sessionCtx)
-    waitFor RunClicked.dropAllListeners()
 
   test "input submit emits FormSubmitted with the text payload":
     var got: seq[string]
@@ -178,6 +173,7 @@ suite "emits: auto-generated typed events (plan-2 D5)":
     let uiCtx = NewBrokerContext()   # a saved/sandbox context
     setThreadBrokerContext(uiCtx)    # install it for this thread
     var got: seq[int]
+    var gotDefault: seq[int]
     let root = newGroup()
     root.bounds = rect(0, 0, 60, 20)
     let form = mount(BoundForm)      # views built now hang off uiCtx
@@ -187,12 +183,148 @@ suite "emits: auto-generated typed events (plan-2 D5)":
       proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
         {.cast(gcsafe).}:
           got.add ev.senderId).isOk
+    # a listener on the global default ctx must receive nothing: isolation
+    check RunClicked.listen(
+      proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}:
+          gotDefault.add ev.senderId).isOk
     setFocus(root, form.run)
     discard dispatchKey(root, keyEvent(Key.Enter))
     waitFor sleepAsync(10.milliseconds)
     check got == @[form.run.id]
+    check gotDefault.len == 0
     waitFor RunClicked.dropAllListeners(uiCtx)
+    waitFor RunClicked.dropAllListeners()
     setThreadBrokerContext(DefaultBrokerContext) # restore for other tests
+
+suite "session ctx resolution (deviation #27)":
+  test "newApp adopts the thread's global ctx and never installs one":
+    let hostCtx = NewBrokerContext()
+    setThreadBrokerContext(hostCtx)  # what a host process (a node) already did
+    let app = newApp()
+    check app.sessionCtx == hostCtx
+    check threadGlobalBrokerContext() == hostCtx # untouched by newApp
+    let form = mount(BoundForm)
+    check form.sessionCtx == hostCtx
+    setThreadBrokerContext(DefaultBrokerContext)
+
+  test "newApp on a bare thread lands on DefaultBrokerContext":
+    let app = newApp()
+    check app.sessionCtx == DefaultBrokerContext
+    check threadGlobalBrokerContext() == DefaultBrokerContext
+    var got: seq[int]
+    let root = newGroup()
+    root.bounds = rect(0, 0, 60, 20)
+    let form = mount(BoundForm)
+    root.add form
+    check RunClicked.listen(         # a plain default-ctx listener hears it
+      proc(ev: RunClicked): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}:
+          got.add ev.senderId).isOk
+    setFocus(root, form.run)
+    discard dispatchKey(root, keyEvent(Key.Enter))
+    waitFor sleepAsync(10.milliseconds)
+    check got == @[form.run.id]
+    waitFor RunClicked.dropAllListeners()
+
+  test "an explicit sessionCtx binds views without touching the thread ctx":
+    let mine = NewBrokerContext()
+    let app = newApp(sessionCtx = mine)
+    check app.sessionCtx == mine
+    check threadGlobalBrokerContext() == DefaultBrokerContext
+    check mount(BoundForm).sessionCtx == mine
+    # a later plain newApp drops the binding: views follow the global ctx again
+    let app2 = newApp()
+    check app2.sessionCtx == DefaultBrokerContext
+    check mount(BoundForm).sessionCtx == DefaultBrokerContext
+
+# --- bindValue on an external model (deviation #30) --------------------------------
+
+type
+  FormModel = ref object
+    name: string
+    accept: bool
+  ModelForm {.view, vbox.} = ref object of Group
+    name {.child, bindValue: "model.name".}: Input
+    accept {.child, bindValue: "model.accept".}: Checkbox
+    model: FormModel
+
+uiEvents(ModelForm)
+
+suite "bindValue on an external model (deviation #30)":
+  test "store on the model; set<Field> and notify<Field> drive the widget":
+    let form = mount(ModelForm)
+    form.model = FormModel()
+    let root = newGroup()
+    root.bounds = rect(0, 0, 60, 20)
+    root.add form
+    root.arrangeChildren()
+    setFocus(root, form.name)
+    typeText(root, "waku")
+    check form.model.name == "waku"        # widget -> model
+    form.setName("nimbus")                 # writer: model + widget
+    waitFor sleepAsync(5.milliseconds)
+    check form.model.name == "nimbus"
+    check form.name.text == "nimbus"
+    form.model.name = "direct"             # model mutated behind our back
+    form.notifyName()                      # ... re-synced on request
+    form.model.accept = true
+    form.notifyAccept()
+    waitFor sleepAsync(5.milliseconds)
+    check form.name.text == "direct"
+    check form.accept.checked
+    dispose(form)
+
+# --- third-party widget joining bindValue/emits (deviation #29) --------------------
+
+type Dialish = ref object of View
+  value: int
+  onTurn: proc(sender: Dialish) {.gcsafe, raises: [].}
+
+proc newDialish(): Dialish =
+  result = Dialish()
+  initView(result)
+  let d = result
+  d.installSignal(SetSelected):
+    d.value = sig.selected
+
+proc turn(d: Dialish, v: int) =
+  d.value = v
+  if d.onTurn != nil:
+    d.onTurn(d)
+
+# the extension contract (docs/EXTENDING.md §3), all resolved at this site
+proc createView(t: typedesc[Dialish]): Dialish = newDialish()
+template uiValueKind(t: typedesc[Dialish]): UiPayloadKind = upSelected
+proc widgetValue(w: Dialish): int = w.value
+proc bindSlot(w: Dialish, h: proc(sender: Dialish) {.gcsafe, raises: [].}) =
+  w.onTurn = chain(w.onTurn, h)
+proc bindValueSlot(w: Dialish, h: proc(sender: Dialish) {.gcsafe, raises: [].}) =
+  w.onTurn = chain(w.onTurn, h)
+
+type DialForm {.view, vbox.} = ref object of Group
+  dial {.child, bindValue: "dialVal", emits: "DialTurned".}: Dialish
+  dialVal: int
+
+uiEvents(DialForm)
+
+suite "third-party widget joins bindValue/emits (deviation #29)":
+  test "uiValueKind overload: typed payload, store and set<Field> writer":
+    let form = mount(DialForm)
+    var got: seq[int]
+    check DialTurned.listen(form.sessionCtx,
+      proc(ev: DialTurned): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}:
+          got.add ev.selected).isOk
+    form.dial.turn(7)          # user path: bindValue store, then emits
+    waitFor sleepAsync(10.milliseconds)
+    check form.dialVal == 7
+    check got == @[7]
+    form.setDialVal(3)         # writer: store + SetSelected to the widget
+    waitFor sleepAsync(10.milliseconds)
+    check form.dial.value == 3
+    waitFor DialTurned.dropAllListeners(form.sessionCtx)
+    dispose(form)
 
 suite "opened bus: subscribe + wildcards (plan-2 D6)":
   test "topic matching rules":

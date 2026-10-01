@@ -42,9 +42,9 @@ Module map:
 | `stretch` | `int` | stretch weight, both axes | any |
 | `action` | `Command` | widget publishes `UiAction(cmd, senderId)` on activation (tier-2 bus) | Button, Checkbox, Radio, Input, ListView, Table, StatusBar/Menu items |
 | `bindTo` | `"handlerName"` | wires the PRIMARY slot to `proc h(self: T, sender: W)` | Button(onClick), Checkbox(onToggle), Radio(onSelect), ListView(onActivate), Input(onSubmit), Editor(onChange), Table(onActivate) |
-| `bindValue` | `"fieldName"` | widget → field store on every value change; `uiEvents(T)` also generates the inverse `set<Field>` writer (§4) | Input/Editor (`string`), Checkbox (`bool`), Radio/ListView/Table (`int`) |
+| `bindValue` | `"fieldName"` or `"model.fieldName"` | widget → field store on every value change (the store may live on a `ref` model object held by the view, deviation #30); `uiEvents(T)` also generates the inverse `set<Field>` writer and a `notify<Field>` re-sync (§4) | value type by `uiValueKind`: Input/Editor (`string`), Checkbox (`bool`), Radio/ListView/Table (`int`), custom widgets via their overload |
 | `bindRequest` | `"ReqName"` | routes the value through a sync RequestBroker provider before storing (validation/normalization; provider replaceable) | same as bindValue |
-| `emits` | `"EventName"` | activation emits the uiEvents-generated SEMANTIC event `EventName{senderId, payload}` on the default ctx | Button (no payload), Input/Editor (`text`), Checkbox (`checked`), Radio/ListView/Table (`selected`) |
+| `emits` | `"EventName"` | activation emits the uiEvents-generated SEMANTIC event `EventName{senderId, payload}` on the sender's session ctx (deviation #27) | payload by `uiValueKind(FieldType)` (deviation #29): Button none, Input/Editor `text`, Checkbox `checked`, Radio/ListView/Table `selected`; custom widgets declare their own (`docs/EXTENDING.md`) |
 | `on` | `{EventType: "handler", ...}` | ctx-scoped listeners on THIS widget's brokerCtx (§3); handler arities `proc(self: T)` or `proc(self: T, ev: EventType)` | any widget, any EventBroker type (vocab or uiEvents-generated) |
 
 `bindTo` + `bindValue` + `on:` + `action:` + `emits:` may all coexist on one
@@ -87,7 +87,8 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 | `Label` | `newLabel(text)` | — | — | — | `SetText` | — |
 | `ProgressBar` | `newProgressBar(maxValue = 100, showPercent = true)` | — | — | — | `SetProgress` | — |
 | `TextView` | `newTextView(maxLines = 1000)` | — | — | — | — | — |
-| `NetVizWidget` | `newNetVizWidget(maxLines = 500)` | — | — | — | — | — |
+| `NetVizWidget` | `newNetViz(maxLines = 500)` | — | — | — | — | — |
+| `Sparkline` | `newSparkline(capacity = 40, maxValue = 0)` | — | — | — | `SetProgress` (pushes a sample) | — |
 | `StatusBar` | `newStatusBar(items)` | — | — | — | — | per-item on click |
 | `MenuBar` | `newMenuBar(menus)` | — | — | — | — | per-item on activate |
 | `Window` | `newWindow(title, bounds)` | — | — | — | — | — |
@@ -174,9 +175,9 @@ Call `uiEvents(MyForm)` at top level, right after the type section
 
 | Source pragma | Generates |
 |---------------|-----------|
-| `emits: "Name"` | `EventBroker` type `Name = object senderId: int; <payload>` + `uiEmit(sender, Name)`; payload per widget: Input/Editor `text`, Checkbox `checked`, Radio/ListView/Table `selected`, Button none |
+| `emits: "Name"` | `EventBroker` type `Name = object senderId: int; <payload>` + `uiEmit(sender, Name)`; payload by `uiValueKind(FieldType)`, snapshot via `widgetValue(sender)`: Input/Editor `text`, Checkbox `checked`, Radio/ListView/Table `selected`, Button none |
 | `bindRequest: "Name"` | sync `RequestBroker` `proc Name(value: VT): Result[VT, string]` with a default identity provider; swap via `Name.replaceProvider(DefaultBrokerContext, p)`, remove via `Name.clearProvider()`; `err` from the provider VETOES the store |
-| `bindValue: "field"` | `proc set<Field>*(self: T, v: VT)` — writes the store field AND signals the bound widget (`SetText`/`SetChecked`/`SetSelected`) on its ctx. Authoritative: bypasses any `bindRequest` provider; fires no slots; loop-free by construction |
+| `bindValue: "field"` / `"model.field"` | `proc set<Field>*(self: T, v: VT)` — writes the store field (on `self` or on `self.model`) AND signals the bound widget (`SetText`/`SetChecked`/`SetSelected`) on its ctx. Authoritative: bypasses any `bindRequest` provider; fires no slots; loop-free by construction. Plus `proc notify<Field>*(self: T)` — pushes the store's current value to the widget after the model was mutated directly (deviation #30) |
 
 ---
 
@@ -206,10 +207,11 @@ registry) — an undisposed view leaks under refc and ORC alike. Contract:
 | 2 | `UiAction{cmd, senderId}` on `app.bus` (`action:` pragma; menus/statusbar) | command palette semantics; `BrokersBus` bridges to `IvUiAction` EventBroker (`onUiAction`) |
 | 2b | string domain bus: `publishDomain(topic, payload)` / `subscribeDomain("net/*", h)` | observability feeds (NetViz); exact or `prefix/*` wildcard topics; `BrokersBus` rides `IvDomainEvent` |
 | 3 | instance-ctx vocab events/signals (§3) | typed, per-widget routing |
-| 3b | semantic `uiEvents` events (§4) | typed intent, default ctx |
+| 3b | semantic `uiEvents` events (§4) | typed intent, `app.sessionCtx` (= the thread's global ctx unless one is installed/passed, deviation #27) |
 
-`app.bus` is a `StubBus` (records + sync dispatch, for tests) until you set
-`app.bus = newBrokersBus()`.
+`app.bus` is a `NullBus` (domain topics dispatch synchronously, `UiAction`s go
+nowhere, nothing is recorded) until you set `app.bus = newBrokersBus()`.
+`StubBus` (records everything) is for tests.
 
 ---
 
@@ -242,12 +244,15 @@ Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 
 ## 9. App
 
-`newApp(fpsCap = 30, theme = nil)` → `App` with `desktop`, `bus`, `running`,
+`newApp(fpsCap = 30, theme = nil, sessionCtx = BrokerContext(0))` → `App`
+(session ctx = the thread's `globalBrokerContext()` unless one is passed,
+deviation #27) with `desktop`, `bus`, `running`,
 `onInput` hook; `await app.run()`, `app.stop()`, `app.requestRedraw()`,
 `app.execView(g)` (modal, returns the closing `Command`),
 `app.endModal(cmd)`, `app.focus`, `app.tuiActive`. Frames are dirty-driven
 and fps-capped; an idle app has zero pending timers. Everything runs on ONE
-chronos thread — no marshaling, identical under `--mm:refc` and `--mm:orc`.
+chronos thread — no marshaling; `--mm:refc` and `--mm:orc` are both CI-gated
+(`nimble test` / `nimble testRefc`, see `docs/EMBEDDING.md §6`).
 
 Command gating (P22/D19): `app.disableCommand(cmd)` / `app.enableCommand(cmd)`
 / `app.isCommandEnabled(cmd)`. A disabled command greys and blocks any

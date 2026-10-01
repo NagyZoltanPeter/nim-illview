@@ -4,14 +4,17 @@
 ##
 ##   Name = object
 ##     senderId*: int
-##     <payload>          # Input/Editor: text, Checkbox: checked,
-##                        # Radio/ListView/Table: selected; Button: none
+##     <payload>          # by uiValueKind(FieldType), resolved at the
+##                        # expansion site (deviation #29): upText -> text,
+##                        # upChecked -> checked, upSelected -> selected,
+##                        # upNone -> no payload. Stock overloads live in
+##                        # dsl/mount.nim; a custom widget adds its own.
 ##
 ## plus a `uiEmit(sender, Name)` snapshot emitter that mount() wires to the
 ## widget's primary slot. The event fires on the sender's `sessionCtx` — the
-## classCtx shared by every view (app-wide) but isolated from the global
-## DefaultBrokerContext — so listeners subscribe with `Name.listen(v.sessionCtx,
-## …)`, not the bare default-context `Name.listen(…)`. Per `bindRequest: "Name"`
+## classCtx shared by every view (app-wide): the thread's global broker ctx
+## unless the host installed or passed one (deviation #27) — so listeners
+## subscribe with `Name.listen(v.sessionCtx, …)`. Per `bindRequest: "Name"`
 ## it generates a SYNC RequestBroker
 ##
 ##   proc Name*(value: VT): Result[VT, string]
@@ -45,24 +48,14 @@ import ./mount
 
 export results, chronos, brokers
 
-type UiPayloadKind = enum
-  upNone, upText, upChecked, upSelected
-
-func payloadKind(typeName: string): UiPayloadKind =
-  case typeName
-  of "Input", "Editor": upText
-  of "Checkbox": upChecked
-  of "Radio", "ListView", "Table": upSelected
-  else: upNone
-
-func valueTypeIdent(typeName: string): NimNode =
-  case payloadKind(typeName)
+func valueTypeIdent(kind: UiPayloadKind): NimNode =
+  case kind
   of upText: ident("string")
   of upChecked: ident("bool")
   of upSelected: ident("int")
   of upNone: nil
 
-macro uiEvents*(T: typedesc): untyped =
+proc viewRecList(T: NimNode): tuple[sym, recList: NimNode] =
   var sym = T.getTypeInst
   if sym.kind == nnkBracketExpr:
     sym = sym[1]
@@ -71,12 +64,19 @@ macro uiEvents*(T: typedesc): untyped =
   var objTy = impl[2]
   if objTy.kind == nnkRefTy:
     objTy = objTy[0]
-  let recList = objTy[2]
+  (sym, objTy[2])
 
+macro uiEventsImpl(T: typedesc, kinds: static seq[UiPayloadKind]): untyped =
+  ## `kinds[i]` is uiValueKind(<type of the i-th field>), evaluated where
+  ## uiEvents(T) was expanded, so user overloads count (deviation #29).
+  let (sym, recList) = viewRecList(T)
   result = newStmtList()
+  var fi = -1
   for identDefs in recList:
     if identDefs.kind != nnkIdentDefs:
       continue
+    inc fi
+    let kind = kinds[fi]
     let (fname, fprag, ftyp) = fieldInfo(identDefs)
     let typeName = if ftyp.kind == nnkSym: ftyp.strVal else: ""
     let ftypId = ident(typeName)
@@ -87,30 +87,32 @@ macro uiEvents*(T: typedesc): untyped =
       let evName = emitsArg.strVal
       # event type via quote; uiEmit via parseStmt — quote would close
       # `emit` onto chronos' AsyncEventQueue.emit instead of leaving it open
-      # for the broker-generated overload at the expansion site
-      var payloadField, payloadCtor: string
-      case payloadKind(typeName)
+      # for the broker-generated overload at the expansion site. The payload
+      # snapshot goes through widgetValue(sender) — the same overload point
+      # bindValue uses — so it works for any widget, not only stock ones.
+      var payloadCtor: string
+      case kind
       of upText:
         result.add quote do:
           EventBroker:
             type `evId` = object
               senderId*: int
               text*: string
-        payloadCtor = ", text: sender.text"
+        payloadCtor = ", text: widgetValue(sender)"
       of upChecked:
         result.add quote do:
           EventBroker:
             type `evId` = object
               senderId*: int
               checked*: bool
-        payloadCtor = ", checked: sender.checked"
+        payloadCtor = ", checked: widgetValue(sender)"
       of upSelected:
         result.add quote do:
           EventBroker:
             type `evId` = object
               senderId*: int
               selected*: int
-        payloadCtor = ", selected: sender.selected"
+        payloadCtor = ", selected: widgetValue(sender)"
       of upNone:
         result.add quote do:
           EventBroker:
@@ -125,7 +127,7 @@ macro uiEvents*(T: typedesc): untyped =
     let reqArg = pragmaArg(fprag, "bindRequest")
     if reqArg != nil:
       let reqId = ident(reqArg.strVal)
-      let vt = valueTypeIdent(typeName)
+      let vt = valueTypeIdent(kind)
       if vt == nil:
         error("bindRequest: field type '" & typeName &
               "' has no bindable value", reqArg)
@@ -150,7 +152,7 @@ macro uiEvents*(T: typedesc): untyped =
     let bindValArg = pragmaArg(fprag, "bindValue")
     if bindValArg != nil and bindValArg.kind in {nnkStrLit, nnkRStrLit}:
       let (sigName, sigField, vtName) =
-        case payloadKind(typeName)
+        case kind
         of upText: ("SetText", "text", "string")
         of upChecked: ("SetChecked", "checked", "bool")
         of upSelected: ("SetSelected", "selected", "int")
@@ -158,11 +160,35 @@ macro uiEvents*(T: typedesc): untyped =
       if sigName.len == 0:
         error("bindValue: field type '" & typeName &
               "' has no Set-signal for a set<Field> writer", bindValArg)
+      # "field" or "model.field" (deviation #30): the store path is used as-is,
+      # the writer/notifier names come from the last segment
       let storeName = bindValArg.strVal
+      let procStem = capitalizeAscii(storeName.rsplit('.', maxsplit = 1)[^1])
+      let sigCall = "discard " & sigName & ".signal(self." & $fname &
+                    ".brokerCtx, " & sigName & "(" & sigField & ": "
       result.add parseStmt(
-        "proc set" & capitalizeAscii(storeName) & "*(self: " & sym.strVal &
+        "proc set" & procStem & "*(self: " & sym.strVal &
         ", v: " & vtName & ") {.gcsafe, raises: [].} =\n" &
         "  {.cast(gcsafe).}:\n" &
         "    self." & storeName & " = v\n" &
-        "    discard " & sigName & ".signal(self." & $fname & ".brokerCtx, " &
-        sigName & "(" & sigField & ": v))")
+        "    " & sigCall & "v))")
+      # notify<Field>: the store was mutated directly; push it to the widget
+      result.add parseStmt(
+        "proc notify" & procStem & "*(self: " & sym.strVal &
+        ") {.gcsafe, raises: [].} =\n" &
+        "  {.cast(gcsafe).}:\n" &
+        "    " & sigCall & "self." & storeName & "))")
+
+macro uiEvents*(T: typedesc): untyped =
+  ## Top-level companion of mount(T): expands to `uiEventsImpl(T, kinds)`
+  ## where `kinds` holds `uiValueKind(FieldType)` per record field, so the
+  ## value shape of every child is decided by overloads in scope HERE.
+  let (_, recList) = viewRecList(T)
+  var kinds = nnkBracket.newTree()
+  for identDefs in recList:
+    if identDefs.kind != nnkIdentDefs:
+      continue
+    let (_, _, ftyp) = fieldInfo(identDefs)
+    let ftypId = if ftyp.kind == nnkSym: ident(ftyp.strVal) else: ftyp
+    kinds.add newCall(ident("uiValueKind"), ftypId)
+  result = newCall(bindSym("uiEventsImpl"), T, nnkPrefix.newTree(ident("@"), kinds))

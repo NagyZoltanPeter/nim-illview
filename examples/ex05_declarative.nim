@@ -5,10 +5,9 @@
 
 import std/strformat
 import chronos
-import ../src/illview
-import ../src/illview/layout/layout as ivlayout
-import ../src/illview/dsl/pragmas
-import ../src/illview/dsl/mount
+import illview
+import illview/dsl/pragmas
+import illview/dsl/mount
 
 const
   cmdQuit = Command(101)

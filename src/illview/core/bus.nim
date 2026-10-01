@@ -90,3 +90,17 @@ method publish*(bus: StubBus, a: UiAction) {.gcsafe, raises: [].} =
 method publishDomain*(bus: StubBus, topic: string, payload: string) {.gcsafe, raises: [].} =
   bus.domain.add (topic, payload)
   bus.dispatchDomain(topic, payload)
+
+type
+  NullBus* = ref object of EventBus
+    ## The default `app.bus` (deviation #31): tier-2 `UiAction`s go nowhere,
+    ## domain topics dispatch to subscribers synchronously, nothing is
+    ## recorded — a long-running app accumulates no history. Set
+    ## `app.bus = newBrokersBus()` for real routing; tests that assert on
+    ## publishes use `newStubBus()`.
+
+proc newNullBus*(): NullBus =
+  NullBus()
+
+method publishDomain*(bus: NullBus, topic: string, payload: string) {.gcsafe, raises: [].} =
+  bus.dispatchDomain(topic, payload)

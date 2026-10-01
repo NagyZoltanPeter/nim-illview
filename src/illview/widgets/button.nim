@@ -37,7 +37,7 @@ proc activate*(b: Button) =
   if b.onClick != nil:
     b.onClick(b)
   b.publish(b.command)
-  Clicked.emit(b.brokerCtx) # instance-routed vocab event (plan-3 D8)
+  if b.hasBrokerCtx: Clicked.emit(b.brokerCtx) # instance-routed vocab event (plan-3 D8)
   b.invalidate()
 
 method draw*(b: Button, dc: DrawContext) {.gcsafe, raises: [].} =

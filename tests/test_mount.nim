@@ -238,3 +238,46 @@ suite "mount(T) plan-4 layout pragmas":
     s.bounds = rect(0, 0, 20, 10)          # dw=10, dh=4
     s.arrangeChildren()
     check s.body.bounds == rect(1, 1, 18, 8)
+
+# --- fail-fast (deviation #29) ----------------------------------------------------
+
+type
+  Plain = ref object of View # not {.view.}, no createView overload
+  BadChild {.view.} = ref object of Group
+    p {.child.}: Plain
+  Dialish = ref object of View
+    built: bool
+  GoodChild {.view.} = ref object of Group
+    d {.child.}: Dialish
+  MisplacedOnType {.view, caption: "x".} = ref object of Group
+    l {.child.}: Label
+  MisplacedOnField {.view.} = ref object of Group
+    b {.child, vbox.}: Button
+  NoChild {.view.} = ref object of Group
+    l {.caption: "x".}: Label
+  BadHandler {.view.} = ref object of Group
+    host {.child, on: {TextChanged: "onBadEdit"}.}: Input
+
+proc newDialish(): Dialish =
+  result = Dialish(built: true)
+  initView(result)
+
+proc createView(t: typedesc[Dialish]): Dialish = newDialish()
+
+proc onBadEdit(self: BadHandler, n: int) {.gcsafe, raises: [].} = discard
+
+suite "mount(T) fail-fast (deviation #29)":
+  test "a createView overload makes a custom child first-class":
+    let g = mount(GoodChild)
+    check g.d.built # the widget's own constructor ran, not a bare Dialish()
+
+  test "a non-{.view.} child without createView is a compile error":
+    check not compiles(mount(BadChild))
+
+  test "misplaced DSL pragmas are compile errors":
+    check not compiles(mount(MisplacedOnType))
+    check not compiles(mount(MisplacedOnField))
+    check not compiles(mount(NoChild))
+
+  test "an on: handler with neither accepted shape is a compile error":
+    check not compiles(mount(BadHandler))
