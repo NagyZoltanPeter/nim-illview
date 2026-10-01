@@ -103,6 +103,32 @@
         "sha1": "c087d26c50da40436599163888532660d6f9e631"
       }
     },
+    "npeg": {
+      "version": "1.3.0",
+      "vcsRevision": "409f6796d0e880b3f0222c964d1da7de6e450811",
+      "url": "https://github.com/zevv/npeg",
+      "downloadMethod": "git",
+      "dependencies": [],
+      "checksums": {
+        "sha1": "64f15c85a059c889cb11c5fe72372677c50da621"
+      }
+    },
+    "cbor_serialization": {
+      "version": "0.4.0",
+      "vcsRevision": "bd367543e89929570c2c40cc760588b96d988815",
+      "url": "https://github.com/iftech/nim-cbor-serialization",
+      "downloadMethod": "git",
+      "dependencies": [
+        "serialization",
+        "stew",
+        "npeg",
+        "results",
+        "unittest2"
+      ],
+      "checksums": {
+        "sha1": "718496359dd4f45fcf105264c3c03b961b4a5ada"
+      }
+    },
     "json_serialization": {
       "version": "0.4.4",
       "vcsRevision": "c343b0e243d9e17e2c40f3a8a24340f7c4a71d44",
@@ -143,20 +169,6 @@
       ],
       "checksums": {
         "sha1": "02febb20d088120b2836d3306cfa21f434f88f65"
-      }
-    },
-    "cbor_serialization": {
-      "version": "0.3.0",
-      "vcsRevision": "1664160e04d153573373afddc552b9cbf6fbe4dc",
-      "url": "https://github.com/vacp2p/nim-cbor-serialization",
-      "downloadMethod": "git",
-      "dependencies": [
-        "serialization",
-        "stew",
-        "results"
-      ],
-      "checksums": {
-        "sha1": "ab126eae09a6e39c72972a6a0b83cb06a2ffe8f0"
       }
     },
     "brokers": {
