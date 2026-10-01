@@ -14,7 +14,7 @@ type
     perTopic*: OrderedTable[string, int]
 
 proc newNetViz*(maxLines = 500): NetVizWidget =
-  ## (Renamed from newNetVizWidget, plan-5 P37: the only `…Widget` constructor.)
+  ## (Renamed from newNetVizWidget, deviation #30: the only `…Widget` constructor.)
   result = NetVizWidget(maxLines: maxLines, follow: true)
   initView(result)
   result.focusable = true

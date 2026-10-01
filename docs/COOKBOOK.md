@@ -334,7 +334,7 @@ aRight})` keeps a `dkNone` child's edges pinned as the parent resizes.
 
 ```nim
 let sc = newScroller(bigContent)            # bigContent taller than the viewport
-# newScroller sets a stretchy size hint (plan-5 P36), so the viewport fills its
+# newScroller sets a stretchy size hint (deviation #30), so the viewport fills its
 # slot; give it a fixed hint instead if you want a specific size.
 let bar = newScrollBar(axV)
 bar.onScroll = proc(pos: int) = sc.scrollTo(0, pos)   # bar drives scroller

@@ -92,7 +92,7 @@ process accumulates no history. `app.bus = newBrokersBus()`
 
 | Platform | `--mm:orc` | `--mm:refc` | Reason |
 | --- | --- | --- | --- |
-| macOS | CI gate | CI gate | single loop thread, no cross-thread closures; both gated by `.github/workflows/ci.yml` (plan-5 P32) |
+| macOS | CI gate | CI gate | single loop thread, no cross-thread closures; both gated by `.github/workflows/ci.yml` (deviation #31) |
 | Linux | CI gate | CI gate | same |
 | Windows | renders | renders | async input driver is a documented stub (`docs/WINDOWS-DRIVER.md`, deviation #18): not interactive yet |
 

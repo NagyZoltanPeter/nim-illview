@@ -5,7 +5,7 @@
 ##   Name = object
 ##     senderId*: int
 ##     <payload>          # by uiValueKind(FieldType), resolved at the
-##                        # expansion site (plan-5 P34): upText -> text,
+##                        # expansion site (deviation #29): upText -> text,
 ##                        # upChecked -> checked, upSelected -> selected,
 ##                        # upNone -> no payload. Stock overloads live in
 ##                        # dsl/mount.nim; a custom widget adds its own.
@@ -68,7 +68,7 @@ proc viewRecList(T: NimNode): tuple[sym, recList: NimNode] =
 
 macro uiEventsImpl(T: typedesc, kinds: static seq[UiPayloadKind]): untyped =
   ## `kinds[i]` is uiValueKind(<type of the i-th field>), evaluated where
-  ## uiEvents(T) was expanded, so user overloads count (plan-5 P34).
+  ## uiEvents(T) was expanded, so user overloads count (deviation #29).
   let (sym, recList) = viewRecList(T)
   result = newStmtList()
   var fi = -1
@@ -160,7 +160,7 @@ macro uiEventsImpl(T: typedesc, kinds: static seq[UiPayloadKind]): untyped =
       if sigName.len == 0:
         error("bindValue: field type '" & typeName &
               "' has no Set-signal for a set<Field> writer", bindValArg)
-      # "field" or "model.field" (plan-5 P35): the store path is used as-is,
+      # "field" or "model.field" (deviation #30): the store path is used as-is,
       # the writer/notifier names come from the last segment
       let storeName = bindValArg.strVal
       let procStem = capitalizeAscii(storeName.rsplit('.', maxsplit = 1)[^1])

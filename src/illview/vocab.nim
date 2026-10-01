@@ -78,7 +78,7 @@ SignalBroker:
 template installSignal*(w: typed, S: typedesc, body: untyped) =
   ## Install the single `S` handler on w's brokerCtx (payload injected as
   ## `sig`) and record the teardown in w.disposers for dispose(). Deferred
-  ## until the ctx is first materialized (plan-5 P33): a widget nobody signals
+  ## until the ctx is first materialized (deviation #28): a widget nobody signals
   ## costs no instanceCtx.
   deferWiring(w, proc() {.gcsafe, raises: [].} =
     discard S.onSignal(

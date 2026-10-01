@@ -42,9 +42,9 @@ Module map:
 | `stretch` | `int` | stretch weight, both axes | any |
 | `action` | `Command` | widget publishes `UiAction(cmd, senderId)` on activation (tier-2 bus) | Button, Checkbox, Radio, Input, ListView, Table, StatusBar/Menu items |
 | `bindTo` | `"handlerName"` | wires the PRIMARY slot to `proc h(self: T, sender: W)` | Button(onClick), Checkbox(onToggle), Radio(onSelect), ListView(onActivate), Input(onSubmit), Editor(onChange), Table(onActivate) |
-| `bindValue` | `"fieldName"` or `"model.fieldName"` | widget → field store on every value change (the store may live on a `ref` model object held by the view, plan-5 P35); `uiEvents(T)` also generates the inverse `set<Field>` writer and a `notify<Field>` re-sync (§4) | value type by `uiValueKind`: Input/Editor (`string`), Checkbox (`bool`), Radio/ListView/Table (`int`), custom widgets via their overload |
+| `bindValue` | `"fieldName"` or `"model.fieldName"` | widget → field store on every value change (the store may live on a `ref` model object held by the view, deviation #30); `uiEvents(T)` also generates the inverse `set<Field>` writer and a `notify<Field>` re-sync (§4) | value type by `uiValueKind`: Input/Editor (`string`), Checkbox (`bool`), Radio/ListView/Table (`int`), custom widgets via their overload |
 | `bindRequest` | `"ReqName"` | routes the value through a sync RequestBroker provider before storing (validation/normalization; provider replaceable) | same as bindValue |
-| `emits` | `"EventName"` | activation emits the uiEvents-generated SEMANTIC event `EventName{senderId, payload}` on the sender's session ctx (deviation #27) | payload by `uiValueKind(FieldType)` (plan-5 P34): Button none, Input/Editor `text`, Checkbox `checked`, Radio/ListView/Table `selected`; custom widgets declare their own (`docs/EXTENDING.md`) |
+| `emits` | `"EventName"` | activation emits the uiEvents-generated SEMANTIC event `EventName{senderId, payload}` on the sender's session ctx (deviation #27) | payload by `uiValueKind(FieldType)` (deviation #29): Button none, Input/Editor `text`, Checkbox `checked`, Radio/ListView/Table `selected`; custom widgets declare their own (`docs/EXTENDING.md`) |
 | `on` | `{EventType: "handler", ...}` | ctx-scoped listeners on THIS widget's brokerCtx (§3); handler arities `proc(self: T)` or `proc(self: T, ev: EventType)` | any widget, any EventBroker type (vocab or uiEvents-generated) |
 
 `bindTo` + `bindValue` + `on:` + `action:` + `emits:` may all coexist on one
@@ -177,7 +177,7 @@ Call `uiEvents(MyForm)` at top level, right after the type section
 |---------------|-----------|
 | `emits: "Name"` | `EventBroker` type `Name = object senderId: int; <payload>` + `uiEmit(sender, Name)`; payload by `uiValueKind(FieldType)`, snapshot via `widgetValue(sender)`: Input/Editor `text`, Checkbox `checked`, Radio/ListView/Table `selected`, Button none |
 | `bindRequest: "Name"` | sync `RequestBroker` `proc Name(value: VT): Result[VT, string]` with a default identity provider; swap via `Name.replaceProvider(DefaultBrokerContext, p)`, remove via `Name.clearProvider()`; `err` from the provider VETOES the store |
-| `bindValue: "field"` / `"model.field"` | `proc set<Field>*(self: T, v: VT)` — writes the store field (on `self` or on `self.model`) AND signals the bound widget (`SetText`/`SetChecked`/`SetSelected`) on its ctx. Authoritative: bypasses any `bindRequest` provider; fires no slots; loop-free by construction. Plus `proc notify<Field>*(self: T)` — pushes the store's current value to the widget after the model was mutated directly (plan-5 P35) |
+| `bindValue: "field"` / `"model.field"` | `proc set<Field>*(self: T, v: VT)` — writes the store field (on `self` or on `self.model`) AND signals the bound widget (`SetText`/`SetChecked`/`SetSelected`) on its ctx. Authoritative: bypasses any `bindRequest` provider; fires no slots; loop-free by construction. Plus `proc notify<Field>*(self: T)` — pushes the store's current value to the widget after the model was mutated directly (deviation #30) |
 
 ---
 

@@ -8,7 +8,7 @@ import ../core/[geometry, theme, view, drawcontext, events]
 type
   TextView* = ref object of View
     maxLines*: int # buffer cap; oldest lines are dropped
-    lines*: Deque[string] # ring: O(1) at the cap (plan-5 P36); len/[] as before
+    lines*: Deque[string] # ring: O(1) at the cap (deviation #30); len/[] as before
     top*: int      # manual viewport start (used when follow == false)
     follow*: bool  # auto-scroll to the bottom
     showScrollbar*: bool # thumb indicator in the last column when overflowing

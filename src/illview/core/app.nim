@@ -70,7 +70,7 @@ proc requestRedraw*(app: App) {.gcsafe, raises: [].}
 # mode ("trash on mouse move"). A signal handler using only async-signal-safe
 # write(2)/tcsetattr/sigaction fixes this, including for the SIGSEGV the ORC
 # collector can raise. Normal exit still goes through run()'s `finally:
-# disableTui`. The handler CHAINS (plan-5 P30): whatever action was installed
+# disableTui`. The handler CHAINS (deviation #31): whatever action was installed
 # before it — a host's crash reporter, Nim's own traceback handler — is
 # re-installed and invoked, so embedding illview in a daemon does not silence
 # the daemon's crash handling.
@@ -123,7 +123,7 @@ proc newApp*(fpsCap = 30, theme: Theme = nil,
              sessionCtx = BrokerContext(0)): App =
   ## The App's session broker context: the scope uiEvents `emits:` events fire
   ## on and every view built under it shares (normalized to instanceCtx 0 so it
-  ## equals `someView.sessionCtx`). Resolution (plan-5 P29, deviation #27): an
+  ## equals `someView.sessionCtx`). Resolution (deviation #27): an
   ## explicit `sessionCtx` wins and is bound for views built afterwards;
   ## otherwise the thread's `globalBrokerContext()` is adopted AS-IS —
   ## `DefaultBrokerContext` included — so the UI lives on the same scope its

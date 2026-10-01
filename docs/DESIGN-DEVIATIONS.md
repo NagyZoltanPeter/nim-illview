@@ -197,7 +197,7 @@ the P23 menu rework.
 Iteration 3 (deviation #16) had `dispose()` call `releaseInstanceCtx` to recycle
 a View's broker instanceCtx id, needing a local nim-brokers 3.3.0. That whole
 mechanism is **reverted**: `requires "brokers >= 3.2.0"` at the time (now
-`>= 3.4.0`, plan-5 P28, still without `releaseInstanceCtx`), `dispose()` no longer
+`>= 3.4.0`, still without `releaseInstanceCtx`), `dispose()` no longer
 recycles (it drops listeners via the recorded disposers and marks the ctx
 inert), and the one `hasListeners` test assertion became a behavioral check
 (activate a disposed widget → reaches nobody).
@@ -345,7 +345,7 @@ the default), and a `setThreadBrokerContext` sandbox routes to the saved ctx.
 **Superseded in part by #27**: the "each App is its own sandbox by default"
 resolution (fresh `NewBrokerContext()` + `setThreadBrokerContext`) is gone.
 
-## 27. The session ctx IS the thread's global broker context (plan-5 P29)
+## 27. The session ctx IS the thread's global broker context
 
 Deviation #26 made `newApp` allocate a fresh session ctx and **install it as
 the thread's global broker context**. An external audit flagged this as the
@@ -378,11 +378,11 @@ context-menu opener) with `senderId = host.id` when the type declares that
 field (default-constructed otherwise), via a new `MenuItem.onActivateFrom`
 slot. Closes the open item noted under #26.
 
-Tests: `tests/test_bindings.nim` "session ctx resolution (plan-5 P29)" (adopt
+Tests: `tests/test_bindings.nim` "session ctx resolution (deviation #27)" (adopt
 host ctx + thread ctx untouched; bare thread → default; explicit binding), and
 `tests/test_menu.nim` "emits on the host's session ctx with senderId".
 
-## 28. Instance ctx materialized on first use (plan-5 P33)
+## 28. Instance ctx materialized on first use
 
 `initView` allocated `newInstanceCtx` for **every** view — each Label, each
 layout box — from nim-brokers' process-wide, monotonic, 16-bit instanceCtx
@@ -410,14 +410,14 @@ accessor takes the pending list with `swap`, not `let pending = v.wiring`:
 under `--mm:refc` that `let` aliases the seq field, so the following
 `setLen 0` emptied both and no wiring ever ran — every Set-signal returned
 `err` under refc while ORC (which copies) was green. Caught by the refc CI
-leg (P32) the first time it ran.
+leg (deviation #31) the first time it ran.
 
 Test: `tests/test_ctx_vocab.nim` "lazy instance ctx" — 1 000 Labels
 allocate nothing; ids are handed out in use order, not construction order;
 deferred wiring is live after materialization; a never-materialized widget
 activates without emitting and without crashing.
 
-## 29. The DSL fails loudly, and third-party widgets are first-class (plan-5 P34)
+## 29. The DSL fails loudly, and third-party widgets are first-class
 
 Four silent failure modes in `dsl/mount.nim` / `dsl/uievents.nim`, all found
 by the audit, all now compile errors:
@@ -458,9 +458,9 @@ bindValue/emits" (a `Dialish` widget with `uiValueKind = upSelected` gets a
 typed `DialTurned.selected` payload, a store, and a `setDialVal` writer that
 drives it through `SetSelected`). The full contract: `docs/EXTENDING.md`.
 
-## 30. Model binding, console widgets, examples hygiene (plan-5 P35–P37)
+## 30. Model binding, console widgets, examples hygiene
 
-**P35 — `bindValue` stores on a model.** `bindValue: "model.field"` targets
+**`bindValue` stores on a model.** `bindValue: "model.field"` targets
 a field of a `ref` object the view holds (`storeTarget` in `dsl/mount.nim`
 builds `self.model.field`); the generated writer is still `set<Field>` (last
 path segment), and a new `notify<Field>(self)` pushes the store's current
@@ -470,7 +470,7 @@ inside the widget tree" finding. `examples/ex09_bindings.nim` now binds to a
 `FormState` ref; DESIGN.md gained a dataflow section. Test:
 `tests/test_bindings.nim` "bindValue on an external model".
 
-**P36 — widgets a status console needs.**
+**Widgets a status console needs.**
 - `Scroller` gets the same stretchy default hint `Splitter` got in #22, so a
   scroller in a box no longer collapses to nothing (COOKBOOK §17 relied on
   the hand-set hint it did not show).
@@ -485,10 +485,39 @@ inside the widget tree" finding. `examples/ex09_bindings.nim` now binds to a
   ProgressBar. `examples/ex06_netviz.nim` shows events/second with it.
 Tests: `tests/test_widgets.nim` "live-data widgets".
 
-**P37 — hygiene.** `examples/nim.cfg` adds `--path:"../src"` so every
+**Hygiene.** `examples/nim.cfg` adds `--path:"../src"` so every
 example imports `illview` exactly as a downstream project does (no more
 `../src/illview/...` teaching internal paths; the redundant `ivlayout`
 aliases are gone). `newNetVizWidget` → `newNetViz` (the one `…Widget`
 constructor). Nim floor reconciled to `>= 2.2.4` at all five sites; README
 build section documents `testRefc`/`testAsan`, the lockfile, and links
 `EMBEDDING.md`; `EXTENDING.md` documents the widget/DSL extension contract.
+
+## 31. Embedding hygiene: NullBus default, chained crash handlers, refc/ASAN CI
+
+Three changes so illview behaves inside a long-running host process
+(`docs/EMBEDDING.md`):
+
+- **`NullBus` is the default `app.bus`** (`core/bus.nim`). `StubBus`
+  appended every `UiAction` and domain event to a seq forever — fine for
+  tests, an unbounded history in a daemon. `NullBus` dispatches domain
+  subscriptions synchronously and records nothing. `StubBus` stays for tests;
+  `newBrokersBus()` is still the real routing.
+- **Crash-restore handlers chain** (`core/app.nim` `installCrashRestore`).
+  `posix.signal(s, restoreOnSignal)` replaced whatever the host had for
+  SIGSEGV/ABRT/BUS/ILL/FPE. Now `sigaction` with `SA_SIGINFO` saves the
+  previous action per signal; after restoring the terminal the handler
+  re-installs that action and invokes it (`SA_SIGINFO` or plain handler), or
+  returns to re-fault under the default when it was `SIG_DFL`/`SIG_IGN`.
+  `CrashSignals` is a `let`, not a `const`: Nim's posix signal numbers are
+  importc vars. `-d:noCrashRestore` still opts out.
+- **refc and ASAN are gated**, not claimed. `nimble test` reads
+  `ILLVIEW_MM` (default orc), plus `testRefc` and `testAsan` (orc +
+  `-d:useMalloc`, `-fsanitize=address`); `ci/nimble-strict.sh` fails a step
+  whenever a task raised even if nimble exited 0; `.github/workflows/ci.yml`
+  runs {orc, refc} × {ubuntu, macos} × Nim {2.2.4, 2.2.12} and one ASAN job.
+  The refc leg caught the aliasing bug recorded in #28 on its first run.
+
+Tests: `tests/test_app.nim` (NullBus records nothing; a SIGSEGV raised after
+`installCrashRestore` reaches the previously installed handler, which is then
+the current action again).

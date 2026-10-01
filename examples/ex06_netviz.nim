@@ -59,7 +59,7 @@ proc main() {.async.} =
 
   proc rateLoop() {.async.} =
     while true:
-      await sleepAsync(1000)
+      await sleepAsync(1.seconds)
       if not app.running:
         break
       rate.push(eventsThisSecond) # model -> widget; the sparkline redraws itself

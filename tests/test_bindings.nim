@@ -197,7 +197,7 @@ suite "emits: auto-generated typed events (plan-2 D5)":
     waitFor RunClicked.dropAllListeners()
     setThreadBrokerContext(DefaultBrokerContext) # restore for other tests
 
-suite "session ctx resolution (plan-5 P29, deviation #27)":
+suite "session ctx resolution (deviation #27)":
   test "newApp adopts the thread's global ctx and never installs one":
     let hostCtx = NewBrokerContext()
     setThreadBrokerContext(hostCtx)  # what a host process (a node) already did
@@ -238,7 +238,7 @@ suite "session ctx resolution (plan-5 P29, deviation #27)":
     check app2.sessionCtx == DefaultBrokerContext
     check mount(BoundForm).sessionCtx == DefaultBrokerContext
 
-# --- bindValue on an external model (plan-5 P35) --------------------------------
+# --- bindValue on an external model (deviation #30) --------------------------------
 
 type
   FormModel = ref object
@@ -251,7 +251,7 @@ type
 
 uiEvents(ModelForm)
 
-suite "bindValue on an external model (plan-5 P35)":
+suite "bindValue on an external model (deviation #30)":
   test "store on the model; set<Field> and notify<Field> drive the widget":
     let form = mount(ModelForm)
     form.model = FormModel()
@@ -275,7 +275,7 @@ suite "bindValue on an external model (plan-5 P35)":
     check form.accept.checked
     dispose(form)
 
-# --- third-party widget joining bindValue/emits (plan-5 P34) --------------------
+# --- third-party widget joining bindValue/emits (deviation #29) --------------------
 
 type Dialish = ref object of View
   value: int
@@ -308,7 +308,7 @@ type DialForm {.view, vbox.} = ref object of Group
 
 uiEvents(DialForm)
 
-suite "third-party widget joins bindValue/emits (plan-5 P34)":
+suite "third-party widget joins bindValue/emits (deviation #29)":
   test "uiValueKind overload: typed payload, store and set<Field> writer":
     let form = mount(DialForm)
     var got: seq[int]

@@ -201,7 +201,7 @@ suite "instance-ctx vocab":
     pump()
     check inner.text == "alive"
 
-suite "lazy instance ctx (plan-5 P33, deviation #28)":
+suite "lazy instance ctx (deviation #28)":
   test "construction allocates no instance ctx; first use does, in use order":
     var labels: seq[Label]
     for i in 0 ..< 1000:

@@ -27,7 +27,7 @@ type
     port {.child, bindValue: "model.portVal", bindRequest: "SetPortReq".}: Input
     accept {.child, caption: "accept terms", bindValue: "model.acceptVal".}: Checkbox
     run {.child, caption: "Run", emits: "RunRequested".}: Button
-    model: FormState # bindValue stores land here (plan-5 P35)
+    model: FormState # bindValue stores land here (deviation #30)
 
 uiEvents(BindForm)
 

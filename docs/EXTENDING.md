@@ -66,5 +66,5 @@ Type-level: `view`, `title`, `dock`, `hbox`, `vbox`, `grid`, `form`,
 `stretch`, `alignSelf`, `anchors`, `padding`, `action`, `bindTo`,
 `bindValue`, `bindRequest`, `emits`, `on`, and the style pragmas. A DSL
 pragma in the wrong position, or a field carrying DSL pragmas without
-`child`, is a compile error (plan-5 P34); a misspelled pragma is a Nim error
+`child`, is a compile error (deviation #29); a misspelled pragma is a Nim error
 already, since every DSL pragma is a `{.pragma.}` template.

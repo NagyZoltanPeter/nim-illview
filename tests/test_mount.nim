@@ -239,7 +239,7 @@ suite "mount(T) plan-4 layout pragmas":
     s.arrangeChildren()
     check s.body.bounds == rect(1, 1, 18, 8)
 
-# --- fail-fast (plan-5 P34) ----------------------------------------------------
+# --- fail-fast (deviation #29) ----------------------------------------------------
 
 type
   Plain = ref object of View # not {.view.}, no createView overload
@@ -266,7 +266,7 @@ proc createView(t: typedesc[Dialish]): Dialish = newDialish()
 
 proc onBadEdit(self: BadHandler, n: int) {.gcsafe, raises: [].} = discard
 
-suite "mount(T) fail-fast (plan-5 P34)":
+suite "mount(T) fail-fast (deviation #29)":
   test "a createView overload makes a custom child first-class":
     let g = mount(GoodChild)
     check g.d.built # the widget's own constructor ran, not a bare Dialish()

@@ -61,7 +61,7 @@ proc newTable*(columns: seq[TableColumn] = @[],
 proc setRows*(t: Table, rows: seq[seq[string]]) =
   ## Replace the rows, keeping the selection and the viewport where they were
   ## (clamped): a live table refreshed every second must not jump to the top
-  ## (plan-5 P36).
+  ## (deviation #30).
   t.rows = rows
   t.selected = clamp(t.selected, 0, max(rows.high, 0))
   t.top = clamp(t.top, 0, max(rows.len - max(t.viewportRows, 1), 0))

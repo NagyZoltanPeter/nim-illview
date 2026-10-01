@@ -52,7 +52,7 @@ type
     ctx: BrokerContext       # instance route (plan-3 D7), materialized by brokerCtx()
     sessionClass: uint16     # classCtx captured at construction (viewSessionParent)
     disposed: bool
-    wiring: seq[proc() {.gcsafe, raises: [].}] # deferred broker installs (plan-5 P33)
+    wiring: seq[proc() {.gcsafe, raises: [].}] # deferred broker installs (deviation #28)
     disposers*: seq[proc() {.gcsafe, raises: [].}] # broker teardowns, run by dispose()
     bounds*: Rect # relative to parent's CONTENT area
     parent*: Group
@@ -103,7 +103,7 @@ var gNextViewId: int # plain int: safe to touch from gcsafe code; single loop th
 var gSessionCtx {.threadvar.}: BrokerContext
   ## illview-private session override, 0 = none. Set by `newApp` only when the
   ## caller passed an explicit `sessionCtx`; otherwise views follow the thread's
-  ## `globalBrokerContext()` (plan-5 P29, deviation #27). This is NOT the
+  ## `globalBrokerContext()` (deviation #27). This is NOT the
   ## brokers threadvar: illview never installs a thread broker context.
 
 proc bindSessionCtx*(ctx: BrokerContext) =
@@ -148,7 +148,7 @@ func hasBrokerCtx*(v: View): bool =
 
 proc brokerCtx*(v: View): BrokerContext {.gcsafe, raises: [].} =
   ## The view's instance broker route (plan-3 D7): vocab events out, signals
-  ## in. Materialized on FIRST use (plan-5 P33, deviation #28): a view nobody
+  ## in. Materialized on FIRST use (deviation #28): a view nobody
   ## listens to or signals never consumes one of the process-wide 65 535
   ## instanceCtx ids. Deferred wiring (`installSignal`/`installFocusMe`) runs
   ## here. Inert `BrokerContext(0)` after dispose().
@@ -367,7 +367,7 @@ proc dispose*(v: View) {.gcsafe, raises: [].} =
   ## The instanceCtx id is NOT reclaimed here (no releaseInstanceCtx). We rely
   ## on persistent-object / transient-membership instead of churn (build a
   ## popup/dialog once, add/remove it, dispose only at teardown), and on lazy
-  ## materialization (plan-5 P33), so the monotonic counter is not pressured.
+  ## materialization (deviation #28), so the monotonic counter is not pressured.
   if v of Group:
     for c in Group(v).children:
       dispose(c)

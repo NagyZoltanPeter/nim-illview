@@ -93,7 +93,7 @@ method publishDomain*(bus: StubBus, topic: string, payload: string) {.gcsafe, ra
 
 type
   NullBus* = ref object of EventBus
-    ## The default `app.bus` (plan-5 P30): tier-2 `UiAction`s go nowhere,
+    ## The default `app.bus` (deviation #31): tier-2 `UiAction`s go nowhere,
     ## domain topics dispatch to subscribers synchronously, nothing is
     ## recorded — a long-running app accumulates no history. Set
     ## `app.bus = newBrokersBus()` for real routing; tests that assert on

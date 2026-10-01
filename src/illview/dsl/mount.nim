@@ -77,7 +77,7 @@ proc widgetValue*(w: Radio): int = w.selected
 proc widgetValue*(w: ListView): int = w.selected
 proc widgetValue*(w: Table): int = w.selected
 
-# value shape for emits:/bindValue (plan-5 P34): resolved at the expansion
+# value shape for emits:/bindValue (deviation #29): resolved at the expansion
 # site through overloads, so a third-party widget joins by declaring one —
 # never by matching a type NAME (a user type called `Input` is not ours).
 type UiPayloadKind* = enum
@@ -91,7 +91,7 @@ template uiValueKind*(t: typedesc[ListView]): UiPayloadKind = upSelected
 template uiValueKind*(t: typedesc[Table]): UiPayloadKind = upSelected
 template uiValueKind*(t: typedesc): UiPayloadKind = upNone
 
-# --- pragma placement (plan-5 P34) --------------------------------------------
+# --- pragma placement (deviation #29) --------------------------------------------
 # A DSL pragma in the wrong position, or on a field without {.child.}, used to
 # be ignored silently. Typos are already Nim errors (every DSL pragma is a
 # {.pragma.} template), so only KNOWN names are checked here.
@@ -153,7 +153,7 @@ proc typePragmas*(impl: NimNode): NimNode =
 
 proc storeTarget*(self: NimNode, path: string): NimNode =
   ## `bindValue: "field"` -> self.field; `"model.field"` -> self.model.field
-  ## (plan-5 P35): the store may live on a ref model the view holds.
+  ## (deviation #30): the store may live on a ref model the view holds.
   result = self
   for part in path.split('.'):
     result = newDotExpr(result, ident(part))
@@ -398,7 +398,7 @@ macro mount*(T: typedesc): untyped =
         let evId = ident(if pair[0].kind == nnkSym: pair[0].strVal else: $pair[0])
         let handler = ident(pair[1].strVal)
         # a handler with neither accepted shape is named in the error instead
-        # of falling through to a confusing mismatch (plan-5 P34)
+        # of falling through to a confusing mismatch (deviation #29)
         let shapeErr = newLit("on: handler '" & pair[1].strVal &
           "' must be proc(self: " & sym.strVal & ") or proc(self: " &
           sym.strVal & ", ev: " & evId.strVal & ")")
@@ -439,7 +439,7 @@ proc createView*[T: View](t: typedesc[T]): T =
   ## Fallback for a `{.child.}` field type mount() could not classify from
   ## the record AST: a `{.view.}` component mounts recursively; anything else
   ## is a compile error — a silent `T()` here would skip the widget's own
-  ## constructor (plan-5 P34). Custom widgets provide
+  ## constructor (deviation #29). Custom widgets provide
   ## `proc createView*(t: typedesc[X]): X = newX()` (docs/EXTENDING.md).
   when T.hasCustomPragma(pragmas.view):
     mount(T)

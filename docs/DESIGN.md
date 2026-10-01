@@ -35,7 +35,7 @@ happens in the `logos-delivery` repo — see
 ## Dataflow (model / view / control)
 
 Three channels, each one-directional, none of them holding a widget
-reference on the model side (plan-5 P35 wording; mechanics unchanged):
+reference on the model side (deviation #30; mechanics unchanged):
 
 | Direction | Channel | Carrier |
 | --- | --- | --- |

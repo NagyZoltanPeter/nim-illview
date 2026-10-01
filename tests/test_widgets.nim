@@ -321,9 +321,9 @@ suite "progressbar (iteration 2)":
     check rowStr(tb, 0, 12).contains(" 40% ")
     check p.value == 40
 
-# --- console widgets (plan-5 P36) -----------------------------------------------
+# --- console widgets (deviation #30) -----------------------------------------------
 
-suite "live-data widgets (plan-5 P36)":
+suite "live-data widgets (deviation #30)":
   test "Table.setRows keeps the selection and viewport; clamps when shorter":
     var rows: seq[seq[string]]
     for i in 1 .. 10:

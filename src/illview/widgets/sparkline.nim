@@ -1,4 +1,4 @@
-## Sparkline (plan-5 P36): a fixed-capacity ring of samples drawn as block
+## Sparkline (deviation #30): a fixed-capacity ring of samples drawn as block
 ## glyphs on one row — a message rate, a peer count, anything a status
 ## console watches over time. `push(v)` appends (newest = rightmost); the
 ## scale is `maxValue`, or the largest sample in the window when 0. Drivable

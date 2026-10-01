@@ -1,4 +1,4 @@
-## Plan-5 P30: App-level embedding hygiene, terminal-free. The default bus
+## Deviation #31: App-level embedding hygiene, terminal-free. The default bus
 ## records nothing; the crash-restore signal handler chains to whatever was
 ## installed before it instead of replacing it.
 
@@ -12,7 +12,7 @@ when defined(posix):
   proc priorHandler(sig: cint) {.noconv.} =
     gPriorRan = true
 
-suite "default bus (plan-5 P30)":
+suite "default bus (deviation #31)":
   test "newApp's bus is a NullBus: dispatches domain topics, records nothing":
     let app = newApp()
     check app.bus of NullBus
@@ -25,7 +25,7 @@ suite "default bus (plan-5 P30)":
     check got == @["net/peer=up"]
 
 when defined(posix):
-  suite "crash-restore handler chains (plan-5 P30)":
+  suite "crash-restore handler chains (deviation #31)":
     test "the handler installed before installCrashRestore still runs":
       var prior, saved: posix.Sigaction
       prior.sa_handler = priorHandler
