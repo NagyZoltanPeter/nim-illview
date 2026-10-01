@@ -7,7 +7,8 @@ import std/unittest
 import chronos
 import ../src/illview/core/[geometry, events, bus, view, routing]
 import ../src/illview/layout/layout
-import ../src/illview/widgets/[window, label, button, checkbox, input, textview]
+import ../src/illview/widgets/[window, label, button, checkbox, input, textview,
+                               controlbar]
 import ../src/illview/dsl/pragmas
 import ../src/illview/dsl/mount
 import ../src/illview/vocab
@@ -281,3 +282,27 @@ suite "mount(T) fail-fast (deviation #29)":
 
   test "an on: handler with neither accepted shape is a compile error":
     check not compiles(mount(BadHandler))
+
+# --- ControlBar via mount (deviation #32): zero-init path -------------------------
+
+type
+  BottomBar {.view, dock: dkBottom.} = ref object of ControlBar
+    run {.child, caption: "Run".}: Button
+    quit {.child, caption: "Quit".}: Button
+  BarScreen {.view.} = ref object of Group
+    bar {.child, dock: dkBottom.}: ControlBar
+
+suite "mount(T) ControlBar (deviation #32)":
+  test "a {.view.} subtype works zero-initialised; alignRight after mount":
+    let b = mount(BottomBar)
+    check b.dock == dkBottom
+    check b.lines == 0 and b.measure().h == fixedHint(1) # 0 means 1
+    check b.children.len == 2                           # no inner box
+    b.alignRight(b.quit)
+    b.arrange(rect(0, 0, 30, 1))
+    check b.run.bounds.x == 0
+    check b.quit.bounds.x + b.quit.bounds.w == 30
+
+  test "{.child.}: ControlBar uses createView (newControlBar)":
+    let s = mount(BarScreen)
+    check s.bar.lines == 1 and s.bar.spacing == 1

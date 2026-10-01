@@ -4,7 +4,7 @@
 
 import std/[unittest, unicode]
 import ../src/illview/core/[geometry, view, events, bus, routing, hotkey]
-import ../src/illview/widgets/[button, checkbox, label, input, statusbar]
+import ../src/illview/widgets/[button, checkbox, label, input, statusbar, tristate]
 
 const cmd = Command(7)
 
@@ -89,6 +89,15 @@ suite "Alt+letter hotkey routing":
     root.arrangeChildren()
     check dispatchKey(root, keyEvent(Key.None, "a".runeAt(0), {modAlt}))
     check cb.checked
+
+  test "tri-state accelerator cycles it":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 6)
+    let tc = newTriStateCheckBox("~S~elect all")
+    root.add tc
+    root.arrangeChildren()
+    check dispatchKey(root, keyEvent(Key.None, "s".runeAt(0), {modAlt}))
+    check tc.state == csChecked
 
   test "label accelerator focuses its linked control":
     let root = newGroup()

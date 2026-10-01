@@ -521,3 +521,68 @@ Three changes so illview behaves inside a long-running host process
 Tests: `tests/test_app.nim` (NullBus records nothing; a SIGSEGV raised after
 `installCrashRestore` reaches the previously installed handler, which is then
 the current action again).
+
+## 32. New widgets instead of widening `Checkbox` / `StatusBar`
+
+A third checkbox state and a widget-hosting status bar were added as **new
+widgets**, `TriStateCheckBox` (`widgets/tristate.nim`) and `ControlBar`
+(`widgets/controlbar.nim`). `Checkbox` and `StatusBar` are unchanged. A
+widened `Checkbox` would have had to change `checked: bool`, `Toggled` and
+`SetChecked` — every listener and every generated `set<Field>` writer — or
+grow a second value field next to the first. Two names also make the choice
+obvious at the call site.
+
+- **`CheckState`** (`csUnchecked`, `csChecked`, `csIntermediate`) lives in
+  `vocab.nim`, next to the new `StateChanged{state}` event and
+  `SetCheckState{state}` signal. User input always cycles in enum order. The
+  mark cell is configurable per state (`marks`, `markStyle`); the brackets
+  stay fixed so the widget stays 4 + caption cells wide.
+- **DSL**: `UiPayloadKind` gains `upCheckState` (appended — existing ordinals
+  unchanged). The three exhaustive `case kind` sites in `dsl/uievents.nim`
+  (`valueTypeIdent`, the `emits:` payload, the `set<Field>` writer) handle it;
+  `CheckState` and `SetCheckState` resolve at the expansion site like the
+  other vocab names.
+- **`ControlBar` is a `Group` with its own `arrange`**, not a `BoxLayout`
+  subclass: `BoxLayout.arrange` has no notion of a right-aligned group.
+  `View.align` already means vertical placement inside the bar, so right-group
+  membership is a set of view ids on the bar (`addRight` / `alignRight`).
+  Left children that overflow collapse at the left group's boundary instead of
+  overlapping the right group.
+- **`mount(T)` never calls `newX()`** (`dsl/mount.nim` constructs `T()` +
+  `initView`), so a `{.view.}` subtype of `ControlBar` starts zero-initialised:
+  `lines = 0` is treated as 1, `spacing` is 0, the dock must come from
+  `{.dock: dkBottom.}`, and a layout pragma would insert a nested box (the
+  bar would then see one child). `{.child.}: ControlBar` goes through
+  `createView` and gets `newControlBar()` defaults.
+
+Tests: `tests/test_widgets.nim` (cycle order, marks and mark colours, bar
+layout, narrow-bar overflow, clipping, docking, focus/mouse),
+`tests/test_ctx_vocab.nim` (`StateChanged` / `SetCheckState`),
+`tests/test_hotkey.nim`, `tests/test_bindings.nim` (bindValue / bindTo /
+emits on a `TriStateCheckBox`), `tests/test_mount.nim` (zero-init
+`ControlBar` subtype).
+
+## 33. Clicks raise floating views only outside layout containers
+
+A mouse press raises every `dkNone` view on the path from the hit target to
+the scope (`core/routing.nim` `dispatchMouse`), so nested MDI windows come to
+the front. `dkNone` is also the default dock of every child of a `BoxLayout`,
+`Grid`, `FormLayout` or `ControlBar`, where `children` order is the layout
+order, not z-order. Clicking such a child moved it, and each container above
+it, to the end of its parent. The next frame then laid everything out in the
+new order: a clicked list jumped below its siblings, a ControlBar's right
+group swapped places. The bug has been there since the nested-window raise
+was added; it shows wherever a non-last child of a box is clicked.
+
+`Group` now has a base method `keepsChildOrder(g): bool` (default `false`).
+The layout containers return `true`, and the raise loop skips any view whose
+parent keeps child order. Desktops, windows, plain groups, popups, `Splitter`
+and `Scroller` keep raising (the last two find their children through fields,
+so raising only changes draw order). A third-party layout container overrides
+`keepsChildOrder` (`docs/EXTENDING.md`). Rejected: raising only `Window`s
+(core routing would import a widget module, and non-Window floating panes
+would stop raising) and opt-in raising (every existing floating container
+would have to declare it).
+
+Tests: `tests/test_routing.nim` (box, grid and ControlBar children keep their
+order on press; the enclosing floating window still raises).

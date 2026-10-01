@@ -8,19 +8,22 @@ import ../core/[geometry, view, bus]
 import ../layout/layout
 import ./pragmas
 import ../widgets/[window, label, button, checkbox, radio, list, input,
-                   textview, statusbar, editor, groupbox, table, progress]
+                   textview, statusbar, editor, groupbox, table, progress,
+                   tristate, controlbar]
 
 # --- construction defaults ---------------------------------------------------
 
 proc createView*(t: typedesc[Label]): Label = newLabel("")
 proc createView*(t: typedesc[Button]): Button = newButton("")
 proc createView*(t: typedesc[Checkbox]): Checkbox = newCheckbox("")
+proc createView*(t: typedesc[TriStateCheckBox]): TriStateCheckBox = newTriStateCheckBox("")
 proc createView*(t: typedesc[Radio]): Radio = newRadio(@[])
 proc createView*(t: typedesc[Input]): Input = newInput()
 proc createView*(t: typedesc[ListView]): ListView = newListView()
 proc createView*(t: typedesc[TextView]): TextView = newTextView()
 proc createView*(t: typedesc[Editor]): Editor = newEditor()
 proc createView*(t: typedesc[StatusBar]): StatusBar = newStatusBar()
+proc createView*(t: typedesc[ControlBar]): ControlBar = newControlBar()
 proc createView*(t: typedesc[Window]): Window = newWindow("", rect(0, 0, 0, 0))
 proc createView*(t: typedesc[GroupBox]): GroupBox = newGroupBox("")
 proc createView*(t: typedesc[Table]): Table = newTable()
@@ -31,6 +34,8 @@ proc createView*(t: typedesc[ProgressBar]): ProgressBar = newProgressBar()
 proc setCaption*(w: Button, s: string) = w.applyCaption(s)
 
 proc setCaption*(w: Checkbox, s: string) = w.applyCaption(s)
+
+proc setCaption*(w: TriStateCheckBox, s: string) = w.applyCaption(s)
 
 proc setCaption*(w: Label, s: string) = w.setText(s)
 proc setCaption*(w: Input, s: string) = w.setText(s)
@@ -56,6 +61,7 @@ proc chain*[W](a, b: SlotProc[W]): SlotProc[W] =
 # primary (action) slots
 proc bindSlot*(w: Button, h: SlotProc[Button]) = w.onClick = chain(w.onClick, h)
 proc bindSlot*(w: Checkbox, h: SlotProc[Checkbox]) = w.onToggle = chain(w.onToggle, h)
+proc bindSlot*(w: TriStateCheckBox, h: SlotProc[TriStateCheckBox]) = w.onChange = chain(w.onChange, h)
 proc bindSlot*(w: Radio, h: SlotProc[Radio]) = w.onSelect = chain(w.onSelect, h)
 proc bindSlot*(w: ListView, h: SlotProc[ListView]) = w.onActivate = chain(w.onActivate, h)
 proc bindSlot*(w: Input, h: SlotProc[Input]) = w.onSubmit = chain(w.onSubmit, h)
@@ -66,6 +72,7 @@ proc bindSlot*(w: Table, h: SlotProc[Table]) = w.onActivate = chain(w.onActivate
 proc bindValueSlot*(w: Input, h: SlotProc[Input]) = w.onChange = chain(w.onChange, h)
 proc bindValueSlot*(w: Editor, h: SlotProc[Editor]) = w.onChange = chain(w.onChange, h)
 proc bindValueSlot*(w: Checkbox, h: SlotProc[Checkbox]) = w.onToggle = chain(w.onToggle, h)
+proc bindValueSlot*(w: TriStateCheckBox, h: SlotProc[TriStateCheckBox]) = w.onChange = chain(w.onChange, h)
 proc bindValueSlot*(w: Radio, h: SlotProc[Radio]) = w.onSelect = chain(w.onSelect, h)
 proc bindValueSlot*(w: ListView, h: SlotProc[ListView]) = w.onSelect = chain(w.onSelect, h)
 proc bindValueSlot*(w: Table, h: SlotProc[Table]) = w.onSelect = chain(w.onSelect, h)
@@ -73,6 +80,7 @@ proc bindValueSlot*(w: Table, h: SlotProc[Table]) = w.onSelect = chain(w.onSelec
 proc widgetValue*(w: Input): string = w.text
 proc widgetValue*(w: Editor): string = w.text
 proc widgetValue*(w: Checkbox): bool = w.checked
+proc widgetValue*(w: TriStateCheckBox): CheckState = w.state
 proc widgetValue*(w: Radio): int = w.selected
 proc widgetValue*(w: ListView): int = w.selected
 proc widgetValue*(w: Table): int = w.selected
@@ -81,11 +89,12 @@ proc widgetValue*(w: Table): int = w.selected
 # site through overloads, so a third-party widget joins by declaring one —
 # never by matching a type NAME (a user type called `Input` is not ours).
 type UiPayloadKind* = enum
-  upNone, upText, upChecked, upSelected
+  upNone, upText, upChecked, upSelected, upCheckState
 
 template uiValueKind*(t: typedesc[Input]): UiPayloadKind = upText
 template uiValueKind*(t: typedesc[Editor]): UiPayloadKind = upText
 template uiValueKind*(t: typedesc[Checkbox]): UiPayloadKind = upChecked
+template uiValueKind*(t: typedesc[TriStateCheckBox]): UiPayloadKind = upCheckState
 template uiValueKind*(t: typedesc[Radio]): UiPayloadKind = upSelected
 template uiValueKind*(t: typedesc[ListView]): UiPayloadKind = upSelected
 template uiValueKind*(t: typedesc[Table]): UiPayloadKind = upSelected

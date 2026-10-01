@@ -128,6 +128,8 @@ proc visibleChildren(g: Group): seq[View] =
     if c.visible:
       result.add c
 
+method keepsChildOrder*(b: BoxLayout): bool {.gcsafe, raises: [].} = true
+
 method measure*(b: BoxLayout): tuple[w, h: SizeHint] {.gcsafe, raises: [].} =
   var wHints, hHints: seq[SizeHint]
   for c in b.visibleChildren:
@@ -208,6 +210,8 @@ proc gridHints(g: Grid): tuple[colH, rowH: seq[SizeHint]] =
     mergeInto(result.colH[col], m.w)
     mergeInto(result.rowH[row], m.h)
 
+method keepsChildOrder*(g: Grid): bool {.gcsafe, raises: [].} = true
+
 method measure*(g: Grid): tuple[w, h: SizeHint] {.gcsafe, raises: [].} =
   let (colH, rowH) = g.gridHints()
   result = (combineMain(colH, g.spacing), combineMain(rowH, g.spacing))
@@ -276,6 +280,8 @@ proc formDims(f: FormLayout): tuple[labelW, ctrlW: int, rows: seq[SizeHint]] =
       rh.max = max(rh.max, cm.h.max)
     result.rows.add rh
     i += 2
+
+method keepsChildOrder*(f: FormLayout): bool {.gcsafe, raises: [].} = true
 
 method measure*(f: FormLayout): tuple[w, h: SizeHint] {.gcsafe, raises: [].} =
   let (labelW, ctrlW, rows) = f.formDims()

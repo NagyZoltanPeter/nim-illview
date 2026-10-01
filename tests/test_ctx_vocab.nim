@@ -14,7 +14,7 @@ import results
 import ../src/illview/backend/illwill_vendored
 import ../src/illview/core/[geometry, events, view, routing]
 import ../src/illview/widgets/[button, checkbox, radio, list, input, editor,
-                               label, progress, table]
+                               label, progress, table, tristate]
 import ../src/illview/layout/layout
 import ../src/illview/vocab
 
@@ -96,6 +96,26 @@ suite "instance-ctx vocab":
 
     waitFor Toggled.dropAllListeners(cb.brokerCtx)
     dispose(cb)
+
+  test "StateChanged / SetCheckState round-trip on a TriStateCheckBox":
+    let tc = newTriStateCheckBox("all")
+    var states: seq[CheckState]
+    check StateChanged.listen(tc.brokerCtx,
+      proc(e: StateChanged): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}: states.add e.state).isOk
+
+    tc.cycle()
+    tc.cycle()
+    pump()
+    check states == @[csChecked, csIntermediate]
+
+    check SetCheckState.signal(tc.brokerCtx, SetCheckState(state: csUnchecked)).isOk
+    pump()
+    check tc.state == csUnchecked
+    check states.len == 2 # signal apply did not re-emit
+
+    waitFor StateChanged.dropAllListeners(tc.brokerCtx)
+    dispose(tc)
 
   test "SelectionChanged / Activated / SetSelected on ListView":
     let lv = newListView(@["a", "b", "c"])

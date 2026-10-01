@@ -7,6 +7,7 @@
 ##     <payload>          # by uiValueKind(FieldType), resolved at the
 ##                        # expansion site (deviation #29): upText -> text,
 ##                        # upChecked -> checked, upSelected -> selected,
+##                        # upCheckState -> state,
 ##                        # upNone -> no payload. Stock overloads live in
 ##                        # dsl/mount.nim; a custom widget adds its own.
 ##
@@ -30,6 +31,7 @@
 ##
 ## which writes the store field and signals the bound widget on its
 ## instance ctx (Input/Editor -> SetText, Checkbox -> SetChecked,
+## TriStateCheckBox -> SetCheckState,
 ## Radio/ListView/Table -> SetSelected). The writer is authoritative: it
 ## deliberately BYPASSES any bindRequest provider, and — like all signal
 ## application — fires no change slots and re-emits nothing. Requires
@@ -53,6 +55,7 @@ func valueTypeIdent(kind: UiPayloadKind): NimNode =
   of upText: ident("string")
   of upChecked: ident("bool")
   of upSelected: ident("int")
+  of upCheckState: ident("CheckState")
   of upNone: nil
 
 proc viewRecList(T: NimNode): tuple[sym, recList: NimNode] =
@@ -113,6 +116,13 @@ macro uiEventsImpl(T: typedesc, kinds: static seq[UiPayloadKind]): untyped =
               senderId*: int
               selected*: int
         payloadCtor = ", selected: widgetValue(sender)"
+      of upCheckState:
+        result.add quote do:
+          EventBroker:
+            type `evId` = object
+              senderId*: int
+              state*: CheckState
+        payloadCtor = ", state: widgetValue(sender)"
       of upNone:
         result.add quote do:
           EventBroker:
@@ -156,6 +166,7 @@ macro uiEventsImpl(T: typedesc, kinds: static seq[UiPayloadKind]): untyped =
         of upText: ("SetText", "text", "string")
         of upChecked: ("SetChecked", "checked", "bool")
         of upSelected: ("SetSelected", "selected", "int")
+        of upCheckState: ("SetCheckState", "state", "CheckState")
         of upNone: ("", "", "")
       if sigName.len == 0:
         error("bindValue: field type '" & typeName &

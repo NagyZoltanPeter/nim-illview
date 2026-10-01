@@ -124,10 +124,13 @@ proc dispatchMouse*(scope: Group, ev: InputEvent, clicks = 1) =
     # the scope, each within its own parent — so nested MDI windows (e.g. in a
     # sub-group) come to front, not just the scope's direct children. Docked
     # children (menu/title/status bars) are never raised: reordering them would
-    # change the dock arrangement and they'd visibly swap places.
+    # change the dock arrangement and they'd visibly swap places. Neither are
+    # children of a layout container: there `children` order IS the layout
+    # (deviation #33).
     var raiseV: View = target
     while raiseV != nil and raiseV != scope:
-      if raiseV.dock == dkNone and raiseV.parent != nil:
+      if raiseV.dock == dkNone and raiseV.parent != nil and
+          not raiseV.parent.keepsChildOrder:
         raiseToTop(raiseV.parent, raiseV)
       raiseV = raiseV.parent
 

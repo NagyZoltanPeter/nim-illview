@@ -4,7 +4,8 @@
 
 import std/unittest
 import ../src/illview/core/[geometry, events, view, routing]
-import ../src/illview/widgets/[desktop, window]
+import ../src/illview/widgets/[desktop, window, button, controlbar]
+import ../src/illview/layout/layout
 
 type
   Probe = ref object of View
@@ -330,3 +331,65 @@ suite "window move/resize (phase 10)":
   test "content clicks do not start a drag":
     dispatchMouse(root, press(12, 12)) # inside the content area
     check root.mouseCapture == nil
+
+suite "layout containers keep child order on click (deviation #33)":
+  proc ids(g: Group): seq[int] =
+    for c in g.children: result.add c.id
+
+  test "press on a box/grid child does not reorder it; its window still raises":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 80, 24)
+    let back = newWindow("back", rect(0, 0, 40, 12))
+    let front = newWindow("front", rect(30, 0, 40, 12))
+    let box = newVBox()
+    box.dock = dkFill
+    let b1 = newButton("one")
+    let b2 = newButton("two")
+    let b3 = newButton("three")
+    box.add b1
+    box.add b2
+    box.add b3
+    let grid = newGrid(2)
+    grid.hint = (prefHint(0, stretch = 1), fixedHint(1))
+    let g1 = newButton("g1")
+    let g2 = newButton("g2")
+    grid.add g1
+    grid.add g2
+    box.add grid
+    back.add box
+    root.add back
+    root.add front
+    root.arrange(rect(0, 0, 80, 24))
+    let boxBefore = ids(box)
+    let gridBefore = ids(grid)
+
+    let o = b1.absOrigin
+    dispatchMouse(root, press(o.x + 1, o.y))
+    check root.children[^1] == View(back) # floating window raised
+    check ids(box) == boxBefore           # layout order untouched
+    check root.focusedLeaf == View(b1)
+
+    root.arrange(rect(0, 0, 80, 24))
+    let og = g1.absOrigin
+    dispatchMouse(root, press(og.x + 1, og.y))
+    check ids(grid) == gridBefore
+    check ids(box) == boxBefore
+    check root.focusedLeaf == View(g1)
+
+  test "press on a ControlBar child keeps the right-group order":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 5)
+    let bar = newControlBar()
+    let about = newButton("About")
+    let quit = newButton("Quit")
+    bar.addRight about
+    bar.addRight quit
+    root.add bar
+    root.arrange(rect(0, 0, 40, 5))
+    let before = ids(bar)
+    let xBefore = about.bounds.x
+    let o = about.absOrigin
+    dispatchMouse(root, press(o.x + 1, o.y))
+    root.arrange(rect(0, 0, 40, 5))
+    check ids(bar) == before
+    check about.bounds.x == xBefore

@@ -41,6 +41,7 @@ type
     tkTableHeader
     tkProgress
     tkScrollBar
+    tkControlBar
 
   Theme* = ref object
     styles*: array[ThemeToken, Style]
@@ -79,3 +80,4 @@ proc defaultTheme*(): Theme =
   result.styles[tkTableHeader] = style(fgBlack, bgWhite) # distinct from tkSelection
   result.styles[tkProgress] = style(fgCyan, bgBlue, bright = true)
   result.styles[tkScrollBar] = style(fgCyan, bgBlue)
+  result.styles[tkControlBar] = style(fgBlack, bgWhite) # = tkStatusBar

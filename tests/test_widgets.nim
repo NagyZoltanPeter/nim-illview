@@ -9,7 +9,8 @@ import ../src/illview/vocab
 import ../src/illview/core/[geometry, theme, drawcontext, events, bus, view, routing]
 import ../src/illview/widgets/[button, checkbox, radio, list, input, textview,
                                editor, statusbar, menu, groupbox, table,
-                               progress, label, sparkline]
+                               progress, label, sparkline, tristate,
+                               controlbar, scrollbar]
 
 proc rowStr(tb: TerminalBuffer, y, w: int): string =
   for x in 0 ..< w:
@@ -373,3 +374,183 @@ suite "live-data widgets (deviation #30)":
     check SetProgress.signal(s2.brokerCtx, SetProgress(value: 5)).isOk
     waitFor sleepAsync(5.milliseconds)
     check s2.last == 5
+
+suite "TriStateCheckBox (deviation #32)":
+  test "user path cycles unchecked -> checked -> intermediate -> unchecked":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 4)
+    let stub = newStubBus()
+    root.publishCb = proc(a: UiAction) {.gcsafe, raises: [].} =
+      {.cast(gcsafe).}: stub.publish(a)
+    var seen: seq[CheckState]
+    let c = newTriStateCheckBox("all", command = Command(9))
+    c.onChange = proc(sender: TriStateCheckBox) {.gcsafe, raises: [].} =
+      {.cast(gcsafe).}: seen.add sender.state
+    root.add c
+    c.arrange(rect(0, 0, 7, 1))
+    setFocus(root, c)
+    discard dispatchKey(root, keyEvent(Key.Space))
+    discard dispatchKey(root, keyEvent(Key.Enter))
+    dispatchMouse(root, mouseEvent(maPress, mbLeft, 1, 0))
+    check seen == @[csChecked, csIntermediate, csUnchecked]
+    check stub.actions.len == 3
+    check stub.actions[0].cmd == Command(9)
+
+  test "setState is programmatic: no slot":
+    var fired = 0
+    let c = newTriStateCheckBox("x")
+    c.onChange = proc(sender: TriStateCheckBox) {.gcsafe, raises: [].} = inc fired
+    c.setState(csIntermediate)
+    check c.state == csIntermediate
+    check fired == 0
+
+  test "disabled widget does not cycle":
+    let c = newTriStateCheckBox("x")
+    c.enabled = false
+    c.cycle()
+    check c.state == csUnchecked
+
+  test "default marks [ ] / [x] / [?]":
+    let c = newTriStateCheckBox("all")
+    check rowStr(renderInto(c, 7, 1), 0, 7) == "[ ] all"
+    c.setState(csChecked)
+    check rowStr(renderInto(c, 7, 1), 0, 7) == "[x] all"
+    c.setState(csIntermediate)
+    check rowStr(renderInto(c, 7, 1), 0, 7) == "[?] all"
+
+  test "custom marks and per-state mark colour (mark cell only)":
+    let c = newTriStateCheckBox("all", state = csIntermediate)
+    c.setMarks(Rune(' '), "✓".runeAt(0), Rune('~'))
+    c.setMarkStyle(csIntermediate, StyleOverride(fg: fgRed, bg: bgYellow))
+    var tb = renderInto(c, 7, 1)
+    check rowStr(tb, 0, 7) == "[~] all"
+    check tb[1, 0].fg == fgRed
+    check tb[1, 0].bg == bgYellow
+    check tb[0, 0].fg != fgRed # bracket keeps the widget style
+    check tb[4, 0].fg != fgRed # caption too
+    c.setState(csChecked) # no override for checked: inherits
+    tb = renderInto(c, 7, 1)
+    check rowStr(tb, 0, 7) == "[✓] all"
+    check tb[1, 0].fg != fgRed
+
+  test "mark focus colour applies while focused":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 2)
+    let c = newTriStateCheckBox("all", state = csChecked)
+    c.setMarkStyle(csChecked, StyleOverride(fg: fgGreen, focusFg: fgMagenta))
+    root.add c
+    var tb = renderInto(c, 7, 1)
+    check tb[1, 0].fg == fgGreen
+    setFocus(root, c)
+    tb = renderInto(c, 7, 1)
+    check tb[1, 0].fg == fgMagenta
+
+suite "ControlBar (deviation #32)":
+  test "height: lines clamped to 1..3, zero-init means 1":
+    check newControlBar(lines = 0).measure().h == fixedHint(1)
+    check newControlBar(lines = 2).measure().h == fixedHint(2)
+    check newControlBar(lines = 7).measure().h == fixedHint(3)
+    let cb = newControlBar()
+    cb.setLines(3)
+    check cb.measure().h == fixedHint(3)
+
+  test "left group fills, right group flush right, spacing between":
+    let cb = newControlBar(lines = 2)
+    let run = newButton("Run")             # fixed 7
+    let log = newTextView()                # pref 0, stretch
+    let sb = newScrollBar(axH)             # min 2, pref 8, stretch
+    let r = newRadio(@["a", "b", "c", "d"]) # fixed 5 x 4
+    let ok = newButton("OK")               # fixed 6
+    cb.add run
+    cb.add log
+    cb.add sb
+    cb.add r
+    cb.addRight ok
+    cb.arrange(rect(0, 0, 40, 2))
+    check ok.bounds == rect(34, 0, 6, 1)
+    # 33 cells for the left group: 7+0+8+5 pref + 3 gaps, 10 leftover split
+    check run.bounds == rect(0, 0, 7, 1)
+    check log.bounds == rect(8, 0, 5, 2)
+    check sb.bounds == rect(14, 0, 13, 1)
+    check r.bounds == rect(28, 0, 5, 2)    # 4 rows wanted, bar has 2
+
+  test "right group keeps declaration order":
+    let cb = newControlBar()
+    let a = newButton("A")
+    let b = newButton("B")
+    cb.addRight a
+    cb.addRight b
+    cb.arrange(rect(0, 0, 20, 1))
+    check a.bounds.x == 9 and b.bounds.x == 15 # 5 + 1 + 5, flush right
+
+  test "narrow bar: right group wins, left never overlaps it":
+    let cb = newControlBar()
+    let l1 = newButton("Left")
+    let l2 = newButton("More")
+    let ok = newButton("OK")
+    cb.add l1
+    cb.add l2
+    cb.addRight ok
+    cb.arrange(rect(0, 0, 10, 1))
+    check ok.bounds.x == 4
+    for c in [View(l1), l2]:
+      check c.bounds.x + c.bounds.w <= 3
+    cb.arrange(rect(0, 0, 4, 1)) # narrower than the right group
+    check l1.bounds.w == 0 and l2.bounds.w == 0
+    check ok.bounds.x == 0
+
+  test "alignRight moves an already-added child":
+    let cb = newControlBar()
+    let a = newButton("A")
+    cb.add a
+    cb.arrange(rect(0, 0, 20, 1))
+    check a.bounds.x == 0
+    cb.alignRight(a)
+    cb.arrange(rect(0, 0, 20, 1))
+    check a.bounds.x == 15
+
+  test "children are clipped to the bar (no cells drawn below it)":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 5)
+    let cb = newControlBar(lines = 2)
+    cb.dock = dkTop
+    cb.add newRadio(@["a", "b", "c", "d"])
+    root.add cb
+    root.theme = defaultTheme()
+    let tb = renderInto(root, 20, 5)
+    check tb[10, 1].bg == defaultTheme().style(tkControlBar).bg # bar fill
+    check rowStr(tb, 0, 5) == "(•) a"
+    check rowStr(tb, 1, 5) == "( ) b"
+    check rowStr(tb, 2, 5) == "     "
+    check rowStr(tb, 3, 5) == "     "
+
+  test "docked bottom: fill sibling shrinks by the bar height":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 10)
+    let cb = newControlBar(lines = 3)
+    let body = newGroup()
+    body.dock = dkFill
+    root.add cb
+    root.add body
+    root.arrange(rect(0, 0, 40, 10))
+    check cb.bounds == rect(0, 7, 40, 3)
+    check body.bounds == rect(0, 0, 40, 7)
+
+  test "focus traversal and mouse reach bar children":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 5)
+    let cb = newControlBar()
+    var clicks = 0
+    let a = newButton("A")
+    let b = newButton("B")
+    b.onClick = proc(sender: Button) {.gcsafe, raises: [].} = inc clicks
+    cb.add a
+    cb.addRight b
+    root.add cb
+    root.arrange(rect(0, 0, 40, 5))
+    focusNext(root)
+    check root.focusedLeaf == View(a)
+    focusNext(root)
+    check root.focusedLeaf == View(b)
+    dispatchMouse(root, mouseEvent(maPress, mbLeft, 36, 4))
+    check clicks == 1

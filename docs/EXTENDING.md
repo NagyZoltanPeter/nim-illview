@@ -19,6 +19,7 @@ focus and modal plumbing as a built-in one.
 | `arrange(v, r: Rect)` | sets `bounds` | you lay out children yourself (containers) |
 | `handleEvent(v, ev: Event): bool` | `false` | you consume keys/mouse/paste/focus; return `true` to stop bubbling |
 | `handlesHotkey` / `triggerHotkey` | none | you own an Alt-accelerator |
+| `keepsChildOrder(g: Group): bool` | `false` | your container lays children out in `children` order (a box, grid, bar): return `true` so a click never raises a child and reorders the layout (deviation #33) |
 | `borderKind` / `clientRect` / `borderStyle` / `titleStyle` / `drawOverlay` | border-aware defaults | custom chrome |
 
 Services reach the App only through closures on the root group:
@@ -51,7 +52,7 @@ macro is expanded**, so overloads you declare in your own module apply.
 | `bindSlot(w: W, h: proc(sender: W))` | `{.bindTo.}`, `{.emits.}` — the widget's primary action slot | `Button.onClick` |
 | `bindValueSlot(w: W, h: proc(sender: W))` | `{.bindValue.}`, `{.bindRequest.}` — the value-change slot | `Input.onChange` |
 | `widgetValue(w: W): V` | `{.bindValue.}` — the value snapshot | `Input.text` |
-| `uiValueKind(t: typedesc[W]): UiPayloadKind` (template) | `{.emits.}` payload shape and the `set<Field>` writer: `upText`, `upChecked`, `upSelected`, or `upNone` | `Input` → `upText` |
+| `uiValueKind(t: typedesc[W]): UiPayloadKind` (template) | `{.emits.}` payload shape and the `set<Field>` writer: `upText`, `upChecked`, `upSelected`, `upCheckState`, or `upNone` | `Input` → `upText` |
 
 `{.view.}` component types need none of these: `mount` recurses into them.
 

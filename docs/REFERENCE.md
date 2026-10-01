@@ -79,6 +79,7 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 |--------|-------------|--------------------|-------|------------------------|---------------------------|---------------------|
 | `Button` | `newButton(caption, command = cmdNone)` | — | `onClick` | `Clicked` | `FocusMe` | on activation |
 | `Checkbox` | `newCheckbox(caption, checked = false, command)` | `checked: bool` | `onToggle` | `Toggled{checked}` | `SetChecked`, `FocusMe` | on toggle |
+| `TriStateCheckBox` | `newTriStateCheckBox(caption, state = csUnchecked, command)` | `state: CheckState` | `onChange` | `StateChanged{state}` | `SetCheckState`, `FocusMe` | on cycle |
 | `Radio` | `newRadio(items, selected = 0, command)` | `selected: int` | `onSelect` | `SelectionChanged{selected}` | `SetSelected`, `FocusMe` | on select |
 | `Input` | `newInput(text = "", command)` | `text: string` | `onChange`, `onSubmit`, `onFocus`, `onBlur` | `TextChanged{text}` (edits), `Submitted{text}` (Enter) | `SetText`, `FocusMe` | on Enter |
 | `Editor` | `newEditor(text = "")` | `text: string` | `onChange` | `TextChanged{text}` | `SetText`, `FocusMe` | — |
@@ -90,6 +91,7 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 | `NetVizWidget` | `newNetViz(maxLines = 500)` | — | — | — | — | — |
 | `Sparkline` | `newSparkline(capacity = 40, maxValue = 0)` | — | — | — | `SetProgress` (pushes a sample) | — |
 | `StatusBar` | `newStatusBar(items)` | — | — | — | — | per-item on click |
+| `ControlBar` | `newControlBar(lines = 1, spacing = 1)` | — | — | — | — | — (children publish their own) |
 | `MenuBar` | `newMenuBar(menus)` | — | — | — | — | per-item on activate |
 | `Window` | `newWindow(title, bounds)` | — | — | — | — | — |
 | `GroupBox` | `newGroupBox(title)` | — | — | — | — | — |
@@ -104,7 +106,9 @@ Widget-specific extras:
 - **ProgressBar**: `setValue(v)` (clamped), `value`, `maxValue`
 - **TextView**: `addLine(s)`, `clear()`, `scrollBy(delta)`; follows the bottom unless scrolled up (End re-pins)
 - **NetVizWidget**: `addEvent(topic, payload)` — per-topic counters + log line
+- **TriStateCheckBox**: user path cycles `csUnchecked → csChecked → csIntermediate → csUnchecked`; `setState(s)` (programmatic); `setMarks(unchecked, checked, intermediate: Rune)` — the one cell between the brackets, default `' '`/`'x'`/`'?'`; `setMarkStyle(state, StyleOverride)` — fg/bg/bright and focusFg/focusBg on the mark cell only (zero = inherit); `~tilde~` accelerator cycles
 - **StatusBar**: `statusItem(label, command)`, `setText(s)`
+- **ControlBar**: a `Group`, docked `dkBottom`, height `clamp(lines, 1, 3)` (`setLines(n)`). Children in one row: left group (`add`) gets the remaining width via `distribute`; right group (`addRight(v)`, or `alignRight(v)` for an existing child) is packed at preferred widths against the right edge and wins when space is short. Children are clipped to the bar height; `View.align` places them vertically. Background `tkControlBar`. As a `{.view.}` base type: zero-init (`lines = 0` = 1), set `{.dock: dkBottom.}`, no layout pragma, call `alignRight` after `mount` (deviation #32)
 - **MenuBar**: `menu(title, items)`, `menuItem(label, command)`, `openMenu(i)`; popups run as modals
 - **Window**: `title=`, `isActive`; drag title to move, `◢` corner / Alt+Arrows to move, Alt+Shift+Arrows to resize (dkNone windows only)
 
@@ -130,6 +134,7 @@ code, inert after `dispose` (signals return `err`, emits reach nobody).
 | `TextChanged` | `text: string` | Input, Editor | user edits (batched per edit op) |
 | `Submitted` | `text: string` | Input | Enter |
 | `Toggled` | `checked: bool` | Checkbox | toggle |
+| `StateChanged` | `state: CheckState` | TriStateCheckBox | cycle |
 | `SelectionChanged` | `selected: int` | Radio, ListView, Table | selection moved |
 | `Activated` | `selected: int` | ListView, Table | Enter / item re-click |
 
@@ -145,6 +150,7 @@ for `Clicked`), `dropListener(ctx, handle)`, `dropAllListeners(ctx)`,
 |--------|---------|-----------|---------|
 | `SetText` | `text: string` | Input, Editor, Label | `setText` + invalidate |
 | `SetChecked` | `checked: bool` | Checkbox | set + invalidate |
+| `SetCheckState` | `state: CheckState` | TriStateCheckBox | set + invalidate |
 | `SetSelected` | `selected: int` | Radio, ListView, Table | clamp + scroll-into-view + invalidate |
 | `SetProgress` | `value: int` | ProgressBar | `setValue` |
 | `FocusMe` | — (void) | any focusable widget | focuses through the root chain |
@@ -175,9 +181,9 @@ Call `uiEvents(MyForm)` at top level, right after the type section
 
 | Source pragma | Generates |
 |---------------|-----------|
-| `emits: "Name"` | `EventBroker` type `Name = object senderId: int; <payload>` + `uiEmit(sender, Name)`; payload by `uiValueKind(FieldType)`, snapshot via `widgetValue(sender)`: Input/Editor `text`, Checkbox `checked`, Radio/ListView/Table `selected`, Button none |
+| `emits: "Name"` | `EventBroker` type `Name = object senderId: int; <payload>` + `uiEmit(sender, Name)`; payload by `uiValueKind(FieldType)`, snapshot via `widgetValue(sender)`: Input/Editor `text`, Checkbox `checked`, TriStateCheckBox `state`, Radio/ListView/Table `selected`, Button none |
 | `bindRequest: "Name"` | sync `RequestBroker` `proc Name(value: VT): Result[VT, string]` with a default identity provider; swap via `Name.replaceProvider(DefaultBrokerContext, p)`, remove via `Name.clearProvider()`; `err` from the provider VETOES the store |
-| `bindValue: "field"` / `"model.field"` | `proc set<Field>*(self: T, v: VT)` — writes the store field (on `self` or on `self.model`) AND signals the bound widget (`SetText`/`SetChecked`/`SetSelected`) on its ctx. Authoritative: bypasses any `bindRequest` provider; fires no slots; loop-free by construction. Plus `proc notify<Field>*(self: T)` — pushes the store's current value to the widget after the model was mutated directly (deviation #30) |
+| `bindValue: "field"` / `"model.field"` | `proc set<Field>*(self: T, v: VT)` — writes the store field (on `self` or on `self.model`) AND signals the bound widget (`SetText`/`SetChecked`/`SetCheckState`/`SetSelected`) on its ctx. Authoritative: bypasses any `bindRequest` provider; fires no slots; loop-free by construction. Plus `proc notify<Field>*(self: T)` — pushes the store's current value to the widget after the model was mutated directly (deviation #30) |
 
 ---
 
@@ -238,7 +244,7 @@ Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 `tkButtonFocused`, `tkCheckbox`, `tkCheckboxFocused`, `tkInput`,
 `tkInputFocused`, `tkSelection`, `tkSelectionFocused`, `tkMenu`,
 `tkMenuSelected`, `tkStatusBar`, `tkStatusBarHotkey`, `tkTableHeader`,
-`tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`.
+`tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`, `tkScrollBar`, `tkControlBar`.
 
 ---
 

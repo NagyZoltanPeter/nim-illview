@@ -244,6 +244,12 @@ method triggerHotkey*(v: View, scope: Group) {.base, gcsafe, raises: [].} =
   ## Label focuses its linked control within `scope`.
   discard
 
+method keepsChildOrder*(g: Group): bool {.base, gcsafe, raises: [].} =
+  ## true = `children` order is layout order (boxes, grids, bars), so a click
+  ## must not raise a child to the top (deviation #33). false = order is only
+  ## z-order (desktops, windows, plain groups): floating children may raise.
+  false
+
 method borderKind*(v: View): BorderKind {.base, gcsafe, raises: [].} =
   ## Effective border; widgets may compute it (Window: double when active).
   v.border
