@@ -481,7 +481,7 @@ this code (`tools/screenshots.nim` `tvDialogScene`).
 
 ```nim
 let dlg = newWindow("Demo Dialog", rect(12, 2, 46, 15))
-dlg.palette = pGray                       # dialogs use the gray palette
+# windows and dialogs are lightgray by default; win.palette = pBlue opts out
 let body = newVBox(spacing = 1)
 body.dock = dkFill
 body.padding = 1
@@ -501,8 +501,8 @@ lbl.linkTo = inp                          # label lights up while inp is focused
 body.add lbl
 body.add inp
 
-let btns = newHBox(spacing = 2)           # buttons are 2 rows: face + shadow
-btns.hint = (prefHint(0, stretch = 1), fixedHint(2))
+let btns = newHBox(spacing = 2)
+btns.hint = (prefHint(0, stretch = 1), fixedHint(1))
 let ok = newButton("O~K~")
 ok.isDefault = true                       # Enter anywhere in the dialog
 btns.add ok
@@ -511,6 +511,6 @@ body.add btns
 dlg.add body
 ```
 
-Want a frame around a group after all? `cheeses.border = bkSingle`. A flat,
-1-row button: `b.setShadowed(false)`. The old all-blue look:
+Want a frame around a group after all? `cheeses.border = bkSingle`. The old
+all-blue look:
 `newApp(theme = classicBlueTheme())`.

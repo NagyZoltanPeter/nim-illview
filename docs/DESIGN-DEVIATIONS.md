@@ -639,3 +639,103 @@ Tests: `tests/test_theme.nim` (invariants, palette resolution, hotkey style),
 `tests/test_widgets.nim` (surface fills, label focus, borderless GroupBox,
 button shadow / inert shadow / default-button Enter paths),
 `tests/test_render_snapshot.nim` (close box, window vs dialog palette).
+
+## 35. Lightgray windows, dark ControlBar, TV scrollbars
+
+Deviation #34 kept TV's blue windows and gray dialogs. For more contrast every
+window now uses the gray palette: the base table of `tvTheme()` is the gray
+variant, `newWindow` no longer forces `pBlue` (palette `pDefault` = base), and
+blue / cyan are opt-in variants (`win.palette = pBlue`). With a lightgray
+window two widgets would have merged into it:
+
+- **TextView** draws on the list surface (`tkList`, black on cyan) — a
+  read-only data pane, like ListView/Table; `lineStyle` colours still apply.
+- **ControlBar** is lightgray on black (`tkControlBar`, palette-independent),
+  so it stands apart from windows, clusters, fields and buttons wherever it is
+  docked. The button shadow keeps TV's black ink and is therefore invisible on
+  the bar itself.
+
+The desktop and the window share TV's lightgray; the blue `░` pattern, the
+window frame and its shadow separate them (the invariant test checks the
+pattern ink differs from window text instead of the background).
+
+**Scrollbars** take TV's shape: an arrow at each end once the rail has three
+cells (`▲`/`▼`, `◄`/`►` horizontal; a click steps by one), a `▒` rail (a click
+pages) and a single-cell `■` thumb (drag maps the thumb cell linearly onto
+`0..scrollMax`). The proportional thumb is gone; `thumbGeom` stays as pure
+math. The glyph logic is one pure helper (`scrollGlyphs` / `thumbCell` /
+`arrowCells` in `core/geometry.nim`) shared by ScrollBar and the ListView,
+Table and TextView indicator column.
+
+Tests: `tests/test_theme.nim` (ControlBar ≠ window in every palette, gray
+base, blue variant), `tests/test_scrollbar.nim` (glyph rows incl. short rails,
+arrow steps, single-cell drag, indicator columns),
+`tests/test_render_snapshot.nim` (windows gray by default, `pBlue` opt-in).
+
+## 36. Flat buttons with `> <` focus and a pressed shift (supersedes #34's shadow)
+
+The half-block shadow from #34 is gone (author's call): a button is one row,
+a flat green face with the caption centred, `> caption <` while focused. The
+button is one cell wider than its face (`caption + 5`); the face rests one
+cell in and shifts into that cell while `pressed`, so a press reads as the
+button moving. `tkButtonShadow` and `dc.overlay` (which existed only for the
+shadow) were removed.
+
+Activation follows Turbo Vision: the **mouse fires on release** over the
+button — a press only shifts the face and captures the mouse, dragging off
+un-presses, releasing elsewhere cancels. **Keys** (Enter, Space, hotkey)
+fire at once, as TV does, and flash the pressed face for 100 ms (a chronos
+timer clears `pressed`). Delaying key activation was rejected: slots fire
+synchronously inside dispatch — DSL `emits:`, the stock dialogs and the tests
+rely on it.
+
+Tests: `tests/test_widgets.nim` (face layout and `> <` focus, press shift,
+fire on release, drag-off cancel, key flash); tests that clicked a button with
+a bare press now send the release too (`test_widgets`, `test_routing`).
+
+## 37. A real TV gray: `bgGray`, a 256-colour background
+
+illwill emits ANSI 47 for `bgWhite`; the terminal palette decides what that
+looks like, and many render it near-white — lightgray windows turned white and
+their bright-white double frame disappeared. TV's lightgray is CGA #AAAAAA.
+
+The vendored illwill carries one local patch (noted in its provenance
+header): `BackgroundColor.bgGray = 100`, outside the SGR 40..47 range so it
+can never be cast to a `std/terminal` colour by accident. `setAttribs` routes
+backgrounds through `emitBg`, which writes `ESC[48;5;248m` (#a8a8a8, the
+nearest xterm-256 entry) for `bgGray` and uses `std/terminal` for the rest.
+Whether 256 colours are allowed is decided once, lazily, by the pure
+`wants256Colors(TERM, COLORTERM, ILLVIEW_COLORS)`: `ILLVIEW_COLORS=16|256`
+overrides; else `COLORTERM` set, or a `TERM` containing `256color`, `direct`,
+`ghostty`, `kitty`, `alacritty` or `wezterm`. Otherwise — and on the Windows
+console — `bgGray` falls back to ANSI 47, today's behaviour. No general
+256/truecolor API was added.
+
+Every lightgray in `tvTheme()` (desktop, menu/status bars, gray windows and
+dialogs, the cyan palette's clusters/lists, the blue palette's fields) is now
+`bgGray`; `classicBlueTheme()` keeps `bgWhite`. The screenshot renderer maps
+`bgGray` to #a8a8a8 and `bgWhite` to a near-white, so a stray `bgWhite` would
+show in the docs.
+
+Tests: `tests/test_theme.nim` (capability parsing, both escapes, no TV token
+uses `bgWhite`). Verified on a real pty: ex04 emits `ESC[48;5;248m` with
+`ILLVIEW_COLORS=256` and `ESC[47m` with `16`, never both.
+
+## 38. Cyan ControlBar; focusable ScrollBar
+
+The dark ControlBar from #35 read badly in practice: a bar full of widgets
+showed its black background only as slivers next to buttons and under the
+scrollbar, which looked like stray shadows. `tkControlBar` now takes the
+palette's **cluster** colour — black on cyan on gray and blue windows (and at
+desktop level), lightgray in the cyan palette — so it still never equals the
+window background (`tests/test_theme.nim`). Accepted trade-off: a cyan Radio
+or TextView inside the bar blends with it.
+
+`ScrollBar` was mouse-only (`focusable = false`, keys ignored). It is now
+focusable and handles the arrow keys along its axis (±1), PgUp/PgDn (±page)
+and Home/End; cross-axis keys and Alt-chords bubble on. The `■` thumb is
+bright while focused. It joins the Tab order wherever it is used (ex04's
+ControlBar, ex11's scroller bar).
+
+Tests: `tests/test_scrollbar.nim` (vertical/horizontal keys, Alt pass-through,
+Tab focus + routed keys), `tests/test_theme.nim` invariants.

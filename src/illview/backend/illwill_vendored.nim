@@ -2,7 +2,10 @@
 ##   https://github.com/johnnovak/illwill
 ##   commit db080b4e2432868e188efb4fb72c1ee6c6c28428 (vendored 2026-07-02)
 ##   license: WTFPL
-## Kept verbatim apart from this header. illview uses it as the "hardware
+## Kept verbatim apart from this header and ONE local patch (illview
+## deviation #37): `bgGray`, a 256-colour lightgray background (xterm 248,
+## TV's #AAAAAA), emitted by `emitBg` with a 16-colour fallback
+## (`wants256Colors`). illview uses it as the "hardware
 ## layer" (TerminalBuffer + display() diffing + Key/color/style types); input
 ## decoding is reimplemented incrementally in backend/decoder.nim.
 ##
@@ -40,7 +43,7 @@
 ## * `Style <https://nim-lang.org/docs/terminal.html#Style>`_
 ##
 
-import macros, os, terminal, unicode, bitops
+import macros, os, terminal, unicode, bitops, strutils
 
 export terminal.terminalWidth
 export terminal.terminalHeight
@@ -70,7 +73,8 @@ type
     bgBlue,                 ## blue
     bgMagenta,              ## magenta
     bgCyan,                 ## cyan
-    bgWhite                 ## white
+    bgWhite,                ## white
+    bgGray = 100            ## illview patch: 256-colour lightgray, see emitBg
 
   Key* {.pure.} = enum      ## Supported single key presses and key combinations
     None = (-1, "None"),
@@ -1141,6 +1145,43 @@ var
   gCurrFg {.threadvar.}: ForegroundColor
   gCurrStyle {.threadvar.}: set[Style]
 
+# --- illview patch (deviation #37): 256-colour lightgray background ----------
+
+func wants256Colors*(term, colorterm, override: string): bool =
+  ## Whether `bgGray` may use the 256-colour escape. `override` is
+  ## ILLVIEW_COLORS ("16" / "256"); else COLORTERM set or a TERM known to do
+  ## 256 colours.
+  case override
+  of "16": return false
+  of "256": return true
+  else: discard
+  if colorterm.len > 0:
+    return true
+  for s in ["256color", "direct", "ghostty", "kitty", "alacritty", "wezterm"]:
+    if strutils.contains(term, s):
+      return true
+  false
+
+func bgGrayEscape*(use256: bool): string =
+  if use256: "\e[48;5;248m" else: "\e[47m"
+
+var gBg256 {.threadvar.}: int # 0 = not decided yet, 1 = 16 colours, 2 = 256
+
+proc use256(): bool =
+  if gBg256 == 0:
+    gBg256 = if wants256Colors(getEnv("TERM"), getEnv("COLORTERM"),
+                               getEnv("ILLVIEW_COLORS")): 2 else: 1
+  gBg256 == 2
+
+proc emitBg(bg: BackgroundColor) =
+  if bg == bgGray:
+    when defined(windows): # legacy console: no 256-colour escapes
+      setBackgroundColor(terminal.bgWhite)
+    else:
+      stdout.write(bgGrayEscape(use256()))
+  else:
+    setBackgroundColor(cast[terminal.BackgroundColor](bg))
+
 proc setAttribs(c: TerminalChar) =
   if c.bg == bgNone or c.fg == fgNone or c.style == {}:
     resetAttributes()
@@ -1148,7 +1189,7 @@ proc setAttribs(c: TerminalChar) =
     gCurrFg = c.fg
     gCurrStyle = c.style
     if gCurrBg != bgNone:
-      setBackgroundColor(cast[terminal.BackgroundColor](gCurrBg))
+      emitBg(gCurrBg)
     if gCurrFg != fgNone:
       setForegroundColor(cast[terminal.ForegroundColor](gCurrFg))
     if gCurrStyle != {}:
@@ -1156,7 +1197,7 @@ proc setAttribs(c: TerminalChar) =
   else:
     if c.bg != gCurrBg:
       gCurrBg = c.bg
-      setBackgroundColor(cast[terminal.BackgroundColor](gCurrBg))
+      emitBg(gCurrBg)
     if c.fg != gCurrFg:
       gCurrFg = c.fg
       setForegroundColor(cast[terminal.ForegroundColor](gCurrFg))

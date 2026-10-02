@@ -71,21 +71,6 @@ proc shade*(dc: DrawContext, r: Rect, style: Style) =
         ch: old.ch, fg: style.fg, bg: style.bg,
         style: if style.bright: {styleBright} else: {})
 
-proc overlay*(dc: DrawContext, x, y: int, ch: Rune, style: Style) =
-  ## Put `ch` in style's fg/bright but KEEP the cell's background — glyphs
-  ## drawn over whatever surface is underneath (button shadow, deviation #34).
-  let ax = dc.ox + x
-  let ay = dc.oy + y
-  if ax < dc.clip.x or ax >= dc.clip.x + dc.clip.w:
-    return
-  if ay < dc.clip.y or ay >= dc.clip.y + dc.clip.h:
-    return
-  var tb = dc.tb
-  let old = tb[ax, ay]
-  tb[ax, ay] = TerminalChar(
-    ch: ch, fg: style.fg, bg: old.bg,
-    style: if style.bright: {styleBright} else: {})
-
 proc box*(dc: DrawContext, r: Rect, style: Style, double = false) =
   ## Frame on the edge of `r` (view-local). Cell-clipped like everything else.
   if r.w < 2 or r.h < 2:

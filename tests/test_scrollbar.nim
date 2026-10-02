@@ -36,6 +36,17 @@ suite "thumbGeom (pure scroll math)":
   test "thumb never shorter than one cell":
     check thumbGeom(4, 100, 4, 0).len == 1
 
+suite "TV scrollbar glyphs (deviation #35)":
+  test "arrows at the ends, ▒ rail, one ■ thumb":
+    check scrollGlyphs(6, 100, 10, 0, axV) == @["▲", "■", "▒", "▒", "▒", "▼"]
+    check scrollGlyphs(6, 100, 10, 90, axV) == @["▲", "▒", "▒", "▒", "■", "▼"]
+    check scrollGlyphs(5, 100, 10, 0, axH) == @["◄", "■", "▒", "▒", "►"]
+  test "a rail too short for arrows is thumb + rail only":
+    check scrollGlyphs(2, 100, 10, 90, axV) == @["▒", "■"]
+    check scrollGlyphs(0, 100, 10, 0, axV).len == 0
+  test "nothing to scroll: thumb parked at the start":
+    check thumbCell(10, 5, 10, 0) == 0
+
 suite "ScrollBar behavior":
   test "setRange clamps pos; setPos fires onScroll once":
     var got: seq[int]
@@ -64,20 +75,65 @@ suite "ScrollBar behavior":
     check sb.handleEvent(at(maPress, 0, 5)) # below thumb => page down by 10
     check sb.pos == 10
 
+  test "arrows step by one":
+    let sb = newScrollBar(axV)
+    sb.bounds = rect(0, 0, 1, 10)
+    sb.setRange(100, 10, 5)
+    check sb.handleEvent(at(maPress, 0, 9)) # ▼
+    check sb.pos == 6
+    check sb.handleEvent(at(maPress, 0, 0)) # ▲
+    check sb.pos == 5
+
   test "dragging the thumb sets pos proportionally":
     let sb = newScrollBar(axV)
     sb.bounds = rect(0, 0, 1, 10)
-    sb.setRange(100, 10, 0) # thumb len 1, track 10, span 9, scrollMax 90
-    check sb.handleEvent(at(maPress, 0, 0))       # grab the thumb
-    check sb.handleEvent(at(maMove, 0, 9))        # drag to the bottom
+    sb.setRange(100, 10, 0) # ■ at cell 1; rail cells 1..8 = 8 positions
+    check sb.handleEvent(at(maPress, 0, 1))       # grab the thumb
+    check sb.handleEvent(at(maMove, 0, 8))        # drag to the last rail cell
     check sb.pos == 90
-    check sb.handleEvent(at(maRelease, 0, 9))
+    check sb.handleEvent(at(maRelease, 0, 8))
 
-  test "draw renders the track and thumb glyphs":
+  test "draw renders arrows, rail and thumb":
     let sb = newScrollBar(axV)
-    sb.setRange(20, 10, 0) # len 5 at top
+    sb.setRange(20, 10, 0)
     let tb = renderView(sb, 1, 10)
-    check colStr(tb, 0, 10) == "█████░░░░░"
+    check colStr(tb, 0, 10) == "▲■▒▒▒▒▒▒▒▼"
+
+suite "ScrollBar keyboard (deviation #37 follow-up)":
+  proc key(k: Key, mods: set[Modifier] = {}): Event =
+    Event(kind: evKey, ikey: keyEvent(k, Rune(0), mods))
+
+  test "vertical: arrows step, PgUp/PgDn page, Home/End jump":
+    let sb = newScrollBar(axV)
+    sb.setRange(100, 10, 50)
+    check sb.handleEvent(key(Key.Down)) and sb.pos == 51
+    check sb.handleEvent(key(Key.Up)) and sb.pos == 50
+    check sb.handleEvent(key(Key.PageDown)) and sb.pos == 60
+    check sb.handleEvent(key(Key.PageUp)) and sb.pos == 50
+    check sb.handleEvent(key(Key.End)) and sb.pos == 90
+    check sb.handleEvent(key(Key.Home)) and sb.pos == 0
+    check not sb.handleEvent(key(Key.Left))   # cross-axis key bubbles on
+
+  test "horizontal uses Left/Right; Alt-chords pass through":
+    let sb = newScrollBar(axH)
+    sb.setRange(100, 10, 5)
+    check sb.handleEvent(key(Key.Right)) and sb.pos == 6
+    check sb.handleEvent(key(Key.Left)) and sb.pos == 5
+    check not sb.handleEvent(key(Key.Up))
+    check not sb.handleEvent(key(Key.Right, {modAlt}))
+    check sb.pos == 5
+
+  test "focusable: Tab reaches it and keys route to it":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 10)
+    let sb = newScrollBar(axV)
+    sb.bounds = rect(0, 0, 1, 10)
+    sb.setRange(100, 10, 0)
+    root.add sb
+    focusNext(root)
+    check root.focusedLeaf == View(sb)
+    check dispatchKey(root, keyEvent(Key.Down))
+    check sb.pos == 1
 
 suite "widget scrollbar indicators":
   test "ListView draws a thumb in the last column when overflowing":
@@ -87,17 +143,15 @@ suite "widget scrollbar indicators":
     for i in 0 .. 19: items.add "item" & $i
     l.setItems(items)
     let tb = renderView(l, 10, 5) # 20 items, 5 rows => overflow
-    check cellStr(tb, 9, 0) == "█" # thumbGeom(5,20,5,0): len 1 at top
-    check cellStr(tb, 9, 1) == "░"
+    check colStr(tb, 9, 5) == "▲■▒▒▼" # top of the list
 
   test "TextView indicator tracks the viewport":
     let tv = newTextView()
     tv.showScrollbar = true
     for i in 0 .. 19: tv.addLine("line" & $i)
     let tb = renderView(tv, 10, 5) # follow => pinned to bottom
-    # follow: start = 20-5 = 15, thumbGeom(5,20,5,15) len 1 => bottom cell
-    check cellStr(tb, 9, 4) == "█"
-    check cellStr(tb, 9, 0) == "░"
+    # follow: start = 20-5 = 15 = scrollMax => thumb on the last rail cell
+    check colStr(tb, 9, 5) == "▲▒▒■▼"
 
   test "Table reserves the last column for the thumb below the header":
     let cols = @[tableColumn("A", prefHint(4)), tableColumn("B", prefHint(4))]
@@ -106,8 +160,9 @@ suite "widget scrollbar indicators":
     let t = newTable(cols, rows)
     t.showScrollbar = true
     let tb = renderView(t, 12, 5) # viewportRows 4, 20 rows => overflow
-    check cellStr(tb, 11, 1) == "█" # bar starts on the first data row (y1)
-    check cellStr(tb, 11, 2) == "░"
+    check cellStr(tb, 11, 1) == "▲" # bar starts on the first data row (y1)
+    check cellStr(tb, 11, 2) == "■"
+    check cellStr(tb, 11, 4) == "▼"
 
 # --- double-click synthesis (plan-4 mouse infra) ------------------------------
 

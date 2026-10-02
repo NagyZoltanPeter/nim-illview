@@ -4,6 +4,7 @@
 
 import std/unittest
 import ../src/illview/core/[geometry, theme, view]
+import ../src/illview/backend/illwill_vendored
 
 suite "surface invariants (deviation #34)":
   test "fields, clusters, lists and buttons never share the window bg":
@@ -19,12 +20,16 @@ suite "surface invariants (deviation #34)":
       check v.style(tkList).bg != win
       check v.style(tkButton).bg != win
       check v.style(tkInput).bg != v.style(tkCluster).bg # a field is not a group
+      check v.style(tkControlBar).bg != win # bars stand out (deviation #35)
 
   test "default theme is the TV theme; desktop differs from windows":
     let d = defaultTheme()
     check d.style(tkDesktop) == tvTheme().style(tkDesktop)
-    check d.style(tkDesktop).bg != d.style(tkWindowBg).bg
-    check d.variant(pGray).style(tkWindowBg).bg != d.style(tkWindowBg).bg
+    # same lightgray as TV: the blue ░ pattern (plus frame and shadow) separates them
+    check d.style(tkDesktop).fg != d.style(tkWindowBg).fg
+    check d.style(tkWindowBg).bg == bgGray # windows are lightgray (#35), TV gray (#37)
+    check d.variant(pGray) == d             # gray IS the base table
+    check d.variant(pBlue).style(tkWindowBg).bg == bgBlue
 
   test "a theme without a variant falls back to itself":
     let c = classicBlueTheme()
@@ -68,3 +73,31 @@ suite "palette resolution (deviation #34)":
     check h.bg == bgGreen
     check h.fg == tvTheme().style(tkHotkey).fg
     check h.bright == tvTheme().style(tkHotkey).bright
+
+suite "TV gray background (deviation #37)":
+  test "256-colour capability: override, COLORTERM, known TERMs, fallback":
+    check wants256Colors("xterm", "", "256")
+    check not wants256Colors("xterm-256color", "truecolor", "16")
+    check wants256Colors("xterm", "truecolor", "")
+    check wants256Colors("xterm-256color", "", "")
+    check wants256Colors("tmux-256color", "", "")
+    check wants256Colors("xterm-ghostty", "", "")
+    check wants256Colors("xterm-kitty", "", "")
+    check not wants256Colors("linux", "", "")
+    check not wants256Colors("xterm", "", "")
+
+  test "bgGray escape: 256-colour 248, else ANSI 47":
+    check bgGrayEscape(true) == "\e[48;5;248m"
+    check bgGrayEscape(false) == "\e[47m"
+
+  test "every TV lightgray is bgGray; the classic theme keeps bgWhite":
+    let t = tvTheme()
+    check t.style(tkDesktop).bg == bgGray
+    check t.style(tkMenu).bg == bgGray
+    check t.style(tkStatusBar).bg == bgGray
+    check t.variant(pCyan).style(tkList).bg == bgGray
+    check t.variant(pBlue).style(tkInput).bg == bgGray
+    for tok in ThemeToken:
+      for p in [pBlue, pCyan, pGray]:
+        check t.variant(p).style(tok).bg != bgWhite
+    check classicBlueTheme().style(tkMenu).bg == bgWhite

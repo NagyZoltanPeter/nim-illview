@@ -85,10 +85,8 @@ method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
     dc.write(0, y, l.items[idx], st)
   if bar:
     let sbSt = l.styleOf(tkScrollBar)
-    let (ts, tl) = thumbGeom(l.contentH, l.items.len, l.contentH, l.top)
-    for y in 0 ..< l.contentH:
-      dc.write(l.contentW - 1, y,
-               (if y >= ts and y < ts + tl: "█" else: "░"), sbSt)
+    for y, g in scrollGlyphs(l.contentH, l.items.len, l.contentH, l.top, axV):
+      dc.write(l.contentW - 1, y, g, sbSt)
 
 method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

@@ -146,10 +146,8 @@ method draw*(t: Table, dc: DrawContext) {.gcsafe, raises: [].} =
   if t.barVisible:
     let sbSt = t.styleOf(tkScrollBar)
     let rows = t.viewportRows
-    let (ts, tl) = thumbGeom(rows, t.rows.len, rows, t.top)
-    for y in 0 ..< rows:
-      dc.write(t.contentW - 1, y + 1, # rows start below the header
-               (if y >= ts and y < ts + tl: "█" else: "░"), sbSt)
+    for y, g in scrollGlyphs(rows, t.rows.len, rows, t.top, axV):
+      dc.write(t.contentW - 1, y + 1, g, sbSt) # rows start below the header
 
 method handleEvent*(t: Table, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

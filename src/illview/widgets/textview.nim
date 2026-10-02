@@ -48,9 +48,9 @@ proc scrollBy*(tv: TextView, delta: int) =
   tv.invalidate()
 
 method draw*(tv: TextView, dc: DrawContext) {.gcsafe, raises: [].} =
-  let st = tv.styleOf(tkText)
+  let st = tv.styleOf(tkList) # read-only data pane: list surface (deviation #35)
   let start = tv.effectiveTop
-  dc.fill(rect(0, 0, tv.contentW, tv.contentH), " ", st) # own window surface
+  dc.fill(rect(0, 0, tv.contentW, tv.contentH), " ", st)
   for y in 0 ..< max(tv.contentH, 0):
     let idx = start + y
     if idx >= tv.lines.len:
@@ -59,10 +59,8 @@ method draw*(tv: TextView, dc: DrawContext) {.gcsafe, raises: [].} =
     dc.write(0, y, line, if tv.lineStyle != nil: tv.styleOf(tv.lineStyle(line)) else: st)
   if tv.showScrollbar and tv.lines.len > tv.contentH:
     let sbSt = tv.styleOf(tkScrollBar)
-    let (ts, tl) = thumbGeom(tv.contentH, tv.lines.len, tv.contentH, start)
-    for y in 0 ..< tv.contentH:
-      dc.write(tv.contentW - 1, y,
-               (if y >= ts and y < ts + tl: "█" else: "░"), sbSt)
+    for y, g in scrollGlyphs(tv.contentH, tv.lines.len, tv.contentH, start, axV):
+      dc.write(tv.contentW - 1, y, g, sbSt)
 
 method handleEvent*(tv: TextView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

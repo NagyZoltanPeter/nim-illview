@@ -34,7 +34,7 @@ proc buttonRow(buttons: seq[(string, Command)]): BoxLayout =
 
 proc buttonsWidth(buttons: seq[(string, Command)]): int =
   for (cap, _) in buttons:
-    result += parseHotkey(cap).text.runeLen + 4 + 1 + 1 # face + shadow + spacing
+    result += parseHotkey(cap).text.runeLen + 4 + 1 + 1 # "> cap <" + shift cell + spacing
 
 proc newDialog(app: App, title: string, w, h: int, cancel: Command): Dialog =
   result = Dialog(borderTitle: title, closable: false, zoomable: false,

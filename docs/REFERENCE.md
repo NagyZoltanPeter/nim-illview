@@ -100,7 +100,7 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 Widget-specific extras:
 
 - **Input**: `text`, `setText(s)`, `insertText(s)`, `cursor`, `scrollX`; Enter is consumed only when something may listen for submit (`onSubmit`, a `command`, or an instance route anyone asked for), else it reaches the window's default button (deviation #34)
-- **Button**: caption centred on the face, half-block shadow (`shadowed = true`: +1 column, +1 row; `setShadowed(false)` for a flat 1-row button; no shadow when arranged 1 row tall); `isDefault` = bright caption + fired by an unconsumed Enter in its Window; clicks on the shadow do nothing (deviation #34)
+- **Button**: flat green face, caption centred, `> caption <` while focused; width = caption + 5 (the face sits one cell in and shifts into that cell while `pressed`); mouse fires on release over the button (drag off cancels), Enter/Space/hotkey fire at once and flash the pressed face; `isDefault` = bright caption + fired by an unconsumed Enter in its Window (deviations #34, #36)
 - **Checkbox / TriStateCheckBox**: toggle on Space (and mouse / hotkey); Enter goes to the default button (deviation #34)
 - **GroupBox**: borderless by default — title as a heading row above a `tkCluster` block; `border = bkSingle` puts the title back in a frame (deviation #34)
 - **Label**: drawn with `tkLabelFocused` while its `linkTo` control has focus
@@ -247,26 +247,34 @@ Resolution order: theme token → per-view `styleOv` → focus override
 visual language. Every control sits on a surface whose background differs
 from the one around it — enforced by `tests/test_theme.nim` for every palette.
 
-| Surface | Widgets | Tokens | blue window | gray dialog |
+| Surface | Widgets | Tokens | window / dialog (default, gray) | opt-in `pBlue` window |
 |---|---|---|---|---|
 | desktop | Desktop (`░`) | `tkDesktop` | blue on lightgray | — |
-| bar | MenuBar, StatusBar, ControlBar | `tkMenu*`, `tkStatusBar*`, `tkControlBar` | black on lightgray, red hotkeys | — |
-| window | Window bg, Label, TextView | `tkWindowBg`, `tkText`, `tkLabelFocused`, frame/title tokens | yellow on blue | black on lightgray |
+| bar | MenuBar, StatusBar | `tkMenu*`, `tkStatusBar*` | black on lightgray, red hotkeys | — |
+| control bar | ControlBar | `tkControlBar` (= cluster colour) | black on cyan | black on cyan (lightgray in `pCyan`) |
+| window | Window/Dialog bg, Label | `tkWindowBg`, `tkText`, `tkLabelFocused`, frame/title tokens | black on lightgray | yellow on blue |
 | cluster | Checkbox, Radio, TriStateCheckBox, GroupBox content | `tkCheckbox*`, `tkCluster` | black on cyan | black on cyan |
-| field | Input, Editor | `tkInput*` | black on lightgray | white on blue |
-| list | ListView, Table, TreeView | `tkList`, `tkSelection*`, `tkTableHeader`, `tkScrollBar` | black on cyan | black on cyan |
-| button | Button | `tkButton*`, `tkButtonDefault`, `tkButtonShadow` | black on green | black on green |
+| field | Input, Editor | `tkInput*` | white on blue | black on lightgray |
+| list | ListView, Table, TreeView, TextView | `tkList`, `tkSelection*`, `tkTableHeader`, `tkScrollBar` | black on cyan | black on cyan |
+| button | Button | `tkButton*`, `tkButtonDefault` | black on green | black on green |
+
+**TV gray** (deviation #37): every lightgray in `tvTheme()` is `bgGray`, a
+256-colour background (`ESC[48;5;248m`, #a8a8a8 ≈ TV's #AAAAAA) — terminal
+palettes render ANSI "white" (47) anywhere from gray to near-white. It is used
+when `COLORTERM` is set or `TERM` names a 256-colour terminal; otherwise (and
+on the Windows console) it falls back to ANSI 47. Force with
+`ILLVIEW_COLORS=16|256`. `classicBlueTheme()` keeps `bgWhite`.
 
 **Palettes**: `View.palette` (`pDefault`, `pBlue`, `pCyan`, `pGray`) switches a
 subtree to `theme.variant(p)` (`Theme.variants`); the nearest palette wins,
-an explicit `View.theme` closer to the view wins as-is. `newWindow` sets
-`pBlue`; stock dialogs set `pGray`. `classicBlueTheme()` is the old
-all-blue table (no variants).
+an explicit `View.theme` closer to the view wins as-is. The base table is
+the gray palette, so every window and dialog is lightgray (deviation #35);
+`win.palette = pBlue` (or `pCyan`) opts a window into TV's other colour
+sets. `classicBlueTheme()` is the old all-blue table (no variants).
 
 **fg-only tokens**: `tkHotkey` (accelerator letter inside controls, via
-`v.hotkeyStyle(host)` — keeps the control's bg) and `tkButtonShadow` (drawn
-with `dc.overlay`, which keeps the cell's bg — the shadow sits on whatever
-surface is underneath). Bars and menus keep `tkStatusBarHotkey`.
+`v.hotkeyStyle(host)` — keeps the control's bg). Bars and menus keep
+`tkStatusBarHotkey`.
 
 Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 `tkWindowTitle`, `tkWindowBg`, `tkText`, `tkTextDisabled`, `tkButton`,
@@ -275,7 +283,7 @@ Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 `tkMenuSelected`, `tkStatusBar`, `tkStatusBarHotkey`, `tkTableHeader`,
 `tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`, `tkScrollBar`, `tkControlBar`,
 `tkHotkey`, `tkLabelFocused`, `tkCluster`, `tkList`, `tkButtonDefault`,
-`tkButtonShadow`, `tkWindowCloseBox`.
+`tkWindowCloseBox`.
 
 ---
 
@@ -315,7 +323,7 @@ Button/Checkbox/StatusBar/menu item that carries it.
 
 | Widget | Constructor | Notes |
 |--------|-------------|-------|
-| `ScrollBar` | `newScrollBar(axis = axV)` | passive track/thumb; `setRange(total, page, pos)`, `setPos`, `onScroll`; wheel / click-page / drag |
+| `ScrollBar` | `newScrollBar(axis = axV)` | focusable: arrows along its axis step, PgUp/PgDn page, Home/End jump, bright `■` while focused (deviation #38); TV look (deviation #35): `▲`/`▼` (`◄`/`►`) arrows step by one, `▒` rail pages, one `■` thumb drags; `setRange(total, page, pos)`, `setPos`, `onScroll`; wheel. Pure helpers `scrollGlyphs` / `thumbCell` / `arrowCells` in `core/geometry`, also used by the ListView/Table/TextView indicator column |
 | `Scroller` | `newScroller(content)` | viewport over an over-sized child; wheel + PageUp/Dn; `scrollTo`/`scrollBy`/`ensureVisible`; focus auto-scroll; `onScroll` for bar sync |
 | `Splitter` | `newSplitter(axis, first, second, pos = 0)` | two panes + draggable focusable divider (`divider()`); Alt+arrows nudge; mins from child hints |
 | `TreeView` | `newTreeView(roots = @[])` | `TreeNode{label, children, expanded, loader}`; ▸/▾, Left/Right, Enter; `onSelect`/`onActivate`; `visibleRows`, `selectedNode` |

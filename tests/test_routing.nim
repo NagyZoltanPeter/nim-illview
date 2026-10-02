@@ -365,6 +365,7 @@ suite "layout containers keep child order on click (deviation #33)":
 
     let o = b1.absOrigin
     dispatchMouse(root, press(o.x + 1, o.y))
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, o.x + 1, o.y)) # button captures until release
     check root.children[^1] == View(back) # floating window raised
     check ids(box) == boxBefore           # layout order untouched
     check root.focusedLeaf == View(b1)
@@ -372,6 +373,7 @@ suite "layout containers keep child order on click (deviation #33)":
     root.arrange(rect(0, 0, 80, 24))
     let og = g1.absOrigin
     dispatchMouse(root, press(og.x + 1, og.y))
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, og.x + 1, og.y))
     check ids(grid) == gridBefore
     check ids(box) == boxBefore
     check root.focusedLeaf == View(g1)

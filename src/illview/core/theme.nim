@@ -48,7 +48,6 @@ type
     tkCluster        # GroupBox content block (Checkbox/Radio use tkCheckbox*)
     tkList           # ListView / Table / TreeView rows (selection: tkSelection*)
     tkButtonDefault  # Button.isDefault caption
-    tkButtonShadow   # half-block button shadow, bg = the surface under it
     tkWindowCloseBox # the ■ in a window's [■]
 
   Palette* = enum
@@ -72,19 +71,19 @@ func variant*(t: Theme, p: Palette): Theme =
   if p != pDefault and t.variants[p] != nil: t.variants[p] else: t
 
 # --- TV theme ---------------------------------------------------------------
-# Turbo Vision's look on 16 colours: lightgray desktop and bars, blue windows,
-# gray dialogs, cyan clusters and lists, green buttons with a half-block
-# shadow. illwill: bgWhite = lightgray, fgWhite + bright = white,
-# fgBlack + bright = darkgray.
+# Turbo Vision's look: lightgray desktop, bars, windows and dialogs; cyan
+# clusters and lists; blue fields; green buttons. Lightgray is `bgGray`, a
+# 256-colour #a8a8a8 (deviation #37) that falls back to ANSI 47 where 256
+# colours are unavailable; fgWhite + bright = white, fgBlack + bright =
+# darkgray.
 
 proc tvShared(t: Theme) =
   ## Tokens that do not depend on the window palette.
-  t.styles[tkDesktop] = style(fgBlue, bgWhite) # ░ pattern
-  t.styles[tkMenu] = style(fgBlack, bgWhite)
+  t.styles[tkDesktop] = style(fgBlue, bgGray) # ░ pattern
+  t.styles[tkMenu] = style(fgBlack, bgGray)
   t.styles[tkMenuSelected] = style(fgBlack, bgGreen)
-  t.styles[tkStatusBar] = style(fgBlack, bgWhite)
-  t.styles[tkStatusBarHotkey] = style(fgRed, bgWhite)
-  t.styles[tkControlBar] = style(fgBlack, bgWhite)
+  t.styles[tkStatusBar] = style(fgBlack, bgGray)
+  t.styles[tkStatusBarHotkey] = style(fgRed, bgGray)
   t.styles[tkShadow] = style(fgBlack, bgBlack, bright = true)
   t.styles[tkHotkey] = style(fgYellow, bgBlack, bright = true) # fg only
   t.styles[tkButton] = style(fgBlack, bgGreen)
@@ -104,12 +103,12 @@ proc tvWindow(t: Theme, bg: BackgroundColor, text, frame: ForegroundColor) =
   t.styles[tkWindowCloseBox] = style(fgGreen, bg, bright = true)
   t.styles[tkBorder] = style(frame, bg)
   t.styles[tkGroupBox] = style(fgWhite, bg, bright = true)
-  t.styles[tkButtonShadow] = style(fgBlack, bg)
 
 proc tvControls(t: Theme, cluster, field, list: BackgroundColor,
                 fieldFg, ink: ForegroundColor) =
   ## Cluster, field and list surfaces — each must differ from the window bg.
   t.styles[tkCluster] = style(ink, cluster)
+  t.styles[tkControlBar] = style(ink, cluster) # bar = cluster colour (deviation #38)
   t.styles[tkCheckbox] = style(ink, cluster)
   t.styles[tkCheckboxFocused] = style(fgWhite, cluster, bright = true)
   t.styles[tkInput] = style(fieldFg, field, bright = fieldFg == fgWhite)
@@ -124,25 +123,27 @@ proc tvVariant(p: Palette): Theme =
   result = Theme()
   result.tvShared()
   case p
-  of pDefault, pBlue:
+  of pBlue:
     result.tvWindow(bgBlue, fgYellow, fgWhite)
-    result.tvControls(cluster = bgCyan, field = bgWhite, list = bgCyan,
+    result.tvControls(cluster = bgCyan, field = bgGray, list = bgCyan,
                       fieldFg = fgBlack, ink = fgBlack)
   of pCyan:
     result.tvWindow(bgCyan, fgBlack, fgBlack)
-    result.tvControls(cluster = bgWhite, field = bgBlue, list = bgWhite,
+    result.tvControls(cluster = bgGray, field = bgBlue, list = bgGray,
                       fieldFg = fgWhite, ink = fgBlack)
-  of pGray:
-    result.tvWindow(bgWhite, fgBlack, fgBlack)
+  of pDefault, pGray:
+    result.tvWindow(bgGray, fgBlack, fgBlack)
     result.tvControls(cluster = bgCyan, field = bgBlue, list = bgCyan,
                       fieldFg = fgWhite, ink = fgBlack)
 
 proc tvTheme*(): Theme =
-  ## Turbo Vision's visual language (deviation #34): the base table is the
-  ## blue window palette; `variants` carry cyan and gray (dialogs).
-  result = tvVariant(pBlue)
+  ## Turbo Vision's visual language (deviations #34, #35): the base table is
+  ## the gray palette — every window and dialog is lightgray, so everything
+  ## it contains contrasts with it. `variants` carry the opt-in blue and cyan
+  ## window palettes.
+  result = tvVariant(pGray)
+  result.variants[pBlue] = tvVariant(pBlue)
   result.variants[pCyan] = tvVariant(pCyan)
-  result.variants[pGray] = tvVariant(pGray)
 
 proc defaultTheme*(): Theme =
   ## The default look: `tvTheme()`.
@@ -184,5 +185,4 @@ proc classicBlueTheme*(): Theme =
   result.styles[tkCluster] = style(fgWhite, bgBlue)
   result.styles[tkList] = style(fgWhite, bgBlue)
   result.styles[tkButtonDefault] = style(fgWhite, bgGreen, bright = true)
-  result.styles[tkButtonShadow] = style(fgBlack, bgBlue)
   result.styles[tkWindowCloseBox] = style(fgWhite, bgBlue, bright = true)

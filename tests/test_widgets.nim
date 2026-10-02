@@ -47,8 +47,9 @@ suite "slots + stub bus":
     check stub.actions.len == 1
     check stub.actions[0].cmd == Command(42)
     check stub.actions[0].senderId == b.id
-    # mouse activation too
+    # mouse activation too: fires on release (deviation #36)
     dispatchMouse(root, mouseEvent(maPress, mbLeft, 1, 0))
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 1, 0))
     check clicked == 2
     check stub.actions.len == 2
 
@@ -477,20 +478,20 @@ suite "ControlBar (deviation #32)":
 
   test "left group fills, right group flush right, spacing between":
     let cb = newControlBar(lines = 2)
-    let run = newButton("Run")             # fixed 8 x 2 (face 7 + shadow)
+    let run = newButton("Run")             # fixed 8 x 1 ("> Run <" + shift cell)
     let log = newTextView()                # pref 0, stretch
     let sb = newScrollBar(axH)             # min 2, pref 8, stretch
     let r = newRadio(@["a", "b", "c", "d"]) # fixed 5 x 4
-    let ok = newButton("OK")               # fixed 7 x 2
+    let ok = newButton("OK")               # fixed 7 x 1
     cb.add run
     cb.add log
     cb.add sb
     cb.add r
     cb.addRight ok
     cb.arrange(rect(0, 0, 40, 2))
-    check ok.bounds == rect(33, 0, 7, 2)
+    check ok.bounds == rect(33, 0, 7, 1)
     # 32 cells for the left group: 8+0+8+5 pref + 3 gaps, 8 leftover split
-    check run.bounds == rect(0, 0, 8, 2)
+    check run.bounds == rect(0, 0, 8, 1)
     check log.bounds == rect(9, 0, 4, 2)
     check sb.bounds == rect(14, 0, 12, 1)
     check r.bounds == rect(27, 0, 5, 2)    # 4 rows wanted, bar has 2
@@ -574,6 +575,7 @@ suite "ControlBar (deviation #32)":
     focusNext(root)
     check root.focusedLeaf == View(b)
     dispatchMouse(root, mouseEvent(maPress, mbLeft, 36, 4))
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 36, 4))
     check clicks == 1
 
 suite "surfaces (deviation #34)":
@@ -606,9 +608,9 @@ suite "surfaces (deviation #34)":
   test "control hotkey keeps the control bg, bars keep the red hotkey":
     let b = newButton("~R~un")
     root.add b
-    let tb = renderInto(b, 8, 2) # face 7: "Run" centred at x 2
-    check tb[2, 0].bg == th.style(tkButton).bg
-    check tb[2, 0].fg == th.style(tkHotkey).fg
+    let tb = renderInto(b, 8, 1) # face 7 from x 1: "Run" centred at x 3
+    check tb[3, 0].bg == th.style(tkButton).bg
+    check tb[3, 0].fg == th.style(tkHotkey).fg
 
   test "label lights up while its linked control has focus":
     let inp = newInput()
@@ -622,41 +624,62 @@ suite "surfaces (deviation #34)":
     tb = renderInto(lbl, 4, 1)
     check tb[1, 0].fg == th.style(tkLabelFocused).fg
 
-suite "TV buttons (deviation #34)":
-  test "half-block shadow keeps the surface underneath (cluster block)":
+suite "buttons (deviation #36)":
+  test "flat face one cell in; > caption < while focused; no shadow":
     let root = newGroup()
     root.theme = defaultTheme()
-    root.bounds = rect(0, 0, 20, 6)
-    let gb = newGroupBox("")
-    gb.bounds = rect(0, 0, 20, 4)
-    let b = newButton("OK")              # face 6 + shadow column, 2 rows
-    b.bounds = rect(1, 1, 7, 2)
-    gb.add b
-    root.add gb
-    let tb = newTerminalBuffer(20, 6)
-    root.draw(initDrawContext(tb))
-    let cluster = defaultTheme().style(tkCluster).bg
-    check rowStr(tb, 1, 8) == "   OK  ▄" # cluster cell, face "  OK  ", ▄
-    check $tb[7, 1].ch == "▄" and tb[7, 1].bg == cluster
-    check $tb[2, 2].ch == "▀" and tb[2, 2].bg == cluster
-    check $tb[1, 2].ch != "▀"               # shadow starts one cell in
-    check tb[3, 1].bg == defaultTheme().style(tkButton).bg
+    root.bounds = rect(0, 0, 20, 3)
+    let b = newButton("OK")
+    check b.hint == (fixedHint(7), fixedHint(1)) # "> OK <" + shift cell
+    root.add b
+    var tb = renderInto(b, 7, 1)
+    check rowStr(tb, 0, 7) == "   OK  "
+    check tb[0, 0].bg != defaultTheme().style(tkButton).bg # the shift cell
+    check tb[1, 0].bg == defaultTheme().style(tkButton).bg
+    setFocus(root, b)
+    tb = renderInto(b, 7, 1)
+    check rowStr(tb, 0, 7) == " > OK <"
 
-  test "clicks on the shadow do not activate; setShadowed(false) is 1 row":
+  test "mouse: press shifts the face left, release over the button fires":
     let root = newGroup()
-    root.bounds = rect(0, 0, 20, 4)
+    root.bounds = rect(0, 0, 20, 3)
     var clicks = 0
     let b = newButton("OK")
     b.onClick = proc(s: Button) {.gcsafe, raises: [].} = inc clicks
     root.add b
-    b.arrange(rect(0, 0, 7, 2))
-    dispatchMouse(root, mouseEvent(maPress, mbLeft, 6, 0)) # ▄ column
-    dispatchMouse(root, mouseEvent(maPress, mbLeft, 3, 1)) # ▀ row
+    b.arrange(rect(0, 0, 7, 1))
+    dispatchMouse(root, mouseEvent(maPress, mbLeft, 3, 0))
+    check b.pressed and clicks == 0        # nothing fires on press
+    check rowStr(renderInto(b, 7, 1), 0, 7) == "> OK < " # press focuses + shifts left
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 3, 0))
+    check clicks == 1 and not b.pressed
+
+  test "mouse: dragging off before release cancels":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 3)
+    var clicks = 0
+    let b = newButton("OK")
+    b.onClick = proc(s: Button) {.gcsafe, raises: [].} = inc clicks
+    root.add b
+    b.arrange(rect(0, 0, 7, 1))
+    dispatchMouse(root, mouseEvent(maPress, mbLeft, 3, 0))
+    dispatchMouse(root, mouseEvent(maMove, mbLeft, 15, 2))
+    check not b.pressed                    # dragged off: face back
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 15, 2))
     check clicks == 0
-    dispatchMouse(root, mouseEvent(maPress, mbLeft, 3, 0)) # face
-    check clicks == 1
-    b.setShadowed(false)
-    check b.hint == (fixedHint(6), fixedHint(1))
+
+  test "keys fire at once and flash the pressed face":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 3)
+    var clicks = 0
+    let b = newButton("OK")
+    b.onClick = proc(s: Button) {.gcsafe, raises: [].} = inc clicks
+    root.add b
+    setFocus(root, b)
+    check dispatchKey(root, keyEvent(Key.Enter))
+    check clicks == 1 and b.pressed        # synchronous slot (contract)
+    waitFor sleepAsync(150.milliseconds)
+    check not b.pressed                    # flash over
 
   test "default button: bright caption; Enter not consumed fires it":
     let win = newWindow("w", rect(0, 0, 30, 10))
@@ -692,5 +715,5 @@ suite "TV buttons (deviation #34)":
     setFocus(root, wired)
     check dispatchKey(root, keyEvent(Key.Enter))
     check submitted == 1 and fired == 2   # a listened input keeps Enter
-    let tb = renderInto(ok, 7, 2)
-    check tb[2, 0].fg == defaultTheme().style(tkButtonDefault).fg
+    let tb = renderInto(ok, 7, 1)
+    check tb[3, 0].fg == defaultTheme().style(tkButtonDefault).fg # "O" 

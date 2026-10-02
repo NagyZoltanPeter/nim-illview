@@ -33,8 +33,7 @@ proc newWindow*(title: string, bounds: Rect): Window =
   result = Window(borderTitle: title, closable: true, zoomable: true)
   initView(result)
   result.bounds = bounds
-  result.border = bkSingle
-  result.palette = pBlue # TV windows are blue; dialogs switch to pGray
+  result.border = bkSingle # palette pDefault: the theme's base (gray, deviation #35)
 
 proc title*(w: Window): string =
   w.borderTitle

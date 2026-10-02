@@ -192,7 +192,7 @@ suite "decoration (iteration 2)":
     check t.outerHints().h.min == 3
 
 suite "TV chrome (deviation #34)":
-  test "close box ■ in its own colour; windows blue, dialogs gray":
+  test "close box ■ in its own colour; windows gray, blue is opt-in (deviation #35)":
     let d = newDesktop()
     let win = newWindow("W", rect(0, 0, 12, 4))
     d.add win
@@ -200,8 +200,9 @@ suite "TV chrome (deviation #34)":
     check cellStr(tb, 2, 0) == "■"
     check tb[2, 0].fg == defaultTheme().style(tkWindowCloseBox).fg
     check tb[1, 0].fg != defaultTheme().style(tkWindowCloseBox).fg # bracket
-    check win.palette == pBlue
-    check tb[3, 2].bg == defaultTheme().style(tkWindowBg).bg
-    win.palette = pGray
+    check win.palette == pDefault
+    check tb[3, 2].bg == bgGray # lightgray: the base (gray) palette
+    win.palette = pBlue
     let tb2 = render(d, 14, 6)
-    check tb2[3, 2].bg == defaultTheme().variant(pGray).style(tkWindowBg).bg
+    check tb2[3, 2].bg == defaultTheme().variant(pBlue).style(tkWindowBg).bg
+    check tb2[3, 2].bg == bgBlue

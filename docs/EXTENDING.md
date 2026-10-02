@@ -32,8 +32,7 @@ Surfaces (deviation #34): fill your whole content area with your surface
 token before drawing (`tkInput` for an editable field, `tkList` for rows,
 `tkCheckbox` for a cluster item, `tkText` for a window-surface pane), so the
 widget stands out from its parent. Draw an accelerator letter with
-`v.hotkeyStyle(host)`, and glyphs that must sit on whatever surface is
-underneath (shadows) with `dc.overlay`.
+`v.hotkeyStyle(host)`.
 
 ## 2. Broker routing (`src/illview/vocab.nim`)
 

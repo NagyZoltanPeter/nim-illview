@@ -231,7 +231,7 @@ or imperatively: `w.border = bkDouble`, `w.shadow = true`,
 ![stock dialog](docs/assets/dialog.svg)
 
 Turbo Vision's visual language is the default theme: groups, fields, lists
-and buttons each sit on their own colour, dialogs use the gray palette.
+and buttons each sit on their own colour against lightgray windows and dialogs.
 
 ![Turbo Vision's demo dialog rebuilt with stock widgets](docs/assets/tvdialog.svg)
 

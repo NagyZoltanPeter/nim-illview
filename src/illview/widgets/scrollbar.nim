@@ -13,14 +13,13 @@ type
     pos*: int              # current offset in 0 .. scrollMax
     onScroll*: proc(pos: int) {.gcsafe, raises: [].}
     dragging: bool
-    dragGrab: int          # thumb-cell offset where the drag started
 
 # scrollMax(total, page) and thumbGeom live in core/geometry (shared, pure).
 
 proc newScrollBar*(axis = axV): ScrollBar =
   result = ScrollBar(axis: axis, page: 1, total: 1)
   initView(result)
-  result.focusable = false
+  result.focusable = true # arrows / PgUp / PgDn / Home / End while focused
   if axis == axV:
     result.hint = (fixedHint(1),
                    SizeHint(min: 2, pref: 8, max: high(int), stretch: 1))
@@ -53,15 +52,35 @@ func track(sb: ScrollBar): int =
 
 method draw*(sb: ScrollBar, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = sb.styleOf(tkScrollBar)
-  let t = sb.track
-  let (ts, tl) = thumbGeom(t, sb.total, sb.page, sb.pos)
-  for i in 0 ..< t:
-    let glyph = if i >= ts and i < ts + tl: "█" else: "░"
-    if sb.axis == axV: dc.write(0, i, glyph, st)
-    else: dc.write(i, 0, glyph, st)
+  var thumb = st
+  thumb.bright = sb.isFocused # focus cue: a bright ■
+  for i, glyph in scrollGlyphs(sb.track, sb.total, sb.page, sb.pos, sb.axis):
+    let g = if glyph == "■": thumb else: st
+    if sb.axis == axV: dc.write(0, i, glyph, g)
+    else: dc.write(i, 0, glyph, g)
 
 method handleEvent*(sb: ScrollBar, ev: Event): bool {.gcsafe, raises: [].} =
-  if ev.kind != evMouse:
+  case ev.kind
+  of evKey:
+    let k = ev.ikey
+    if modAlt in k.keyMods:
+      return false # Alt-chords are window/app level (move/resize)
+    let back = if sb.axis == axV: Key.Up else: Key.Left
+    let fwd = if sb.axis == axV: Key.Down else: Key.Right
+    if k.key == back: sb.setPos(sb.pos - 1)
+    elif k.key == fwd: sb.setPos(sb.pos + 1)
+    elif k.key == Key.PageUp: sb.setPos(sb.pos - sb.page)
+    elif k.key == Key.PageDown: sb.setPos(sb.pos + sb.page)
+    elif k.key == Key.Home: sb.setPos(0)
+    elif k.key == Key.End: sb.setPos(sb.scrollMax)
+    else: return false
+    return true
+  of evFocusGained, evFocusLost:
+    sb.invalidate()
+    return false
+  of evMouse:
+    discard
+  else:
     return false
   let m = ev.imouse
   let cell = if sb.axis == axV: m.my else: m.mx
@@ -72,22 +91,26 @@ method handleEvent*(sb: ScrollBar, ev: Event): bool {.gcsafe, raises: [].} =
   of maWheelDown:
     sb.setPos(sb.pos + 1); return true
   of maPress:
-    let (ts, tl) = thumbGeom(t, sb.total, sb.page, sb.pos)
-    if cell < ts:
+    let a = arrowCells(t)
+    let th = a + thumbCell(t, sb.total, sb.page, sb.pos)
+    if a == 1 and cell == 0:
+      sb.setPos(sb.pos - 1)            # ▲ / ◄ arrow: one step
+    elif a == 1 and cell == t - 1:
+      sb.setPos(sb.pos + 1)            # ▼ / ► arrow: one step
+    elif cell < th:
       sb.setPos(sb.pos - sb.page)      # page towards the start
-    elif cell >= ts + tl:
+    elif cell > th:
       sb.setPos(sb.pos + sb.page)      # page towards the end
     else:
-      sb.dragging = true
-      sb.dragGrab = cell - ts
+      sb.dragging = true               # the ■ thumb
       sb.captureMouse()
     return true
   of maMove:
     if sb.dragging:
-      let (_, tl) = thumbGeom(t, sb.total, sb.page, sb.pos)
-      let span = max(t - tl, 1)
-      let newStart = clamp(cell - sb.dragGrab, 0, span)
-      sb.setPos(sb.scrollMax * newStart div span)
+      let a = arrowCells(t)
+      let span = max(t - 2 * a - 1, 1) # thumb positions within the rail
+      let newCell = clamp(cell - a, 0, span)
+      sb.setPos(sb.scrollMax * newCell div span)
       return true
   of maRelease:
     if sb.dragging:

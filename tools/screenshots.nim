@@ -37,7 +37,8 @@ func bgHex(c: BackgroundColor): string =
   of bgBlue: "#20409a"
   of bgMagenta: "#7c3b96"
   of bgCyan: "#178b8d"
-  of bgWhite: "#d0d0c8"
+  of bgWhite: "#e5e5e5" # true white-ish: a stray bgWhite shows in the docs
+  of bgGray: "#a8a8a8"  # TV lightgray (deviation #37)
 
 func esc(s: string): string =
   s.multiReplace(("&", "&amp;"), ("<", "&lt;"), (">", "&gt;"))
@@ -117,7 +118,7 @@ proc tvDialogScene(d: Desktop) =
   body.add lbl
   body.add inp
   let btns = newHBox(spacing = 2)
-  btns.hint = (prefHint(0, stretch = 1), fixedHint(2))
+  btns.hint = (prefHint(0, stretch = 1), fixedHint(1))
   let gap = newLabel("")
   gap.hint = (prefHint(0, stretch = 1), fixedHint(1))
   btns.add gap
