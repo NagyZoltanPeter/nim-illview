@@ -52,15 +52,15 @@ method draw*(c: Checkbox, dc: DrawContext) {.gcsafe, raises: [].} =
   let dis = c.disabled
   let st = if dis: c.styleOf(tkTextDisabled)
            else: c.styleOf(if c.isFocused: tkCheckboxFocused else: tkCheckbox)
+  dc.fill(rect(0, 0, c.contentW, c.contentH), " ", st) # cluster surface
   dc.write(0, 0, (if c.checked: "[x] " else: "[ ] ") & c.caption, st)
   if c.hlCol >= 0 and not dis: # box prefix "[x] " is 4 cells wide
-    dc.write(4 + c.hlCol, 0, $c.caption.runeAtPos(c.hlCol),
-             c.styleOf(tkStatusBarHotkey))
+    dc.write(4 + c.hlCol, 0, $c.caption.runeAtPos(c.hlCol), c.hotkeyStyle(st))
 
 method handleEvent*(c: Checkbox, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
-    if ev.ikey.key in [Key.Space, Key.Enter]:
+    if ev.ikey.key == Key.Space: # Enter goes to the default button (TV)
       c.toggle()
       return true
   of evMouse:

@@ -586,3 +586,56 @@ would have to declare it).
 
 Tests: `tests/test_routing.nim` (box, grid and ControlBar children keep their
 order on press; the enclosing floating window still raises).
+
+## 34. Turbo Vision's visual language: surfaces, palettes, shadowed buttons
+
+The default look takes Turbo Vision's *visual representation*, not its exact
+palette: every control sits on a **surface** whose background differs from the
+surface around it. Groups pop out of the window by colour (no frame needed),
+input fields are always distinguishable, buttons read as pressable blocks.
+`tests/test_theme.nim` enforces it for every palette of the default theme:
+field, cluster, list and button backgrounds never equal the window background,
+and a field never equals a cluster.
+
+- **Themes**: `defaultTheme()` is now `tvTheme()` (lightgray desktop `░` and
+  bars, blue windows, gray dialogs, cyan clusters and lists, green buttons).
+  The previous table is `classicBlueTheme()`; it does not satisfy the surface
+  rule and has no variants. Seven tokens were added (`tkHotkey`,
+  `tkLabelFocused`, `tkCluster`, `tkList`, `tkButtonDefault`,
+  `tkButtonShadow`, `tkWindowCloseBox`); no token was removed or renamed.
+  Fields reuse `tkInput*`, cluster items `tkCheckbox*`, list selection
+  `tkSelection*`.
+- **Palettes**: `View.palette` + `Theme.variants` give TV's per-window colour
+  sets (blue, cyan, gray) without a second theme object per window.
+  `effectiveTheme` takes the nearest explicit theme and switches it to the
+  variant named by the nearest palette at or below it. `newWindow` sets
+  `pBlue`, stock dialogs `pGray`. In the blue palette a field is black on
+  lightgray (a cyan field would match the clusters and lists).
+- **fg-only tokens**: `tkHotkey` replaces the controls' use of
+  `tkStatusBarHotkey`, whose white background showed through inside green
+  buttons and blue windows; `hotkeyStyle(v, host)` keeps the host's bg.
+  `tkButtonShadow` is drawn with the new `dc.overlay`, which keeps the cell's
+  bg, so a shadow is correct on a window, a cluster block or a ControlBar
+  without knowing which.
+- **Widgets fill their surface**: Checkbox, Radio, TriStateCheckBox fill their
+  arranged width; ListView, Table, TreeView, Editor, TextView fill their
+  content. GroupBox fills its content with `tkCluster` and is **borderless by
+  default**, its title a heading row above the block (`clientRect` and
+  `measure` account for the row); `border = bkSingle` restores the frame.
+- **Buttons**: caption centred, no `[ ]`/`▶ ◀`, focus shown by a bright
+  caption, half-block shadow (`▄` right, `▀` below) — **+1 column and +1 row**
+  per button (`shadowed`, `setShadowed(false)` for the flat 1-row button; no
+  shadow is drawn when the button is arranged 1 row tall). Shadow cells don't
+  activate. `isDefault`: bright cyan caption, and an Enter that reaches the
+  enclosing `Window` unconsumed fires it (`Window.defaultButton`).
+- **Enter follows TV** so the default button is reachable: Checkbox and
+  TriStateCheckBox toggle on Space only; Input consumes Enter only when
+  something may listen for submit — `onSubmit`, a `command`, or a
+  materialised instance route (`hasBrokerCtx`; brokers 3.4.0 has no listener
+  query, so "someone asked for the route" is the conservative stand-in).
+  Lists and Editor keep Enter.
+
+Tests: `tests/test_theme.nim` (invariants, palette resolution, hotkey style),
+`tests/test_widgets.nim` (surface fills, label focus, borderless GroupBox,
+button shadow / inert shadow / default-button Enter paths),
+`tests/test_render_snapshot.nim` (close box, window vs dialog palette).

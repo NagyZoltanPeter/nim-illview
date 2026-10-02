@@ -50,6 +50,7 @@ proc scrollBy*(tv: TextView, delta: int) =
 method draw*(tv: TextView, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = tv.styleOf(tkText)
   let start = tv.effectiveTop
+  dc.fill(rect(0, 0, tv.contentW, tv.contentH), " ", st) # own window surface
   for y in 0 ..< max(tv.contentH, 0):
     let idx = start + y
     if idx >= tv.lines.len:

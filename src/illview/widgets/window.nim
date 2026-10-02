@@ -9,6 +9,7 @@
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events]
+import ./button
 
 const
   MinW = 8
@@ -33,6 +34,7 @@ proc newWindow*(title: string, bounds: Rect): Window =
   initView(result)
   result.bounds = bounds
   result.border = bkSingle
+  result.palette = pBlue # TV windows are blue; dialogs switch to pGray
 
 proc title*(w: Window): string =
   w.borderTitle
@@ -65,8 +67,21 @@ method drawOverlay*(w: Window, dc: DrawContext) {.gcsafe, raises: [].} =
   # title-row chrome (plan-4 P21): close box at the left, zoom box at the right
   if w.closable and w.bounds.w >= 6:
     dc.write(1, 0, "[■]", w.borderStyle)
+    dc.write(2, 0, "■", w.styleOf(tkWindowCloseBox))
   if w.zoomable and w.dock == dkNone and w.bounds.w >= 10:
     dc.write(w.bounds.w - 4, 0, (if w.zoomed: "[↓]" else: "[↑]"), w.borderStyle)
+
+proc defaultButton*(g: Group): Button =
+  ## First visible, enabled `isDefault` Button in `g`'s subtree, else nil.
+  for c in g.children:
+    if not c.visible or not c.enabled:
+      continue
+    if c of Button and Button(c).isDefault:
+      return Button(c)
+    if c of Group:
+      let d = defaultButton(Group(c))
+      if d != nil:
+        return d
 
 func floating(w: Window): bool =
   w.dock == dkNone # docked windows are layout-owned: not movable/resizable
@@ -172,6 +187,13 @@ method handleEvent*(w: Window, ev: Event): bool {.gcsafe, raises: [].} =
       else:
         w.moveTo(w.bounds.x + dx, w.bounds.y + dy)
       return true
+    if k.key == Key.Enter and k.keyMods == {}:
+      # Enter the focused widget did not consume fires the default button
+      # (TV bfDefault, deviation #34)
+      let d = w.defaultButton()
+      if d != nil:
+        d.activate()
+        return true
   else:
     discard
   false

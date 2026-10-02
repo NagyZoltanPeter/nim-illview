@@ -65,6 +65,7 @@ type
     enabled*: bool
     focusable*: bool
     theme*: Theme # nil = inherit from parent chain
+    palette*: Palette # pDefault = inherit; else this subtree uses theme.variant(palette)
     border*: BorderKind
     borderTitle*: string
     shadow*: bool
@@ -193,10 +194,16 @@ func isFocused*(v: View): bool =
   true
 
 func effectiveTheme*(v: View): Theme =
+  ## Nearest explicit `theme`, switched to the variant named by the nearest
+  ## `palette` at or below it (deviation #34). An explicit theme closer to `v`
+  ## than any palette wins as-is.
   var cur = v
+  var pal = pDefault
   while cur != nil:
+    if pal == pDefault:
+      pal = cur.palette
     if cur.theme != nil:
-      return cur.theme
+      return cur.theme.variant(pal)
     cur = cur.parent
   nil
 
@@ -215,6 +222,14 @@ proc styleOf*(v: View, tok: ThemeToken): Style =
       result.fg = o.focusFg
     if o.focusBg != bgNone:
       result.bg = o.focusBg
+
+proc hotkeyStyle*(v: View, host: Style): Style =
+  ## Accelerator letter drawn over `host`: only tkHotkey's fg/bright apply,
+  ## so the letter keeps the control's own background (deviation #34).
+  let h = v.styleOf(tkHotkey)
+  result = host
+  result.fg = h.fg
+  result.bright = h.bright
 
 # --- base methods ------------------------------------------------------------
 

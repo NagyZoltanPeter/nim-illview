@@ -70,9 +70,10 @@ proc activate*(l: ListView) =
   if l.hasBrokerCtx: Activated.emit(l.brokerCtx, Activated(selected: l.selected))
 
 method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
-  let normal = l.styleOf(tkText)
+  let normal = l.styleOf(tkList)
   let sel = l.styleOf(if l.isFocused: tkSelectionFocused else: tkSelection)
   let bar = l.showScrollbar and l.items.len > l.contentH
+  dc.fill(rect(0, 0, l.contentW, l.contentH), " ", normal) # list surface
   let rowW = if bar: max(l.contentW - 1, 0) else: l.contentW
   for y in 0 ..< max(l.contentH, 0):
     let idx = l.top + y

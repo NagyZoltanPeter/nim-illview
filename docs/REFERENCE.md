@@ -99,7 +99,11 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 
 Widget-specific extras:
 
-- **Input**: `text`, `setText(s)`, `insertText(s)`, `cursor`, `scrollX`
+- **Input**: `text`, `setText(s)`, `insertText(s)`, `cursor`, `scrollX`; Enter is consumed only when something may listen for submit (`onSubmit`, a `command`, or an instance route anyone asked for), else it reaches the window's default button (deviation #34)
+- **Button**: caption centred on the face, half-block shadow (`shadowed = true`: +1 column, +1 row; `setShadowed(false)` for a flat 1-row button; no shadow when arranged 1 row tall); `isDefault` = bright caption + fired by an unconsumed Enter in its Window; clicks on the shadow do nothing (deviation #34)
+- **Checkbox / TriStateCheckBox**: toggle on Space (and mouse / hotkey); Enter goes to the default button (deviation #34)
+- **GroupBox**: borderless by default — title as a heading row above a `tkCluster` block; `border = bkSingle` puts the title back in a frame (deviation #34)
+- **Label**: drawn with `tkLabelFocused` while its `linkTo` control has focus
 - **Editor**: `text`, `setText(s)`, `lines`, `curLine`/`curCol`, `moveCursor`
 - **ListView**: `setItems(items)`, `select(i)`, `activate()`, `ensureVisible()`, `top`
 - **Table**: `tableColumn(title, hint)`, `setRows`, `addRow`, `select(i)`, `activate()`; column widths distribute via layout hints
@@ -110,7 +114,7 @@ Widget-specific extras:
 - **StatusBar**: `statusItem(label, command)`, `setText(s)`
 - **ControlBar**: a `Group`, docked `dkBottom`, height `clamp(lines, 1, 3)` (`setLines(n)`). Children in one row: left group (`add`) gets the remaining width via `distribute`; right group (`addRight(v)`, or `alignRight(v)` for an existing child) is packed at preferred widths against the right edge and wins when space is short. Children are clipped to the bar height; `View.align` places them vertically. Background `tkControlBar`. As a `{.view.}` base type: zero-init (`lines = 0` = 1), set `{.dock: dkBottom.}`, no layout pragma, call `alignRight` after `mount` (deviation #32)
 - **MenuBar**: `menu(title, items)`, `menuItem(label, command)`, `openMenu(i)`; popups run as modals
-- **Window**: `title=`, `isActive`; drag title to move, `◢` corner / Alt+Arrows to move, Alt+Shift+Arrows to resize (dkNone windows only)
+- **Window**: `title=`, `isActive`, `palette` (`pBlue` default), `defaultButton()`; drag title to move, `◢` corner / Alt+Arrows to move, Alt+Shift+Arrows to resize (dkNone windows only)
 
 Programmatic setters (`setText`, `setValue`, signal application, `set<Field>`
 writers) never fire change slots and never emit vocab events — only
@@ -239,12 +243,39 @@ nowhere, nothing is recorded) until you set `app.bus = newBrokersBus()`.
 Resolution order: theme token → per-view `styleOv` → focus override
 (plan-2 D2). Subtree theming via `View.theme`.
 
+**Surfaces** (deviation #34): `defaultTheme()` = `tvTheme()`, Turbo Vision's
+visual language. Every control sits on a surface whose background differs
+from the one around it — enforced by `tests/test_theme.nim` for every palette.
+
+| Surface | Widgets | Tokens | blue window | gray dialog |
+|---|---|---|---|---|
+| desktop | Desktop (`░`) | `tkDesktop` | blue on lightgray | — |
+| bar | MenuBar, StatusBar, ControlBar | `tkMenu*`, `tkStatusBar*`, `tkControlBar` | black on lightgray, red hotkeys | — |
+| window | Window bg, Label, TextView | `tkWindowBg`, `tkText`, `tkLabelFocused`, frame/title tokens | yellow on blue | black on lightgray |
+| cluster | Checkbox, Radio, TriStateCheckBox, GroupBox content | `tkCheckbox*`, `tkCluster` | black on cyan | black on cyan |
+| field | Input, Editor | `tkInput*` | black on lightgray | white on blue |
+| list | ListView, Table, TreeView | `tkList`, `tkSelection*`, `tkTableHeader`, `tkScrollBar` | black on cyan | black on cyan |
+| button | Button | `tkButton*`, `tkButtonDefault`, `tkButtonShadow` | black on green | black on green |
+
+**Palettes**: `View.palette` (`pDefault`, `pBlue`, `pCyan`, `pGray`) switches a
+subtree to `theme.variant(p)` (`Theme.variants`); the nearest palette wins,
+an explicit `View.theme` closer to the view wins as-is. `newWindow` sets
+`pBlue`; stock dialogs set `pGray`. `classicBlueTheme()` is the old
+all-blue table (no variants).
+
+**fg-only tokens**: `tkHotkey` (accelerator letter inside controls, via
+`v.hotkeyStyle(host)` — keeps the control's bg) and `tkButtonShadow` (drawn
+with `dc.overlay`, which keeps the cell's bg — the shadow sits on whatever
+surface is underneath). Bars and menus keep `tkStatusBarHotkey`.
+
 Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 `tkWindowTitle`, `tkWindowBg`, `tkText`, `tkTextDisabled`, `tkButton`,
 `tkButtonFocused`, `tkCheckbox`, `tkCheckboxFocused`, `tkInput`,
 `tkInputFocused`, `tkSelection`, `tkSelectionFocused`, `tkMenu`,
 `tkMenuSelected`, `tkStatusBar`, `tkStatusBarHotkey`, `tkTableHeader`,
-`tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`, `tkScrollBar`, `tkControlBar`.
+`tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`, `tkScrollBar`, `tkControlBar`,
+`tkHotkey`, `tkLabelFocused`, `tkCluster`, `tkList`, `tkButtonDefault`,
+`tkButtonShadow`, `tkWindowCloseBox`.
 
 ---
 

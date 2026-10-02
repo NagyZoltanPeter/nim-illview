@@ -32,7 +32,10 @@ method triggerHotkey*(l: Label, scope: Group) {.gcsafe, raises: [].} =
     setFocus(scope, l.linkTo)
 
 method draw*(l: Label, dc: DrawContext) {.gcsafe, raises: [].} =
-  let base = l.styleOf(if l.enabled: tkText else: tkTextDisabled)
+  let tok = if not l.enabled: tkTextDisabled
+            elif l.linkTo != nil and l.linkTo.isFocused: tkLabelFocused # TV TLabel
+            else: tkText
+  let base = l.styleOf(tok)
   dc.write(0, 0, l.text, base)
   if l.hlCol >= 0 and l.enabled:
-    dc.write(l.hlCol, 0, $l.text.runeAtPos(l.hlCol), l.styleOf(tkStatusBarHotkey))
+    dc.write(l.hlCol, 0, $l.text.runeAtPos(l.hlCol), l.hotkeyStyle(base))

@@ -472,3 +472,45 @@ TUI, so wait for the resume key on a **dedicated tty fd** with a private
 `O_NONBLOCK` — never on fd 0, whose flags are shared with stdout (see
 `terminalMode` in ex14). For foreign code writing straight to fd 2, redirect
 via `pipe()` + `dup2` and drain with a chronos reader instead.
+
+## 24. A dialog the Turbo Vision way
+
+Groups pop out by colour, no frame needed; the field and the buttons are
+obvious at a glance (deviation #34). `docs/assets/tvdialog.svg` is exactly
+this code (`tools/screenshots.nim` `tvDialogScene`).
+
+```nim
+let dlg = newWindow("Demo Dialog", rect(12, 2, 46, 15))
+dlg.palette = pGray                       # dialogs use the gray palette
+let body = newVBox(spacing = 1)
+body.dock = dkFill
+body.padding = 1
+
+let cheeses = newGroupBox("Cheeses")      # borderless: heading + cyan block
+cheeses.hint = (fixedHint(16), fixedHint(3))
+let cb = newVBox()
+cb.dock = dkFill
+cb.add newCheckbox("~H~varti")
+cb.add newCheckbox("~J~arlsberg", checked = true)
+cheeses.add cb
+body.add cheeses
+
+let lbl = newLabel("~D~elivery Instructions")
+let inp = newInput("Leave it on the doorstep")
+lbl.linkTo = inp                          # label lights up while inp is focused
+body.add lbl
+body.add inp
+
+let btns = newHBox(spacing = 2)           # buttons are 2 rows: face + shadow
+btns.hint = (prefHint(0, stretch = 1), fixedHint(2))
+let ok = newButton("O~K~")
+ok.isDefault = true                       # Enter anywhere in the dialog
+btns.add ok
+btns.add newButton("~C~ancel")
+body.add btns
+dlg.add body
+```
+
+Want a frame around a group after all? `cheeses.border = bkSingle`. A flat,
+1-row button: `b.setShadowed(false)`. The old all-blue look:
+`newApp(theme = classicBlueTheme())`.

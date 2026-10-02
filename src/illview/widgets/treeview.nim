@@ -94,8 +94,9 @@ proc toParent(t: TreeView) =
 
 method draw*(t: TreeView, dc: DrawContext) {.gcsafe, raises: [].} =
   let v = t.visibleRows
-  let normal = t.styleOf(tkText)
+  let normal = t.styleOf(tkList)
   let sel = t.styleOf(if t.isFocused: tkSelectionFocused else: tkSelection)
+  dc.fill(rect(0, 0, t.contentW, t.contentH), " ", normal) # list surface
   for y in 0 ..< max(t.contentH, 0):
     let idx = t.top + y
     if idx >= v.len: break

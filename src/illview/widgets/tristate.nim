@@ -89,17 +89,17 @@ method draw*(c: TriStateCheckBox, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = if dis: c.styleOf(tkTextDisabled)
            else: c.styleOf(if c.isFocused: tkCheckboxFocused else: tkCheckbox)
   let mark = $c.marks[c.state]
+  dc.fill(rect(0, 0, c.contentW, c.contentH), " ", st) # cluster surface
   dc.write(0, 0, "[" & mark & "] " & c.caption, st)
   if not dis:
     dc.write(1, 0, mark, merged(st, c.markStyle[c.state], c.isFocused))
     if c.hlCol >= 0: # box prefix "[x] " is 4 cells wide
-      dc.write(4 + c.hlCol, 0, $c.caption.runeAtPos(c.hlCol),
-               c.styleOf(tkStatusBarHotkey))
+      dc.write(4 + c.hlCol, 0, $c.caption.runeAtPos(c.hlCol), c.hotkeyStyle(st))
 
 method handleEvent*(c: TriStateCheckBox, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
-    if ev.ikey.key in [Key.Space, Key.Enter]:
+    if ev.ikey.key == Key.Space: # Enter goes to the default button (TV)
       c.cycle()
       return true
   of evMouse:

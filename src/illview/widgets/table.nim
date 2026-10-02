@@ -122,9 +122,10 @@ method draw*(t: Table, dc: DrawContext) {.gcsafe, raises: [].} =
     return
   let widths = t.columnWidths()
   let header = t.styleOf(tkTableHeader)
-  let normal = t.styleOf(tkText)
+  let normal = t.styleOf(tkList)
   let sel = t.styleOf(if t.isFocused: tkSelectionFocused else: tkSelection)
   let cw = t.bodyW
+  dc.fill(rect(0, 0, t.contentW, t.contentH), " ", normal) # list surface
   dc.fill(rect(0, 0, cw, 1), " ", header)
   var x = 0
   for i, col in t.columns:

@@ -14,6 +14,7 @@ const
   cmdAbout = Command(102)
   cmdMenu = Command(110)
   cmdRun = Command(120)
+  cmdDialog = Command(130)
 
 # tier-2 demo: a bus that logs every UiAction and reacts to commands
 type GalleryBus = ref object of EventBus
@@ -29,13 +30,17 @@ method publish(bus: GalleryBus, a: UiAction) {.gcsafe, raises: [].} =
     bus.mb.openMenu(0)
   elif a.cmd == cmdAbout:
     bus.log.addLine "bus: illview widget gallery (Phase 4)"
+  elif a.cmd == cmdDialog: # stock dialogs use the gray TV palette
+    discard messageBox(bus.app, "Gray dialog",
+      "Dialogs switch to the gray palette", @[("~O~K", cmOk), ("~C~ancel", cmCancel)])
 
 proc main() {.async.} =
   let app = newApp()
   let log = newTextView(maxLines = 200)
 
   let mb = newMenuBar(@[
-    menu("File", @[menuItem("Run", cmdRun), menuItem("Quit", cmdQuit)]),
+    menu("File", @[menuItem("Run", cmdRun), menuItem("Dialog", cmdDialog),
+                   menuItem("Quit", cmdQuit)]),
     menu("Help", @[menuItem("About", cmdAbout)])])
   app.bus = GalleryBus(app: app, log: log, mb: mb)
   app.desktop.add mb
@@ -59,7 +64,7 @@ proc main() {.async.} =
   form.add inp
   # group-box around the option widgets (Phase 8)
   let opts = newGroupBox("options")
-  opts.hint = (prefHint(0, stretch = 1), fixedHint(6))
+  opts.hint = (prefHint(0, stretch = 1), fixedHint(6)) # + heading row
   let optsBox = newVBox()
   optsBox.dock = dkFill
   let chk = newCheckbox("enable feature")

@@ -28,6 +28,13 @@ Services reach the App only through closures on the root group:
 
 Method pragma contract: `{.gcsafe, raises: [].}` on every override.
 
+Surfaces (deviation #34): fill your whole content area with your surface
+token before drawing (`tkInput` for an editable field, `tkList` for rows,
+`tkCheckbox` for a cluster item, `tkText` for a window-surface pane), so the
+widget stands out from its parent. Draw an accelerator letter with
+`v.hotkeyStyle(host)`, and glyphs that must sit on whatever surface is
+underneath (shadows) with `dc.overlay`.
+
 ## 2. Broker routing (`src/illview/vocab.nim`)
 
 - `w.brokerCtx` — the widget's instance route, allocated on first use

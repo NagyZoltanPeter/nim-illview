@@ -230,6 +230,11 @@ or imperatively: `w.border = bkDouble`, `w.shadow = true`,
 
 ![stock dialog](docs/assets/dialog.svg)
 
+Turbo Vision's visual language is the default theme: groups, fields, lists
+and buttons each sit on their own colour, dialogs use the gray palette.
+
+![Turbo Vision's demo dialog rebuilt with stock widgets](docs/assets/tvdialog.svg)
+
 Every interactive widget has typed closure slots (`onClick`, `onChange`,
 `onSubmit`, `onFocus`/`onBlur`, …) fired synchronously inside dispatch, plus
 an optional broker `command`. Alt+letter accelerators (`~R~un`), a per-key

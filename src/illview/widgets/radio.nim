@@ -47,6 +47,8 @@ proc select*(r: Radio, i: int) =
   r.invalidate()
 
 method draw*(r: Radio, dc: DrawContext) {.gcsafe, raises: [].} =
+  # cluster surface across the whole arranged width (deviation #34)
+  dc.fill(rect(0, 0, r.contentW, r.contentH), " ", r.styleOf(tkCheckbox))
   for i, it in r.items:
     let focusedRow = r.isFocused and i == r.selected
     let st = r.styleOf(if focusedRow: tkCheckboxFocused else: tkCheckbox)

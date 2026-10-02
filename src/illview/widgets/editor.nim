@@ -125,8 +125,9 @@ proc insertText*(e: Editor, s: string) =
       e.insertRune(r)
 
 method draw*(e: Editor, dc: DrawContext) {.gcsafe, raises: [].} =
-  let st = e.styleOf(tkText)
+  let st = e.styleOf(if e.isFocused: tkInputFocused else: tkInput) # field surface
   e.ensureVisible()
+  dc.fill(rect(0, 0, e.contentW, e.contentH), " ", st)
   for y in 0 ..< max(e.contentH, 0):
     let idx = e.scrollY + y
     if idx > e.lines.high:
