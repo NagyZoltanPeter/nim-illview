@@ -514,3 +514,34 @@ dlg.add body
 Want a frame around a group after all? `cheeses.border = bkSingle`. The old
 all-blue look:
 `newApp(theme = classicBlueTheme())`.
+
+## 25. Windows as tabs
+
+A `TabView` embeds windows frameless and switches between them; each page
+keeps its state and its last-focused widget (deviation #39). This is
+`examples/ex15_tabs.nim`, trimmed:
+
+```nim
+let tabs = newTabView()
+tabs.dock = dkFill
+
+let form = newWindow("Form", rect(0, 0, 0, 0))   # title = tab label
+form.closable = false                            # no × on its tab
+form.add buildForm()
+let logw = newWindow("Log", rect(0, 0, 0, 0))
+logw.palette = pBlue                             # a blue page
+logw.add log
+
+tabs.addPage(form)
+tabs.addPage(logw)                               # closable: × calls close()
+tabs.onSelect = proc(t: TabView) {.gcsafe, raises: [].} =
+  {.cast(gcsafe).}: log.addLine "tab " & $t.selected
+win.add tabs
+```
+
+Switch with Ctrl+PgUp / Ctrl+PgDn, a click, or Tab to the strip and the
+arrows. `tabs.select(i)` and `SetSelected.signal(tabs.brokerCtx, …)` switch
+without firing `onSelect`. `tabs.removePage(w)` hands the window back
+(framed again, not disposed) — add it to the desktop to float it.
+Declaratively, `{.child.}` windows of a `{.view.}` TabView subtype become the
+pages in declaration order.

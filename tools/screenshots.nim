@@ -131,6 +131,41 @@ proc tvDialogScene(d: Desktop) =
   d.add dlg
   setFocus(d, inp)
 
+# --- scene: tab container (deviation #39) --------------------------------------
+
+proc tabsScene(d: Desktop) =
+  ## ex15: a TabView holding three frameless windows; the Log page is blue.
+  d.add newStatusBar(@[statusItem("Ctrl+PgUp/PgDn Switch", Command(1)),
+                       statusItem("Esc Quit", Command(2))])
+  let win = newWindow("tabs", rect(0, 0, 0, 0))
+  win.dock = dkFill
+  let tabs = newTabView()
+  tabs.dock = dkFill
+  let form = newWindow("Form", rect(0, 0, 0, 0))
+  form.closable = false
+  let fl = newFormLayout(spacing = 1)
+  fl.dock = dkFill
+  fl.padding = 1
+  fl.add newLabel("Name")
+  let name = newInput("nim-illview")
+  fl.add name
+  fl.add newLabel("Port")
+  fl.add newInput("8000")
+  fl.add newLabel("TLS")
+  fl.add newCheckbox("enabled", checked = true)
+  form.add fl
+  let lst = newWindow("List", rect(0, 0, 0, 0))
+  lst.closable = false
+  lst.add newLabel("")
+  let logw = newWindow("Log", rect(0, 0, 0, 0))
+  logw.palette = pBlue
+  tabs.addPage(form)
+  tabs.addPage(lst)
+  tabs.addPage(logw)
+  win.add tabs
+  d.add win
+  setFocus(d, name)
+
 proc shoot(name: string, w, h: int, build: proc(d: Desktop)) =
   let d = newDesktop()
   build(d)
@@ -371,5 +406,6 @@ when isMainModule:
   shoot("features", 80, 22, featuresScene)
   shoot("dialog", 50, 12, dialogScene)
   shoot("tvdialog", 70, 20, tvDialogScene)
+  shoot("tabs", 60, 14, tabsScene)
   shoot("netviz", 80, 15, netvizScene)
   shoot("showcase", 84, 24, showcaseScene)

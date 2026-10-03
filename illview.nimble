@@ -19,12 +19,13 @@ const testFiles = ["test_decoder", "test_layout", "test_render_snapshot",
                    "test_bindings", "test_ctx_vocab", "test_scrollbar", "test_scroller",
                    "test_splitter", "test_desktop", "test_hotkey", "test_menu",
                    "test_validators", "test_dialogs", "test_tree", "test_app",
-                   "test_theme"]
+                   "test_theme", "test_tabview"]
 
 const exampleFiles = ["ex00_echo", "ex01_loop", "ex02_windows", "ex03_layout",
                       "ex04_widgets_gallery", "ex05_declarative", "ex06_netviz",
                       "ex07_styling", "ex09_bindings", "ex10_instance_ctx",
-                      "ex11_scroller", "ex12_splitter", "ex13_showcase", "ex14_logpane"]
+                      "ex11_scroller", "ex12_splitter", "ex13_showcase", "ex14_logpane",
+                      "ex15_tabs"]
 
 proc memoryManager(): string =
   ## ILLVIEW_MM=refc|orc selects the memory manager for `test`/`examples`

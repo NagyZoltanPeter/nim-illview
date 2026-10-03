@@ -8,7 +8,7 @@ import chronos
 import ../src/illview/core/[geometry, events, bus, view, routing]
 import ../src/illview/layout/layout
 import ../src/illview/widgets/[window, label, button, checkbox, input, textview,
-                               controlbar]
+                               controlbar, tabview]
 import ../src/illview/dsl/pragmas
 import ../src/illview/dsl/mount
 import ../src/illview/vocab
@@ -306,3 +306,21 @@ suite "mount(T) ControlBar (deviation #32)":
   test "{.child.}: ControlBar uses createView (newControlBar)":
     let s = mount(BarScreen)
     check s.bar.lines == 1 and s.bar.spacing == 1
+
+# --- TabView via mount (deviation #39) ------------------------------------------
+
+type
+  Pages {.view.} = ref object of TabView
+    general {.child, caption: "General".}: Window
+    advanced {.child, caption: "Advanced".}: Window
+
+suite "mount(T) TabView (deviation #39)":
+  test "{.child.} windows become frameless pages in declaration order":
+    let p = mount(Pages)
+    p.arrange(rect(0, 0, 40, 10))
+    check p.pages.len == 2
+    check p.pages[0] == View(p.general) and p.pages[1] == View(p.advanced)
+    check not p.general.framed and not p.advanced.framed
+    check p.general.visible and not p.advanced.visible
+    p.select(1)
+    check p.page == View(p.advanced)

@@ -93,6 +93,8 @@ method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
   of evKey:
     if modAlt in ev.ikey.keyMods:
       return false # Alt-chords are window/app level (move/resize)
+    if ev.ikey.isTabSwitch:
+      return false # Ctrl+PgUp/PgDn switch tabs (deviation #39)
     let page = max(l.contentH, 1)
     case ev.ikey.key
     of Key.Up: l.select(l.selected - 1)

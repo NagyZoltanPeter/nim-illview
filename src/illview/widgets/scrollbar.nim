@@ -65,6 +65,8 @@ method handleEvent*(sb: ScrollBar, ev: Event): bool {.gcsafe, raises: [].} =
     let k = ev.ikey
     if modAlt in k.keyMods:
       return false # Alt-chords are window/app level (move/resize)
+    if k.isTabSwitch:
+      return false # Ctrl+PgUp/PgDn switch tabs (deviation #39)
     let back = if sb.axis == axV: Key.Up else: Key.Left
     let fwd = if sb.axis == axV: Key.Down else: Key.Right
     if k.key == back: sb.setPos(sb.pos - 1)

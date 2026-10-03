@@ -739,3 +739,50 @@ ControlBar, ex11's scroller bar).
 
 Tests: `tests/test_scrollbar.nim` (vertical/horizontal keys, Alt pass-through,
 Tab focus + routed keys), `tests/test_theme.nim` invariants.
+
+## 39. TabView: windows as tabs
+
+`TabView` (`widgets/tabview.nim`) is a `Group` whose children are its pages,
+plus one private, focusable `TabStrip` child created lazily (so a `mount`
+zero-initialised subtype works and its `{.child.}` fields become pages in
+declaration order). The strip is one row on top; the selected page fills the
+rest; every other page is `visible = false`. That reuses what routing already
+does for hidden views — Tab traversal, hit-testing and hotkey lookup skip
+them — while their state, broker wiring and focus memory (`Group.focused`)
+survive. `keepsChildOrder = true`: child order is tab order (deviation #33).
+
+- **Embedded windows** get the new `Window.framed = false`: no border (so
+  `clientRect` is the whole page), no `[■]`/`[↑]`, no `◢`. The title is the
+  tab label (re-read each draw); the window keeps its palette, so a `pBlue`
+  window gives a blue page. `removePage` restores the frame and detaches
+  without disposing.
+- **Selection by identity**: a page removed behind the TabView's back (a
+  Window's default `close()` detaches and disposes it) is reconciled on the
+  next arrange; removing an earlier page keeps the selected page selected,
+  removing the selected one hands over to its neighbour.
+- **Focus**: switching moves focus into the new page — its remembered widget,
+  else its first focusable — but only when focus was inside the TabView. A
+  page with nothing focusable parks focus on the strip; that fallback does
+  not stick (switching to a page with controls moves focus into it), while a
+  strip the user focused (Tab, click, strip keys) keeps focus.
+- **`canFocus` now requires every ancestor to be visible** (`routing.nim`).
+  Before, a `FocusMe` signal could focus a widget on a hidden page. Existing
+  focus paths only ever target visible subtrees, so their behaviour is
+  unchanged (full suite green before TabView was added).
+- **Keys**: Ctrl+PgUp/PgDn bubble to the TabView from anywhere inside; the
+  strip takes Left/Right/Home/End. The paging widgets (ListView, Table,
+  TextView, Editor, Scroller, ScrollBar) used to treat Ctrl+PgUp/PgDn as
+  plain PgUp/PgDn and swallow it — found driving ex15 in a real pty with a
+  focused list — so they now let it bubble (`events.isTabSwitch`); plain
+  PgUp/PgDn still page. Alt+1..9 stays
+  the Desktop's. Events: `onSelect` + `SelectionChanged` on the user path;
+  `select(i)` and `SetSelected` are programmatic (deviation #15). DSL:
+  `upSelected`, `bindSlot`/`bindValueSlot` → `onSelect`.
+
+Out of scope: dragging a tab out into a floating window, reordering tabs by
+drag, a strip anywhere but on top.
+
+Tests: `tests/test_tabview.nim` (pages, hidden-page reachability, focus memory
+and fallback, Ctrl+PgUp/PgDn wrap, strip keys and clicks, `×` close,
+`removePage`, selection by identity, overflow, events, no reorder),
+`tests/test_mount.nim` (`{.view.}` subtype).

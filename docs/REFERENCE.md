@@ -92,6 +92,7 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 | `Sparkline` | `newSparkline(capacity = 40, maxValue = 0)` | — | — | — | `SetProgress` (pushes a sample) | — |
 | `StatusBar` | `newStatusBar(items)` | — | — | — | — | per-item on click |
 | `ControlBar` | `newControlBar(lines = 1, spacing = 1)` | — | — | — | — | — (children publish their own) |
+| `TabView` | `newTabView()` | `selected: int` | `onSelect` | `SelectionChanged` | `SetSelected` | — |
 | `MenuBar` | `newMenuBar(menus)` | — | — | — | — | per-item on activate |
 | `Window` | `newWindow(title, bounds)` | — | — | — | — | — |
 | `GroupBox` | `newGroupBox(title)` | — | — | — | — | — |
@@ -112,6 +113,7 @@ Widget-specific extras:
 - **NetVizWidget**: `addEvent(topic, payload)` — per-topic counters + log line
 - **TriStateCheckBox**: user path cycles `csUnchecked → csChecked → csIntermediate → csUnchecked`; `setState(s)` (programmatic); `setMarks(unchecked, checked, intermediate: Rune)` — the one cell between the brackets, default `' '`/`'x'`/`'?'`; `setMarkStyle(state, StyleOverride)` — fg/bg/bright and focusFg/focusBg on the mark cell only (zero = inherit); `~tilde~` accelerator cycles
 - **StatusBar**: `statusItem(label, command)`, `setText(s)`
+- **TabView**: tab container (deviation #39). Every child except its private strip is a page (`addPage(v, title = "")`, `removePage(v)` detaches without disposing, `select(i)`, `pages`, `page`); a `Window` page is embedded frameless (`Window.framed = false`) and its title is the tab label. One-row strip on top: inactive tabs cyan, the active tab in the page's colours; `◄`/`►` when tabs overflow, the active tab kept visible. Switch by clicking a tab, Ctrl+PgUp/PgDn anywhere inside (paging widgets let it bubble: `isTabSwitch`), or focusing the strip (Tab) and Left/Right/Home/End. A closable page Window shows `×`: a click calls its `close()` and a neighbour takes over. Hidden pages are unreachable by focus, mouse and hotkeys (`canFocus` requires visible ancestors); each page remembers its focused widget. As a `{.view.}` base type, `{.child.}` fields become pages in declaration order
 - **ControlBar**: a `Group`, docked `dkBottom`, height `clamp(lines, 1, 3)` (`setLines(n)`). Children in one row: left group (`add`) gets the remaining width via `distribute`; right group (`addRight(v)`, or `alignRight(v)` for an existing child) is packed at preferred widths against the right edge and wins when space is short. Children are clipped to the bar height; `View.align` places them vertically. Background `tkControlBar`. As a `{.view.}` base type: zero-init (`lines = 0` = 1), set `{.dock: dkBottom.}`, no layout pragma, call `alignRight` after `mount` (deviation #32)
 - **MenuBar**: `menu(title, items)`, `menuItem(label, command)`, `openMenu(i)`; popups run as modals
 - **Window**: `title=`, `isActive`, `palette` (`pBlue` default), `defaultButton()`; drag title to move, `◢` corner / Alt+Arrows to move, Alt+Shift+Arrows to resize (dkNone windows only)

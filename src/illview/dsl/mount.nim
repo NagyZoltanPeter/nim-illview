@@ -9,7 +9,7 @@ import ../layout/layout
 import ./pragmas
 import ../widgets/[window, label, button, checkbox, radio, list, input,
                    textview, statusbar, editor, groupbox, table, progress,
-                   tristate, controlbar]
+                   tristate, controlbar, tabview]
 
 # --- construction defaults ---------------------------------------------------
 
@@ -24,6 +24,7 @@ proc createView*(t: typedesc[TextView]): TextView = newTextView()
 proc createView*(t: typedesc[Editor]): Editor = newEditor()
 proc createView*(t: typedesc[StatusBar]): StatusBar = newStatusBar()
 proc createView*(t: typedesc[ControlBar]): ControlBar = newControlBar()
+proc createView*(t: typedesc[TabView]): TabView = newTabView()
 proc createView*(t: typedesc[Window]): Window = newWindow("", rect(0, 0, 0, 0))
 proc createView*(t: typedesc[GroupBox]): GroupBox = newGroupBox("")
 proc createView*(t: typedesc[Table]): Table = newTable()
@@ -67,6 +68,7 @@ proc bindSlot*(w: ListView, h: SlotProc[ListView]) = w.onActivate = chain(w.onAc
 proc bindSlot*(w: Input, h: SlotProc[Input]) = w.onSubmit = chain(w.onSubmit, h)
 proc bindSlot*(w: Editor, h: SlotProc[Editor]) = w.onChange = chain(w.onChange, h)
 proc bindSlot*(w: Table, h: SlotProc[Table]) = w.onActivate = chain(w.onActivate, h)
+proc bindSlot*(w: TabView, h: SlotProc[TabView]) = w.onSelect = chain(w.onSelect, h)
 
 # value-change slots + value snapshots (plan-2 D4)
 proc bindValueSlot*(w: Input, h: SlotProc[Input]) = w.onChange = chain(w.onChange, h)
@@ -76,6 +78,7 @@ proc bindValueSlot*(w: TriStateCheckBox, h: SlotProc[TriStateCheckBox]) = w.onCh
 proc bindValueSlot*(w: Radio, h: SlotProc[Radio]) = w.onSelect = chain(w.onSelect, h)
 proc bindValueSlot*(w: ListView, h: SlotProc[ListView]) = w.onSelect = chain(w.onSelect, h)
 proc bindValueSlot*(w: Table, h: SlotProc[Table]) = w.onSelect = chain(w.onSelect, h)
+proc bindValueSlot*(w: TabView, h: SlotProc[TabView]) = w.onSelect = chain(w.onSelect, h)
 
 proc widgetValue*(w: Input): string = w.text
 proc widgetValue*(w: Editor): string = w.text
@@ -84,6 +87,7 @@ proc widgetValue*(w: TriStateCheckBox): CheckState = w.state
 proc widgetValue*(w: Radio): int = w.selected
 proc widgetValue*(w: ListView): int = w.selected
 proc widgetValue*(w: Table): int = w.selected
+proc widgetValue*(w: TabView): int = w.selected
 
 # value shape for emits:/bindValue (deviation #29): resolved at the expansion
 # site through overloads, so a third-party widget joins by declaring one —
@@ -98,6 +102,7 @@ template uiValueKind*(t: typedesc[TriStateCheckBox]): UiPayloadKind = upCheckSta
 template uiValueKind*(t: typedesc[Radio]): UiPayloadKind = upSelected
 template uiValueKind*(t: typedesc[ListView]): UiPayloadKind = upSelected
 template uiValueKind*(t: typedesc[Table]): UiPayloadKind = upSelected
+template uiValueKind*(t: typedesc[TabView]): UiPayloadKind = upSelected
 template uiValueKind*(t: typedesc): UiPayloadKind = upNone
 
 # --- pragma placement (deviation #29) --------------------------------------------

@@ -28,6 +28,7 @@ type
     savedBounds: Rect # pre-zoom bounds, restored on un-zoom
     onClose*: proc(w: Window) {.gcsafe, raises: [].}
       ## Close override; nil = default (detach from the parent + dispose).
+    framed*: bool = true # false: no border / [■] / [↑] / ◢ (embedded in a TabView)
 
 proc newWindow*(title: string, bounds: Rect): Window =
   result = Window(borderTitle: title, closable: true, zoomable: true)
@@ -47,7 +48,9 @@ func isActive*(w: Window): bool =
   w.parent != nil and w.parent.focused == w
 
 method borderKind*(w: Window): BorderKind {.gcsafe, raises: [].} =
-  if w.isActive: bkDouble else: bkSingle
+  if not w.framed: bkNone
+  elif w.isActive: bkDouble
+  else: bkSingle
 
 method borderStyle*(w: Window): Style {.gcsafe, raises: [].} =
   w.styleOf(if w.isActive: tkWindowFrameActive else: tkWindowFrame)
@@ -61,6 +64,8 @@ method draw*(w: Window, dc: DrawContext) {.gcsafe, raises: [].} =
 
 method drawOverlay*(w: Window, dc: DrawContext) {.gcsafe, raises: [].} =
   ## Resize handle on the frame corner (dc spans the FULL rect incl. border).
+  if not w.framed:
+    return
   if w.isActive and w.dock == dkNone and w.bounds.w >= 2 and w.bounds.h >= 2:
     dc.putCell(w.bounds.w - 1, w.bounds.h - 1, "◢".runeAt(0), w.borderStyle)
   # title-row chrome (plan-4 P21): close box at the left, zoom box at the right
