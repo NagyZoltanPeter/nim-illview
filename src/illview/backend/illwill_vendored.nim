@@ -2,10 +2,13 @@
 ##   https://github.com/johnnovak/illwill
 ##   commit db080b4e2432868e188efb4fb72c1ee6c6c28428 (vendored 2026-07-02)
 ##   license: WTFPL
-## Kept verbatim apart from this header and ONE local patch (illview
-## deviation #37): `bgGray`, a 256-colour lightgray background (xterm 248,
-## TV's #AAAAAA), emitted by `emitBg` with a 16-colour fallback
-## (`wants256Colors`). illview uses it as the "hardware
+## Kept verbatim apart from this header and TWO local patches: `bgGray`, a
+## 256-colour lightgray background (xterm 248, TV's #AAAAAA), emitted by
+## `emitBg` with a 16-colour fallback (`wants256Colors`) — illview deviation
+## #37; and `invalidateScreen`, which forgets the previous frame and the
+## cached SGR attributes so the next display() is a full, correct redraw
+## after leaving and re-entering the TUI — deviation #40. illview uses it as
+## the "hardware
 ## layer" (TerminalBuffer + display() diffing + Key/color/style types); input
 ## decoding is reimplemented incrementally in backend/decoder.nim.
 ##
@@ -1146,6 +1149,17 @@ var
   gCurrStyle {.threadvar.}: set[Style]
 
 # --- illview patch (deviation #37): 256-colour lightgray background ----------
+
+proc invalidateScreen*() =
+  ## illview patch (deviation #40): the next display() repaints everything.
+  ## Leaving and re-entering the TUI (alt screen is fresh, SGR was reset by
+  ## illwillDeinit) must not diff against the old frame or trust the old
+  ## attribute cache. bgNone/fgNone/{} is exactly the terminal's state after
+  ## SGR 0, so cells in default colours are still skipped correctly.
+  gPrevTerminalBuffer = nil
+  gCurrBg = bgNone
+  gCurrFg = fgNone
+  gCurrStyle = {}
 
 func wants256Colors*(term, colorterm, override: string): bool =
   ## Whether `bgGray` may use the 256-colour escape. `override` is

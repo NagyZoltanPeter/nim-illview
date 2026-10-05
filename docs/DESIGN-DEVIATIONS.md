@@ -786,3 +786,30 @@ Tests: `tests/test_tabview.nim` (pages, hidden-page reachability, focus memory
 and fallback, Ctrl+PgUp/PgDn wrap, strip keys and clicks, `×` close,
 `removePage`, selection by identity, overflow, events, no reorder),
 `tests/test_mount.nim` (`{.view.}` subtype).
+
+## 40. Re-entering the TUI repaints everything
+
+After `disableTui()` → `enableTui()` (ex14's F2 terminal mode and Enter, or an
+embedding host toggling the UI), the screen came back mostly blank: only cells
+that changed after the resume were drawn. Cause, in the vendored illwill: two
+pieces of display state survive `illwillDeinit` → `illwillInit`.
+
+- `gPrevTerminalBuffer`, the previous frame `display()` diffs against. The
+  re-entered alternate screen is empty, but the first resumed frame equals the
+  old one, so `displayDiff` sent nothing.
+- `gCurrBg` / `gCurrFg` / `gCurrStyle`, the cached SGR state. `illwillDeinit`
+  resets the terminal (SGR 0) but not the cache, so even a full redraw could
+  skip setting the attributes of the first cells.
+
+Second local illwill patch (provenance header): `invalidateScreen()` clears
+the previous frame and resets the cache to `bgNone` / `fgNone` / `{}` — the
+terminal's real state after SGR 0, so default-coloured cells are still skipped
+correctly. `enableTui` calls it right after `illwillInit`. The public
+`setDoubleBuffering(true)` would have cleared only the frame, not the cache.
+Thread-local plain globals reset on the loop thread: identical under refc and
+ORC.
+
+Verified on a real pty: ex14's initial frame is 3539 bytes; before the fix a
+resume re-sent 254 bytes (status bar and gray backgrounds missing), after it
+3399 and 3505 bytes on two consecutive F2/Enter round trips, status text and
+`bgGray` present each time.
