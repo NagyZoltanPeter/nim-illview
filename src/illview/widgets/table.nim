@@ -122,9 +122,10 @@ method draw*(t: Table, dc: DrawContext) {.gcsafe, raises: [].} =
     return
   let widths = t.columnWidths()
   let header = t.styleOf(tkTableHeader)
-  let normal = t.styleOf(tkText)
+  let normal = t.styleOf(tkList)
   let sel = t.styleOf(if t.isFocused: tkSelectionFocused else: tkSelection)
   let cw = t.bodyW
+  dc.fill(rect(0, 0, t.contentW, t.contentH), " ", normal) # list surface
   dc.fill(rect(0, 0, cw, 1), " ", header)
   var x = 0
   for i, col in t.columns:
@@ -145,16 +146,16 @@ method draw*(t: Table, dc: DrawContext) {.gcsafe, raises: [].} =
   if t.barVisible:
     let sbSt = t.styleOf(tkScrollBar)
     let rows = t.viewportRows
-    let (ts, tl) = thumbGeom(rows, t.rows.len, rows, t.top)
-    for y in 0 ..< rows:
-      dc.write(t.contentW - 1, y + 1, # rows start below the header
-               (if y >= ts and y < ts + tl: "█" else: "░"), sbSt)
+    for y, g in scrollGlyphs(rows, t.rows.len, rows, t.top, axV):
+      dc.write(t.contentW - 1, y + 1, g, sbSt) # rows start below the header
 
 method handleEvent*(t: Table, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
     if modAlt in ev.ikey.keyMods:
       return false # Alt-chords are window/app level (move/resize)
+    if ev.ikey.isTabSwitch:
+      return false # Ctrl+PgUp/PgDn switch tabs (deviation #39)
     let page = t.viewportRows
     case ev.ikey.key
     of Key.Up: t.select(t.selected - 1)

@@ -39,7 +39,7 @@ suite "render snapshots":
     let d = newDesktop()
     d.add newWindow("Log", rect(2, 1, 20, 5))
     let tb = render(d, 26, 8)
-    check rowStr(tb, 0) == repeat("▒", 26)
+    check rowStr(tb, 0) == repeat("░", 26)
     # frame row: corners at abs x=2 / x=21, title " Log " centered
     check cellStr(tb, 2, 1) == "┌"
     check cellStr(tb, 21, 1) == "┐"
@@ -49,11 +49,11 @@ suite "render snapshots":
     for x in 3 .. 20:
       check cellStr(tb, x, 2) == " "
     check cellStr(tb, 21, 2) == "│"
-    check cellStr(tb, 22, 2) == "▒"
+    check cellStr(tb, 22, 2) == "░"
     # bottom frame row and untouched desktop below
     check cellStr(tb, 2, 5) == "└"
     check cellStr(tb, 21, 5) == "┘"
-    check rowStr(tb, 6) == repeat("▒", 26)
+    check rowStr(tb, 6) == repeat("░", 26)
 
   test "child drawing outside the content rect is clipped (no bleed)":
     let d = newDesktop()
@@ -64,7 +64,7 @@ suite "render snapshots":
     win.add newTextView("YYY", rect(0, 10, 3, 1))
     d.add win
     let tb = render(d, 20, 8)
-    check rowStr(tb, 2) == "▒▒│XXXXXXXXXX│▒▒▒▒▒▒"
+    check rowStr(tb, 2) == "░░│XXXXXXXXXX│░░░░░░"
     for y in 0 ..< 8:
       check "Y" notin rowStr(tb, y)
 
@@ -78,11 +78,11 @@ suite "render snapshots":
     d.add winB # z-order: B on top
     let tb = render(d, 24, 10)
     # winA content row (y=1) is fully visible (winB starts at y=2)
-    check rowStr(tb, 1) == "│aaaaaaaaaaaa│" & repeat("▒", 10)
+    check rowStr(tb, 1) == "│aaaaaaaaaaaa│" & repeat("░", 10)
     # winB's top frame (y=2) covers winA from x=6 on
     check cellStr(tb, 6, 2) == "┌"
     # winB content row (y=3): winA frame + interior left of x=6, then winB
-    check rowStr(tb, 3) == "│     │bbbbbbbbbbbb│" & repeat("▒", 4)
+    check rowStr(tb, 3) == "│     │bbbbbbbbbbbb│" & repeat("░", 4)
 
   test "raiseToTop changes which window covers":
     let d = newDesktop()
@@ -154,7 +154,7 @@ suite "decoration (iteration 2)":
     let tb = render(d, 20, 10)
     # bottom shadow row: y = 1 + 4 = 5, x from 3; right shadow: x = 11..12
     let sh = defaultTheme().style(tkShadow)
-    check cellStr(tb, 3, 5) == "▒" # rune preserved from the desktop pattern
+    check cellStr(tb, 3, 5) == "░" # rune preserved from the desktop pattern
     check tb[3, 5].fg == sh.fg
     check tb[3, 5].bg == sh.bg
     check tb[11, 2].fg == sh.fg
@@ -190,3 +190,19 @@ suite "decoration (iteration 2)":
     t.border = bkSingle
     check t.outerHints().w.pref == 7
     check t.outerHints().h.min == 3
+
+suite "TV chrome (deviation #34)":
+  test "close box ■ in its own colour; windows gray, blue is opt-in (deviation #35)":
+    let d = newDesktop()
+    let win = newWindow("W", rect(0, 0, 12, 4))
+    d.add win
+    let tb = render(d, 14, 6)
+    check cellStr(tb, 2, 0) == "■"
+    check tb[2, 0].fg == defaultTheme().style(tkWindowCloseBox).fg
+    check tb[1, 0].fg != defaultTheme().style(tkWindowCloseBox).fg # bracket
+    check win.palette == pDefault
+    check tb[3, 2].bg == bgGray # lightgray: the base (gray) palette
+    win.palette = pBlue
+    let tb2 = render(d, 14, 6)
+    check tb2[3, 2].bg == defaultTheme().variant(pBlue).style(tkWindowBg).bg
+    check tb2[3, 2].bg == bgBlue

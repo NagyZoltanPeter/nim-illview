@@ -125,8 +125,9 @@ proc insertText*(e: Editor, s: string) =
       e.insertRune(r)
 
 method draw*(e: Editor, dc: DrawContext) {.gcsafe, raises: [].} =
-  let st = e.styleOf(tkText)
+  let st = e.styleOf(if e.isFocused: tkInputFocused else: tkInput) # field surface
   e.ensureVisible()
+  dc.fill(rect(0, 0, e.contentW, e.contentH), " ", st)
   for y in 0 ..< max(e.contentH, 0):
     let idx = e.scrollY + y
     if idx > e.lines.high:
@@ -152,6 +153,8 @@ method handleEvent*(e: Editor, ev: Event): bool {.gcsafe, raises: [].} =
     let k = ev.ikey
     if modAlt in k.keyMods:
       return false # Alt-chords are window/app level (move/resize)
+    if k.isTabSwitch:
+      return false # Ctrl+PgUp/PgDn switch tabs (deviation #39)
     case k.key
     of Key.Up: e.moveCursor(-1, 0)
     of Key.Down: e.moveCursor(1, 0)

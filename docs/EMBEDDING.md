@@ -70,7 +70,7 @@ See `examples/ex10_instance_ctx.nim` — the model never calls a widget proc.
 is headless: no reader registered, no timers, zero cost — the process is a
 plain daemon with the UI object still alive. `examples/ex14_logpane.nim`
 demonstrates F2 → `disableTui()` (logs stream to the terminal) and Enter →
-`enableTui()`.
+`enableTui()`. Re-enabling always repaints the whole screen (deviation #40).
 
 ## 4. Crash handling in a host
 

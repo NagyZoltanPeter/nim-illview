@@ -230,6 +230,13 @@ or imperatively: `w.border = bkDouble`, `w.shadow = true`,
 
 ![stock dialog](docs/assets/dialog.svg)
 
+Turbo Vision's visual language is the default theme: groups, fields, lists
+and buttons each sit on their own colour against lightgray windows and dialogs.
+
+![Turbo Vision's demo dialog rebuilt with stock widgets](docs/assets/tvdialog.svg)
+
+![TabView: windows embedded as tabs](docs/assets/tabs.svg)
+
 Every interactive widget has typed closure slots (`onClick`, `onChange`,
 `onSubmit`, `onFocus`/`onBlur`, …) fired synchronously inside dispatch, plus
 an optional broker `command`. Alt+letter accelerators (`~R~un`), a per-key
@@ -282,6 +289,7 @@ nimble examples   # builds all of these into build/examples/
 | `ex11_scroller` | `Scroller` viewport + synced `ScrollBar`, focus auto-scroll |
 | `ex12_splitter` | draggable `Splitter` dividing a list and a log |
 | `ex13_showcase` | full app: declarative menubar (EventBroker actions), title + status bar with a live clock, tree-of-examples split from a ground that opens a window per selection, right-click context menu |
+| `ex15_tabs` | `TabView` holding three frameless windows (form, list, blue log); Ctrl+PgUp/PgDn, tab clicks, a closable tab |
 
 ## Development
 

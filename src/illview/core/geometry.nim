@@ -64,6 +64,30 @@ func prefHint*(n: int, stretch = 0): SizeHint =
 
 func scrollMax*(total, page: int): int = max(total - page, 0)
 
+func arrowCells*(track: int): int =
+  ## TV scrollbars put an arrow at each end once the rail has room for them.
+  if track >= 3: 1 else: 0
+
+func thumbCell*(track, total, page, pos: int): int =
+  ## Single-cell TV thumb (`■`): its index within the rail between the arrows.
+  let inner = track - 2 * arrowCells(track)
+  let sm = max(total - page, 0)
+  if inner <= 1 or sm == 0: 0 else: (inner - 1) * min(pos, sm) div sm
+
+func scrollGlyphs*(track, total, page, pos: int, axis: Axis): seq[string] =
+  ## TV scrollbar cells (deviation #35): `▲`/`▼` (`◄`/`►` horizontal) at the
+  ## ends, `▒` rail, one `■` thumb.
+  if track <= 0:
+    return @[]
+  let a = arrowCells(track)
+  result = newSeq[string](track)
+  for i in 0 ..< track:
+    result[i] = "▒"
+  if a == 1:
+    result[0] = if axis == axV: "▲" else: "◄"
+    result[^1] = if axis == axV: "▼" else: "►"
+  result[a + thumbCell(track, total, page, pos)] = "■"
+
 func thumbGeom*(track, total, page, pos: int): tuple[start, len: int] =
   ## Thumb start-cell and length within a `track`-cell rail for a viewport of
   ## `page` over `total` at offset `pos`.

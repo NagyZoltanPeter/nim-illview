@@ -203,10 +203,15 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
         return false
     of Key.Enter:
       i.addHistory(i.text) # record before firing (recency)
+      # consumed only when someone may listen for submit (slot, command, or
+      # an instance route anyone asked for); otherwise Enter bubbles on to
+      # the window's default button (TV, deviation #34)
+      let listened = i.onSubmit != nil or i.command != cmdNone or i.hasBrokerCtx
       if i.onSubmit != nil:
         i.onSubmit(i)
       i.publish(i.command)
       if i.hasBrokerCtx: Submitted.emit(i.brokerCtx, Submitted(text: i.text))
+      return listened
     else:
       # printable rune with no Ctrl/Alt chord -> insert (if the filter allows)
       if k.rune.int32 >= 32 and k.keyMods * {modCtrl, modAlt} == {}:

@@ -70,9 +70,10 @@ proc activate*(l: ListView) =
   if l.hasBrokerCtx: Activated.emit(l.brokerCtx, Activated(selected: l.selected))
 
 method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
-  let normal = l.styleOf(tkText)
+  let normal = l.styleOf(tkList)
   let sel = l.styleOf(if l.isFocused: tkSelectionFocused else: tkSelection)
   let bar = l.showScrollbar and l.items.len > l.contentH
+  dc.fill(rect(0, 0, l.contentW, l.contentH), " ", normal) # list surface
   let rowW = if bar: max(l.contentW - 1, 0) else: l.contentW
   for y in 0 ..< max(l.contentH, 0):
     let idx = l.top + y
@@ -84,16 +85,16 @@ method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
     dc.write(0, y, l.items[idx], st)
   if bar:
     let sbSt = l.styleOf(tkScrollBar)
-    let (ts, tl) = thumbGeom(l.contentH, l.items.len, l.contentH, l.top)
-    for y in 0 ..< l.contentH:
-      dc.write(l.contentW - 1, y,
-               (if y >= ts and y < ts + tl: "█" else: "░"), sbSt)
+    for y, g in scrollGlyphs(l.contentH, l.items.len, l.contentH, l.top, axV):
+      dc.write(l.contentW - 1, y, g, sbSt)
 
 method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
   of evKey:
     if modAlt in ev.ikey.keyMods:
       return false # Alt-chords are window/app level (move/resize)
+    if ev.ikey.isTabSwitch:
+      return false # Ctrl+PgUp/PgDn switch tabs (deviation #39)
     let page = max(l.contentH, 1)
     case ev.ikey.key
     of Key.Up: l.select(l.selected - 1)

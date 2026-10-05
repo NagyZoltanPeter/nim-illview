@@ -472,3 +472,76 @@ TUI, so wait for the resume key on a **dedicated tty fd** with a private
 `O_NONBLOCK` — never on fd 0, whose flags are shared with stdout (see
 `terminalMode` in ex14). For foreign code writing straight to fd 2, redirect
 via `pipe()` + `dup2` and drain with a chronos reader instead.
+
+## 24. A dialog the Turbo Vision way
+
+Groups pop out by colour, no frame needed; the field and the buttons are
+obvious at a glance (deviation #34). `docs/assets/tvdialog.svg` is exactly
+this code (`tools/screenshots.nim` `tvDialogScene`).
+
+```nim
+let dlg = newWindow("Demo Dialog", rect(12, 2, 46, 15))
+# windows and dialogs are lightgray by default; win.palette = pBlue opts out
+let body = newVBox(spacing = 1)
+body.dock = dkFill
+body.padding = 1
+
+let cheeses = newGroupBox("Cheeses")      # borderless: heading + cyan block
+cheeses.hint = (fixedHint(16), fixedHint(3))
+let cb = newVBox()
+cb.dock = dkFill
+cb.add newCheckbox("~H~varti")
+cb.add newCheckbox("~J~arlsberg", checked = true)
+cheeses.add cb
+body.add cheeses
+
+let lbl = newLabel("~D~elivery Instructions")
+let inp = newInput("Leave it on the doorstep")
+lbl.linkTo = inp                          # label lights up while inp is focused
+body.add lbl
+body.add inp
+
+let btns = newHBox(spacing = 2)
+btns.hint = (prefHint(0, stretch = 1), fixedHint(1))
+let ok = newButton("O~K~")
+ok.isDefault = true                       # Enter anywhere in the dialog
+btns.add ok
+btns.add newButton("~C~ancel")
+body.add btns
+dlg.add body
+```
+
+Want a frame around a group after all? `cheeses.border = bkSingle`. The old
+all-blue look:
+`newApp(theme = classicBlueTheme())`.
+
+## 25. Windows as tabs
+
+A `TabView` embeds windows frameless and switches between them; each page
+keeps its state and its last-focused widget (deviation #39). This is
+`examples/ex15_tabs.nim`, trimmed:
+
+```nim
+let tabs = newTabView()
+tabs.dock = dkFill
+
+let form = newWindow("Form", rect(0, 0, 0, 0))   # title = tab label
+form.closable = false                            # no × on its tab
+form.add buildForm()
+let logw = newWindow("Log", rect(0, 0, 0, 0))
+logw.palette = pBlue                             # a blue page
+logw.add log
+
+tabs.addPage(form)
+tabs.addPage(logw)                               # closable: × calls close()
+tabs.onSelect = proc(t: TabView) {.gcsafe, raises: [].} =
+  {.cast(gcsafe).}: log.addLine "tab " & $t.selected
+win.add tabs
+```
+
+Switch with Ctrl+PgUp / Ctrl+PgDn, a click, or Tab to the strip and the
+arrows. `tabs.select(i)` and `SetSelected.signal(tabs.brokerCtx, …)` switch
+without firing `onSelect`. `tabs.removePage(w)` hands the window back
+(framed again, not disposed) — add it to the desktop to float it.
+Declaratively, `{.child.}` windows of a `{.view.}` TabView subtype become the
+pages in declaration order.

@@ -1,9 +1,11 @@
 ## Phase 4 demo: a dialog hand-assembled from every widget, closure slots
 ## wired (tier 1), command-bearing widgets publishing to the bus (tier 2).
+## Deviation #32: tri-state checkboxes in "options" and a ControlBar at the bottom
+## of the window (the desktop StatusBar stays).
 ## Try: Tab/Shift-Tab, mouse, F10 or click for the menu, type in the input
 ## and editor, scroll the list/log, ESC quits.
 
-import std/strformat
+import std/[strformat, unicode]
 import chronos
 import illview
 
@@ -12,6 +14,7 @@ const
   cmdAbout = Command(102)
   cmdMenu = Command(110)
   cmdRun = Command(120)
+  cmdDialog = Command(130)
 
 # tier-2 demo: a bus that logs every UiAction and reacts to commands
 type GalleryBus = ref object of EventBus
@@ -27,13 +30,17 @@ method publish(bus: GalleryBus, a: UiAction) {.gcsafe, raises: [].} =
     bus.mb.openMenu(0)
   elif a.cmd == cmdAbout:
     bus.log.addLine "bus: illview widget gallery (Phase 4)"
+  elif a.cmd == cmdDialog: # stock dialogs use the gray TV palette
+    discard messageBox(bus.app, "Gray dialog",
+      "Dialogs switch to the gray palette", @[("~O~K", cmOk), ("~C~ancel", cmCancel)])
 
 proc main() {.async.} =
   let app = newApp()
   let log = newTextView(maxLines = 200)
 
   let mb = newMenuBar(@[
-    menu("File", @[menuItem("Run", cmdRun), menuItem("Quit", cmdQuit)]),
+    menu("File", @[menuItem("Run", cmdRun), menuItem("Dialog", cmdDialog),
+                   menuItem("Quit", cmdQuit)]),
     menu("Help", @[menuItem("About", cmdAbout)])])
   app.bus = GalleryBus(app: app, log: log, mb: mb)
   app.desktop.add mb
@@ -57,13 +64,25 @@ proc main() {.async.} =
   form.add inp
   # group-box around the option widgets (Phase 8)
   let opts = newGroupBox("options")
-  opts.hint = (prefHint(0, stretch = 1), fixedHint(4))
+  opts.hint = (prefHint(0, stretch = 1), fixedHint(6)) # + heading row
   let optsBox = newVBox()
   optsBox.dock = dkFill
   let chk = newCheckbox("enable feature")
   chk.onToggle = proc(s: Checkbox) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine &"checkbox: {s.checked}"
   optsBox.add chk
+  # tri-state (deviation #32): default [ ] / [x] / [?], and custom marks + colours
+  let tri = newTriStateCheckBox("all ~p~lugins", state = csIntermediate)
+  tri.onChange = proc(s: TriStateCheckBox) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}: log.addLine &"tri-state: {s.state}"
+  optsBox.add tri
+  let tri2 = newTriStateCheckBox("sync peers")
+  tri2.setMarks(Rune(' '), "✓".runeAt(0), Rune('~'))
+  tri2.setMarkStyle(csChecked, StyleOverride(fg: fgGreen, bright: true))
+  tri2.setMarkStyle(csIntermediate, StyleOverride(fg: fgYellow, bright: true))
+  tri2.onChange = proc(s: TriStateCheckBox) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}: log.addLine &"sync peers: {s.state}"
+  optsBox.add tri2
   let rad = newRadio(@["refc", "orc", "arc"], selected = 1)
   rad.onSelect = proc(s: Radio) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine &"radio: {s.items[s.selected]}"
@@ -116,6 +135,28 @@ proc main() {.async.} =
   log.hint = (prefHint(0, stretch = 1), prefHint(5, stretch = 1))
   rows.add cols
   rows.add log
+
+  # ControlBar (deviation #32): 2 lines, mixed children, a right-aligned group
+  let bar = newControlBar(lines = 2)
+  let barRun = newButton("~R~un", command = cmdRun)
+  bar.add barRun
+  let barLog = newTextView(maxLines = 50)
+  barLog.addLine "control bar"
+  bar.add barLog
+  let barScroll = newScrollBar(axH)
+  barScroll.setRange(total = 100, page = 10)
+  barScroll.onScroll = proc(pos: int) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}:
+      pb.setValue(pos * 100 div max(barScroll.scrollMax, 1))
+      barLog.addLine &"scroll: {pos}"
+  bar.add barScroll
+  let barLines = newRadio(@["2 lines", "3 lines"])
+  barLines.onSelect = proc(s: Radio) {.gcsafe, raises: [].} =
+    {.cast(gcsafe).}: bar.setLines(s.selected + 2)
+  bar.add barLines
+  bar.addRight newButton("~A~bout", command = cmdAbout)
+  bar.addRight newButton("~Q~uit", command = cmdQuit)
+  win.add bar # docks bottom inside the window, before the fill content
   win.add rows
   app.desktop.add win
 

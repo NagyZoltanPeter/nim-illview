@@ -4,7 +4,7 @@
 
 import std/[options, unicode]
 import chronos
-import ../core/[geometry, bus, view, events, hotkey, app]
+import ../core/[geometry, theme, bus, view, events, hotkey, app]
 import ./window, ./button, ./label, ./input
 import ../layout/layout
 
@@ -26,20 +26,22 @@ proc closeWith(c: Command): proc(s: Button) {.gcsafe, raises: [].} =
 proc buttonRow(buttons: seq[(string, Command)]): BoxLayout =
   result = newHBox(spacing = 1)
   result.dock = dkBottom
-  for (cap, cmd) in buttons:
+  for i, (cap, cmd) in buttons:
     let b = newButton(cap)
     b.onClick = closeWith(cmd)
+    b.isDefault = i == 0 # first button = default (Enter)
     result.add b
 
 proc buttonsWidth(buttons: seq[(string, Command)]): int =
   for (cap, _) in buttons:
-    result += parseHotkey(cap).text.runeLen + 4 + 1 # "[ cap ]" + spacing
+    result += parseHotkey(cap).text.runeLen + 4 + 1 + 1 # "> cap <" + shift cell + spacing
 
 proc newDialog(app: App, title: string, w, h: int, cancel: Command): Dialog =
   result = Dialog(borderTitle: title, closable: false, zoomable: false,
                   cancelCmd: cancel)
   initView(result)
   result.border = bkSingle
+  result.palette = pGray # TV dialogs use the gray window palette (deviation #34)
   let dw = max(app.desktop.contentW, w)
   let dh = max(app.desktop.contentH, h)
   result.bounds = rect((dw - w) div 2, (dh - h) div 2, w, h) # centred

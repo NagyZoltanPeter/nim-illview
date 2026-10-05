@@ -521,3 +521,295 @@ Three changes so illview behaves inside a long-running host process
 Tests: `tests/test_app.nim` (NullBus records nothing; a SIGSEGV raised after
 `installCrashRestore` reaches the previously installed handler, which is then
 the current action again).
+
+## 32. New widgets instead of widening `Checkbox` / `StatusBar`
+
+A third checkbox state and a widget-hosting status bar were added as **new
+widgets**, `TriStateCheckBox` (`widgets/tristate.nim`) and `ControlBar`
+(`widgets/controlbar.nim`). `Checkbox` and `StatusBar` are unchanged. A
+widened `Checkbox` would have had to change `checked: bool`, `Toggled` and
+`SetChecked` — every listener and every generated `set<Field>` writer — or
+grow a second value field next to the first. Two names also make the choice
+obvious at the call site.
+
+- **`CheckState`** (`csUnchecked`, `csChecked`, `csIntermediate`) lives in
+  `vocab.nim`, next to the new `StateChanged{state}` event and
+  `SetCheckState{state}` signal. User input always cycles in enum order. The
+  mark cell is configurable per state (`marks`, `markStyle`); the brackets
+  stay fixed so the widget stays 4 + caption cells wide.
+- **DSL**: `UiPayloadKind` gains `upCheckState` (appended — existing ordinals
+  unchanged). The three exhaustive `case kind` sites in `dsl/uievents.nim`
+  (`valueTypeIdent`, the `emits:` payload, the `set<Field>` writer) handle it;
+  `CheckState` and `SetCheckState` resolve at the expansion site like the
+  other vocab names.
+- **`ControlBar` is a `Group` with its own `arrange`**, not a `BoxLayout`
+  subclass: `BoxLayout.arrange` has no notion of a right-aligned group.
+  `View.align` already means vertical placement inside the bar, so right-group
+  membership is a set of view ids on the bar (`addRight` / `alignRight`).
+  Left children that overflow collapse at the left group's boundary instead of
+  overlapping the right group.
+- **`mount(T)` never calls `newX()`** (`dsl/mount.nim` constructs `T()` +
+  `initView`), so a `{.view.}` subtype of `ControlBar` starts zero-initialised:
+  `lines = 0` is treated as 1, `spacing` is 0, the dock must come from
+  `{.dock: dkBottom.}`, and a layout pragma would insert a nested box (the
+  bar would then see one child). `{.child.}: ControlBar` goes through
+  `createView` and gets `newControlBar()` defaults.
+
+Tests: `tests/test_widgets.nim` (cycle order, marks and mark colours, bar
+layout, narrow-bar overflow, clipping, docking, focus/mouse),
+`tests/test_ctx_vocab.nim` (`StateChanged` / `SetCheckState`),
+`tests/test_hotkey.nim`, `tests/test_bindings.nim` (bindValue / bindTo /
+emits on a `TriStateCheckBox`), `tests/test_mount.nim` (zero-init
+`ControlBar` subtype).
+
+## 33. Clicks raise floating views only outside layout containers
+
+A mouse press raises every `dkNone` view on the path from the hit target to
+the scope (`core/routing.nim` `dispatchMouse`), so nested MDI windows come to
+the front. `dkNone` is also the default dock of every child of a `BoxLayout`,
+`Grid`, `FormLayout` or `ControlBar`, where `children` order is the layout
+order, not z-order. Clicking such a child moved it, and each container above
+it, to the end of its parent. The next frame then laid everything out in the
+new order: a clicked list jumped below its siblings, a ControlBar's right
+group swapped places. The bug has been there since the nested-window raise
+was added; it shows wherever a non-last child of a box is clicked.
+
+`Group` now has a base method `keepsChildOrder(g): bool` (default `false`).
+The layout containers return `true`, and the raise loop skips any view whose
+parent keeps child order. Desktops, windows, plain groups, popups, `Splitter`
+and `Scroller` keep raising (the last two find their children through fields,
+so raising only changes draw order). A third-party layout container overrides
+`keepsChildOrder` (`docs/EXTENDING.md`). Rejected: raising only `Window`s
+(core routing would import a widget module, and non-Window floating panes
+would stop raising) and opt-in raising (every existing floating container
+would have to declare it).
+
+Tests: `tests/test_routing.nim` (box, grid and ControlBar children keep their
+order on press; the enclosing floating window still raises).
+
+## 34. Turbo Vision's visual language: surfaces, palettes, shadowed buttons
+
+The default look takes Turbo Vision's *visual representation*, not its exact
+palette: every control sits on a **surface** whose background differs from the
+surface around it. Groups pop out of the window by colour (no frame needed),
+input fields are always distinguishable, buttons read as pressable blocks.
+`tests/test_theme.nim` enforces it for every palette of the default theme:
+field, cluster, list and button backgrounds never equal the window background,
+and a field never equals a cluster.
+
+- **Themes**: `defaultTheme()` is now `tvTheme()` (lightgray desktop `░` and
+  bars, blue windows, gray dialogs, cyan clusters and lists, green buttons).
+  The previous table is `classicBlueTheme()`; it does not satisfy the surface
+  rule and has no variants. Seven tokens were added (`tkHotkey`,
+  `tkLabelFocused`, `tkCluster`, `tkList`, `tkButtonDefault`,
+  `tkButtonShadow`, `tkWindowCloseBox`); no token was removed or renamed.
+  Fields reuse `tkInput*`, cluster items `tkCheckbox*`, list selection
+  `tkSelection*`.
+- **Palettes**: `View.palette` + `Theme.variants` give TV's per-window colour
+  sets (blue, cyan, gray) without a second theme object per window.
+  `effectiveTheme` takes the nearest explicit theme and switches it to the
+  variant named by the nearest palette at or below it. `newWindow` sets
+  `pBlue`, stock dialogs `pGray`. In the blue palette a field is black on
+  lightgray (a cyan field would match the clusters and lists).
+- **fg-only tokens**: `tkHotkey` replaces the controls' use of
+  `tkStatusBarHotkey`, whose white background showed through inside green
+  buttons and blue windows; `hotkeyStyle(v, host)` keeps the host's bg.
+  `tkButtonShadow` is drawn with the new `dc.overlay`, which keeps the cell's
+  bg, so a shadow is correct on a window, a cluster block or a ControlBar
+  without knowing which.
+- **Widgets fill their surface**: Checkbox, Radio, TriStateCheckBox fill their
+  arranged width; ListView, Table, TreeView, Editor, TextView fill their
+  content. GroupBox fills its content with `tkCluster` and is **borderless by
+  default**, its title a heading row above the block (`clientRect` and
+  `measure` account for the row); `border = bkSingle` restores the frame.
+- **Buttons**: caption centred, no `[ ]`/`▶ ◀`, focus shown by a bright
+  caption, half-block shadow (`▄` right, `▀` below) — **+1 column and +1 row**
+  per button (`shadowed`, `setShadowed(false)` for the flat 1-row button; no
+  shadow is drawn when the button is arranged 1 row tall). Shadow cells don't
+  activate. `isDefault`: bright cyan caption, and an Enter that reaches the
+  enclosing `Window` unconsumed fires it (`Window.defaultButton`).
+- **Enter follows TV** so the default button is reachable: Checkbox and
+  TriStateCheckBox toggle on Space only; Input consumes Enter only when
+  something may listen for submit — `onSubmit`, a `command`, or a
+  materialised instance route (`hasBrokerCtx`; brokers 3.4.0 has no listener
+  query, so "someone asked for the route" is the conservative stand-in).
+  Lists and Editor keep Enter.
+
+Tests: `tests/test_theme.nim` (invariants, palette resolution, hotkey style),
+`tests/test_widgets.nim` (surface fills, label focus, borderless GroupBox,
+button shadow / inert shadow / default-button Enter paths),
+`tests/test_render_snapshot.nim` (close box, window vs dialog palette).
+
+## 35. Lightgray windows, dark ControlBar, TV scrollbars
+
+Deviation #34 kept TV's blue windows and gray dialogs. For more contrast every
+window now uses the gray palette: the base table of `tvTheme()` is the gray
+variant, `newWindow` no longer forces `pBlue` (palette `pDefault` = base), and
+blue / cyan are opt-in variants (`win.palette = pBlue`). With a lightgray
+window two widgets would have merged into it:
+
+- **TextView** draws on the list surface (`tkList`, black on cyan) — a
+  read-only data pane, like ListView/Table; `lineStyle` colours still apply.
+- **ControlBar** is lightgray on black (`tkControlBar`, palette-independent),
+  so it stands apart from windows, clusters, fields and buttons wherever it is
+  docked. The button shadow keeps TV's black ink and is therefore invisible on
+  the bar itself.
+
+The desktop and the window share TV's lightgray; the blue `░` pattern, the
+window frame and its shadow separate them (the invariant test checks the
+pattern ink differs from window text instead of the background).
+
+**Scrollbars** take TV's shape: an arrow at each end once the rail has three
+cells (`▲`/`▼`, `◄`/`►` horizontal; a click steps by one), a `▒` rail (a click
+pages) and a single-cell `■` thumb (drag maps the thumb cell linearly onto
+`0..scrollMax`). The proportional thumb is gone; `thumbGeom` stays as pure
+math. The glyph logic is one pure helper (`scrollGlyphs` / `thumbCell` /
+`arrowCells` in `core/geometry.nim`) shared by ScrollBar and the ListView,
+Table and TextView indicator column.
+
+Tests: `tests/test_theme.nim` (ControlBar ≠ window in every palette, gray
+base, blue variant), `tests/test_scrollbar.nim` (glyph rows incl. short rails,
+arrow steps, single-cell drag, indicator columns),
+`tests/test_render_snapshot.nim` (windows gray by default, `pBlue` opt-in).
+
+## 36. Flat buttons with `> <` focus and a pressed shift (supersedes #34's shadow)
+
+The half-block shadow from #34 is gone (author's call): a button is one row,
+a flat green face with the caption centred, `> caption <` while focused. The
+button is one cell wider than its face (`caption + 5`); the face rests one
+cell in and shifts into that cell while `pressed`, so a press reads as the
+button moving. `tkButtonShadow` and `dc.overlay` (which existed only for the
+shadow) were removed.
+
+Activation follows Turbo Vision: the **mouse fires on release** over the
+button — a press only shifts the face and captures the mouse, dragging off
+un-presses, releasing elsewhere cancels. **Keys** (Enter, Space, hotkey)
+fire at once, as TV does, and flash the pressed face for 100 ms (a chronos
+timer clears `pressed`). Delaying key activation was rejected: slots fire
+synchronously inside dispatch — DSL `emits:`, the stock dialogs and the tests
+rely on it.
+
+Tests: `tests/test_widgets.nim` (face layout and `> <` focus, press shift,
+fire on release, drag-off cancel, key flash); tests that clicked a button with
+a bare press now send the release too (`test_widgets`, `test_routing`).
+
+## 37. A real TV gray: `bgGray`, a 256-colour background
+
+illwill emits ANSI 47 for `bgWhite`; the terminal palette decides what that
+looks like, and many render it near-white — lightgray windows turned white and
+their bright-white double frame disappeared. TV's lightgray is CGA #AAAAAA.
+
+The vendored illwill carries one local patch (noted in its provenance
+header): `BackgroundColor.bgGray = 100`, outside the SGR 40..47 range so it
+can never be cast to a `std/terminal` colour by accident. `setAttribs` routes
+backgrounds through `emitBg`, which writes `ESC[48;5;248m` (#a8a8a8, the
+nearest xterm-256 entry) for `bgGray` and uses `std/terminal` for the rest.
+Whether 256 colours are allowed is decided once, lazily, by the pure
+`wants256Colors(TERM, COLORTERM, ILLVIEW_COLORS)`: `ILLVIEW_COLORS=16|256`
+overrides; else `COLORTERM` set, or a `TERM` containing `256color`, `direct`,
+`ghostty`, `kitty`, `alacritty` or `wezterm`. Otherwise — and on the Windows
+console — `bgGray` falls back to ANSI 47, today's behaviour. No general
+256/truecolor API was added.
+
+Every lightgray in `tvTheme()` (desktop, menu/status bars, gray windows and
+dialogs, the cyan palette's clusters/lists, the blue palette's fields) is now
+`bgGray`; `classicBlueTheme()` keeps `bgWhite`. The screenshot renderer maps
+`bgGray` to #a8a8a8 and `bgWhite` to a near-white, so a stray `bgWhite` would
+show in the docs.
+
+Tests: `tests/test_theme.nim` (capability parsing, both escapes, no TV token
+uses `bgWhite`). Verified on a real pty: ex04 emits `ESC[48;5;248m` with
+`ILLVIEW_COLORS=256` and `ESC[47m` with `16`, never both.
+
+## 38. Cyan ControlBar; focusable ScrollBar
+
+The dark ControlBar from #35 read badly in practice: a bar full of widgets
+showed its black background only as slivers next to buttons and under the
+scrollbar, which looked like stray shadows. `tkControlBar` now takes the
+palette's **cluster** colour — black on cyan on gray and blue windows (and at
+desktop level), lightgray in the cyan palette — so it still never equals the
+window background (`tests/test_theme.nim`). Accepted trade-off: a cyan Radio
+or TextView inside the bar blends with it.
+
+`ScrollBar` was mouse-only (`focusable = false`, keys ignored). It is now
+focusable and handles the arrow keys along its axis (±1), PgUp/PgDn (±page)
+and Home/End; cross-axis keys and Alt-chords bubble on. The `■` thumb is
+bright while focused. It joins the Tab order wherever it is used (ex04's
+ControlBar, ex11's scroller bar).
+
+Tests: `tests/test_scrollbar.nim` (vertical/horizontal keys, Alt pass-through,
+Tab focus + routed keys), `tests/test_theme.nim` invariants.
+
+## 39. TabView: windows as tabs
+
+`TabView` (`widgets/tabview.nim`) is a `Group` whose children are its pages,
+plus one private, focusable `TabStrip` child created lazily (so a `mount`
+zero-initialised subtype works and its `{.child.}` fields become pages in
+declaration order). The strip is one row on top; the selected page fills the
+rest; every other page is `visible = false`. That reuses what routing already
+does for hidden views — Tab traversal, hit-testing and hotkey lookup skip
+them — while their state, broker wiring and focus memory (`Group.focused`)
+survive. `keepsChildOrder = true`: child order is tab order (deviation #33).
+
+- **Embedded windows** get the new `Window.framed = false`: no border (so
+  `clientRect` is the whole page), no `[■]`/`[↑]`, no `◢`. The title is the
+  tab label (re-read each draw); the window keeps its palette, so a `pBlue`
+  window gives a blue page. `removePage` restores the frame and detaches
+  without disposing.
+- **Selection by identity**: a page removed behind the TabView's back (a
+  Window's default `close()` detaches and disposes it) is reconciled on the
+  next arrange; removing an earlier page keeps the selected page selected,
+  removing the selected one hands over to its neighbour.
+- **Focus**: switching moves focus into the new page — its remembered widget,
+  else its first focusable — but only when focus was inside the TabView. A
+  page with nothing focusable parks focus on the strip; that fallback does
+  not stick (switching to a page with controls moves focus into it), while a
+  strip the user focused (Tab, click, strip keys) keeps focus.
+- **`canFocus` now requires every ancestor to be visible** (`routing.nim`).
+  Before, a `FocusMe` signal could focus a widget on a hidden page. Existing
+  focus paths only ever target visible subtrees, so their behaviour is
+  unchanged (full suite green before TabView was added).
+- **Keys**: Ctrl+PgUp/PgDn bubble to the TabView from anywhere inside; the
+  strip takes Left/Right/Home/End. The paging widgets (ListView, Table,
+  TextView, Editor, Scroller, ScrollBar) used to treat Ctrl+PgUp/PgDn as
+  plain PgUp/PgDn and swallow it — found driving ex15 in a real pty with a
+  focused list — so they now let it bubble (`events.isTabSwitch`); plain
+  PgUp/PgDn still page. Alt+1..9 stays
+  the Desktop's. Events: `onSelect` + `SelectionChanged` on the user path;
+  `select(i)` and `SetSelected` are programmatic (deviation #15). DSL:
+  `upSelected`, `bindSlot`/`bindValueSlot` → `onSelect`.
+
+Out of scope: dragging a tab out into a floating window, reordering tabs by
+drag, a strip anywhere but on top.
+
+Tests: `tests/test_tabview.nim` (pages, hidden-page reachability, focus memory
+and fallback, Ctrl+PgUp/PgDn wrap, strip keys and clicks, `×` close,
+`removePage`, selection by identity, overflow, events, no reorder),
+`tests/test_mount.nim` (`{.view.}` subtype).
+
+## 40. Re-entering the TUI repaints everything
+
+After `disableTui()` → `enableTui()` (ex14's F2 terminal mode and Enter, or an
+embedding host toggling the UI), the screen came back mostly blank: only cells
+that changed after the resume were drawn. Cause, in the vendored illwill: two
+pieces of display state survive `illwillDeinit` → `illwillInit`.
+
+- `gPrevTerminalBuffer`, the previous frame `display()` diffs against. The
+  re-entered alternate screen is empty, but the first resumed frame equals the
+  old one, so `displayDiff` sent nothing.
+- `gCurrBg` / `gCurrFg` / `gCurrStyle`, the cached SGR state. `illwillDeinit`
+  resets the terminal (SGR 0) but not the cache, so even a full redraw could
+  skip setting the attributes of the first cells.
+
+Second local illwill patch (provenance header): `invalidateScreen()` clears
+the previous frame and resets the cache to `bgNone` / `fgNone` / `{}` — the
+terminal's real state after SGR 0, so default-coloured cells are still skipped
+correctly. `enableTui` calls it right after `illwillInit`. The public
+`setDoubleBuffering(true)` would have cleared only the frame, not the cache.
+Thread-local plain globals reset on the loop thread: identical under refc and
+ORC.
+
+Verified on a real pty: ex14's initial frame is 3539 bytes; before the fix a
+resume re-sent 254 bytes (status bar and gray backgrounds missing), after it
+3399 and 3505 bytes on two consecutive F2/Enter round trips, status text and
+`bgGray` present each time.

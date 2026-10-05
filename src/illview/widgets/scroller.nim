@@ -110,6 +110,8 @@ method handleEvent*(s: Scroller, ev: Event): bool {.gcsafe, raises: [].} =
   of evKey:
     if modAlt in ev.ikey.keyMods:
       return false # Alt-chords belong to the window/app
+    if ev.ikey.isTabSwitch:
+      return false # Ctrl+PgUp/PgDn switch tabs (deviation #39)
     let pg = max(s.contentH, 1)
     case ev.ikey.key
     of Key.PageUp: s.scrollBy(0, -pg); return true

@@ -57,6 +57,11 @@ proc `==`*(a, b: InputEvent): bool =
 proc keyEvent*(key: Key, rune = Rune(0), mods: set[Modifier] = {}): InputEvent =
   InputEvent(kind: ikKey, key: key, rune: rune, keyMods: mods)
 
+func isTabSwitch*(k: InputEvent): bool =
+  ## Ctrl+PgUp / Ctrl+PgDn: reserved for switching tabs (TabView, deviation
+  ## #39) — paging widgets let it bubble instead of treating it as PgUp/PgDn.
+  k.kind == ikKey and modCtrl in k.keyMods and k.key in {Key.PageUp, Key.PageDown}
+
 proc mouseEvent*(action: MouseAction, button: MouseButton, x, y: int,
                  mods: set[Modifier] = {}): InputEvent =
   InputEvent(kind: ikMouse, action: action, button: button,

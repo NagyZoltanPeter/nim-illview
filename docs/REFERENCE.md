@@ -79,6 +79,7 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 |--------|-------------|--------------------|-------|------------------------|---------------------------|---------------------|
 | `Button` | `newButton(caption, command = cmdNone)` | — | `onClick` | `Clicked` | `FocusMe` | on activation |
 | `Checkbox` | `newCheckbox(caption, checked = false, command)` | `checked: bool` | `onToggle` | `Toggled{checked}` | `SetChecked`, `FocusMe` | on toggle |
+| `TriStateCheckBox` | `newTriStateCheckBox(caption, state = csUnchecked, command)` | `state: CheckState` | `onChange` | `StateChanged{state}` | `SetCheckState`, `FocusMe` | on cycle |
 | `Radio` | `newRadio(items, selected = 0, command)` | `selected: int` | `onSelect` | `SelectionChanged{selected}` | `SetSelected`, `FocusMe` | on select |
 | `Input` | `newInput(text = "", command)` | `text: string` | `onChange`, `onSubmit`, `onFocus`, `onBlur` | `TextChanged{text}` (edits), `Submitted{text}` (Enter) | `SetText`, `FocusMe` | on Enter |
 | `Editor` | `newEditor(text = "")` | `text: string` | `onChange` | `TextChanged{text}` | `SetText`, `FocusMe` | — |
@@ -90,6 +91,8 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 | `NetVizWidget` | `newNetViz(maxLines = 500)` | — | — | — | — | — |
 | `Sparkline` | `newSparkline(capacity = 40, maxValue = 0)` | — | — | — | `SetProgress` (pushes a sample) | — |
 | `StatusBar` | `newStatusBar(items)` | — | — | — | — | per-item on click |
+| `ControlBar` | `newControlBar(lines = 1, spacing = 1)` | — | — | — | — | — (children publish their own) |
+| `TabView` | `newTabView()` | `selected: int` | `onSelect` | `SelectionChanged` | `SetSelected` | — |
 | `MenuBar` | `newMenuBar(menus)` | — | — | — | — | per-item on activate |
 | `Window` | `newWindow(title, bounds)` | — | — | — | — | — |
 | `GroupBox` | `newGroupBox(title)` | — | — | — | — | — |
@@ -97,16 +100,23 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 
 Widget-specific extras:
 
-- **Input**: `text`, `setText(s)`, `insertText(s)`, `cursor`, `scrollX`
+- **Input**: `text`, `setText(s)`, `insertText(s)`, `cursor`, `scrollX`; Enter is consumed only when something may listen for submit (`onSubmit`, a `command`, or an instance route anyone asked for), else it reaches the window's default button (deviation #34)
+- **Button**: flat green face, caption centred, `> caption <` while focused; width = caption + 5 (the face sits one cell in and shifts into that cell while `pressed`); mouse fires on release over the button (drag off cancels), Enter/Space/hotkey fire at once and flash the pressed face; `isDefault` = bright caption + fired by an unconsumed Enter in its Window (deviations #34, #36)
+- **Checkbox / TriStateCheckBox**: toggle on Space (and mouse / hotkey); Enter goes to the default button (deviation #34)
+- **GroupBox**: borderless by default — title as a heading row above a `tkCluster` block; `border = bkSingle` puts the title back in a frame (deviation #34)
+- **Label**: drawn with `tkLabelFocused` while its `linkTo` control has focus
 - **Editor**: `text`, `setText(s)`, `lines`, `curLine`/`curCol`, `moveCursor`
 - **ListView**: `setItems(items)`, `select(i)`, `activate()`, `ensureVisible()`, `top`
 - **Table**: `tableColumn(title, hint)`, `setRows`, `addRow`, `select(i)`, `activate()`; column widths distribute via layout hints
 - **ProgressBar**: `setValue(v)` (clamped), `value`, `maxValue`
 - **TextView**: `addLine(s)`, `clear()`, `scrollBy(delta)`; follows the bottom unless scrolled up (End re-pins)
 - **NetVizWidget**: `addEvent(topic, payload)` — per-topic counters + log line
+- **TriStateCheckBox**: user path cycles `csUnchecked → csChecked → csIntermediate → csUnchecked`; `setState(s)` (programmatic); `setMarks(unchecked, checked, intermediate: Rune)` — the one cell between the brackets, default `' '`/`'x'`/`'?'`; `setMarkStyle(state, StyleOverride)` — fg/bg/bright and focusFg/focusBg on the mark cell only (zero = inherit); `~tilde~` accelerator cycles
 - **StatusBar**: `statusItem(label, command)`, `setText(s)`
+- **TabView**: tab container (deviation #39). Every child except its private strip is a page (`addPage(v, title = "")`, `removePage(v)` detaches without disposing, `select(i)`, `pages`, `page`); a `Window` page is embedded frameless (`Window.framed = false`) and its title is the tab label. One-row strip on top: inactive tabs cyan, the active tab in the page's colours; `◄`/`►` when tabs overflow, the active tab kept visible. Switch by clicking a tab, Ctrl+PgUp/PgDn anywhere inside (paging widgets let it bubble: `isTabSwitch`), or focusing the strip (Tab) and Left/Right/Home/End. A closable page Window shows `×`: a click calls its `close()` and a neighbour takes over. Hidden pages are unreachable by focus, mouse and hotkeys (`canFocus` requires visible ancestors); each page remembers its focused widget. As a `{.view.}` base type, `{.child.}` fields become pages in declaration order
+- **ControlBar**: a `Group`, docked `dkBottom`, height `clamp(lines, 1, 3)` (`setLines(n)`). Children in one row: left group (`add`) gets the remaining width via `distribute`; right group (`addRight(v)`, or `alignRight(v)` for an existing child) is packed at preferred widths against the right edge and wins when space is short. Children are clipped to the bar height; `View.align` places them vertically. Background `tkControlBar`. As a `{.view.}` base type: zero-init (`lines = 0` = 1), set `{.dock: dkBottom.}`, no layout pragma, call `alignRight` after `mount` (deviation #32)
 - **MenuBar**: `menu(title, items)`, `menuItem(label, command)`, `openMenu(i)`; popups run as modals
-- **Window**: `title=`, `isActive`; drag title to move, `◢` corner / Alt+Arrows to move, Alt+Shift+Arrows to resize (dkNone windows only)
+- **Window**: `title=`, `isActive`, `palette` (`pBlue` default), `defaultButton()`; drag title to move, `◢` corner / Alt+Arrows to move, Alt+Shift+Arrows to resize (dkNone windows only)
 
 Programmatic setters (`setText`, `setValue`, signal application, `set<Field>`
 writers) never fire change slots and never emit vocab events — only
@@ -130,6 +140,7 @@ code, inert after `dispose` (signals return `err`, emits reach nobody).
 | `TextChanged` | `text: string` | Input, Editor | user edits (batched per edit op) |
 | `Submitted` | `text: string` | Input | Enter |
 | `Toggled` | `checked: bool` | Checkbox | toggle |
+| `StateChanged` | `state: CheckState` | TriStateCheckBox | cycle |
 | `SelectionChanged` | `selected: int` | Radio, ListView, Table | selection moved |
 | `Activated` | `selected: int` | ListView, Table | Enter / item re-click |
 
@@ -145,6 +156,7 @@ for `Clicked`), `dropListener(ctx, handle)`, `dropAllListeners(ctx)`,
 |--------|---------|-----------|---------|
 | `SetText` | `text: string` | Input, Editor, Label | `setText` + invalidate |
 | `SetChecked` | `checked: bool` | Checkbox | set + invalidate |
+| `SetCheckState` | `state: CheckState` | TriStateCheckBox | set + invalidate |
 | `SetSelected` | `selected: int` | Radio, ListView, Table | clamp + scroll-into-view + invalidate |
 | `SetProgress` | `value: int` | ProgressBar | `setValue` |
 | `FocusMe` | — (void) | any focusable widget | focuses through the root chain |
@@ -175,9 +187,9 @@ Call `uiEvents(MyForm)` at top level, right after the type section
 
 | Source pragma | Generates |
 |---------------|-----------|
-| `emits: "Name"` | `EventBroker` type `Name = object senderId: int; <payload>` + `uiEmit(sender, Name)`; payload by `uiValueKind(FieldType)`, snapshot via `widgetValue(sender)`: Input/Editor `text`, Checkbox `checked`, Radio/ListView/Table `selected`, Button none |
+| `emits: "Name"` | `EventBroker` type `Name = object senderId: int; <payload>` + `uiEmit(sender, Name)`; payload by `uiValueKind(FieldType)`, snapshot via `widgetValue(sender)`: Input/Editor `text`, Checkbox `checked`, TriStateCheckBox `state`, Radio/ListView/Table `selected`, Button none |
 | `bindRequest: "Name"` | sync `RequestBroker` `proc Name(value: VT): Result[VT, string]` with a default identity provider; swap via `Name.replaceProvider(DefaultBrokerContext, p)`, remove via `Name.clearProvider()`; `err` from the provider VETOES the store |
-| `bindValue: "field"` / `"model.field"` | `proc set<Field>*(self: T, v: VT)` — writes the store field (on `self` or on `self.model`) AND signals the bound widget (`SetText`/`SetChecked`/`SetSelected`) on its ctx. Authoritative: bypasses any `bindRequest` provider; fires no slots; loop-free by construction. Plus `proc notify<Field>*(self: T)` — pushes the store's current value to the widget after the model was mutated directly (deviation #30) |
+| `bindValue: "field"` / `"model.field"` | `proc set<Field>*(self: T, v: VT)` — writes the store field (on `self` or on `self.model`) AND signals the bound widget (`SetText`/`SetChecked`/`SetCheckState`/`SetSelected`) on its ctx. Authoritative: bypasses any `bindRequest` provider; fires no slots; loop-free by construction. Plus `proc notify<Field>*(self: T)` — pushes the store's current value to the widget after the model was mutated directly (deviation #30) |
 
 ---
 
@@ -233,12 +245,47 @@ nowhere, nothing is recorded) until you set `app.bus = newBrokersBus()`.
 Resolution order: theme token → per-view `styleOv` → focus override
 (plan-2 D2). Subtree theming via `View.theme`.
 
+**Surfaces** (deviation #34): `defaultTheme()` = `tvTheme()`, Turbo Vision's
+visual language. Every control sits on a surface whose background differs
+from the one around it — enforced by `tests/test_theme.nim` for every palette.
+
+| Surface | Widgets | Tokens | window / dialog (default, gray) | opt-in `pBlue` window |
+|---|---|---|---|---|
+| desktop | Desktop (`░`) | `tkDesktop` | blue on lightgray | — |
+| bar | MenuBar, StatusBar | `tkMenu*`, `tkStatusBar*` | black on lightgray, red hotkeys | — |
+| control bar | ControlBar | `tkControlBar` (= cluster colour) | black on cyan | black on cyan (lightgray in `pCyan`) |
+| window | Window/Dialog bg, Label | `tkWindowBg`, `tkText`, `tkLabelFocused`, frame/title tokens | black on lightgray | yellow on blue |
+| cluster | Checkbox, Radio, TriStateCheckBox, GroupBox content | `tkCheckbox*`, `tkCluster` | black on cyan | black on cyan |
+| field | Input, Editor | `tkInput*` | white on blue | black on lightgray |
+| list | ListView, Table, TreeView, TextView | `tkList`, `tkSelection*`, `tkTableHeader`, `tkScrollBar` | black on cyan | black on cyan |
+| button | Button | `tkButton*`, `tkButtonDefault` | black on green | black on green |
+
+**TV gray** (deviation #37): every lightgray in `tvTheme()` is `bgGray`, a
+256-colour background (`ESC[48;5;248m`, #a8a8a8 ≈ TV's #AAAAAA) — terminal
+palettes render ANSI "white" (47) anywhere from gray to near-white. It is used
+when `COLORTERM` is set or `TERM` names a 256-colour terminal; otherwise (and
+on the Windows console) it falls back to ANSI 47. Force with
+`ILLVIEW_COLORS=16|256`. `classicBlueTheme()` keeps `bgWhite`.
+
+**Palettes**: `View.palette` (`pDefault`, `pBlue`, `pCyan`, `pGray`) switches a
+subtree to `theme.variant(p)` (`Theme.variants`); the nearest palette wins,
+an explicit `View.theme` closer to the view wins as-is. The base table is
+the gray palette, so every window and dialog is lightgray (deviation #35);
+`win.palette = pBlue` (or `pCyan`) opts a window into TV's other colour
+sets. `classicBlueTheme()` is the old all-blue table (no variants).
+
+**fg-only tokens**: `tkHotkey` (accelerator letter inside controls, via
+`v.hotkeyStyle(host)` — keeps the control's bg). Bars and menus keep
+`tkStatusBarHotkey`.
+
 Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 `tkWindowTitle`, `tkWindowBg`, `tkText`, `tkTextDisabled`, `tkButton`,
 `tkButtonFocused`, `tkCheckbox`, `tkCheckboxFocused`, `tkInput`,
 `tkInputFocused`, `tkSelection`, `tkSelectionFocused`, `tkMenu`,
 `tkMenuSelected`, `tkStatusBar`, `tkStatusBarHotkey`, `tkTableHeader`,
-`tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`.
+`tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`, `tkScrollBar`, `tkControlBar`,
+`tkHotkey`, `tkLabelFocused`, `tkCluster`, `tkList`, `tkButtonDefault`,
+`tkWindowCloseBox`.
 
 ---
 
@@ -278,7 +325,7 @@ Button/Checkbox/StatusBar/menu item that carries it.
 
 | Widget | Constructor | Notes |
 |--------|-------------|-------|
-| `ScrollBar` | `newScrollBar(axis = axV)` | passive track/thumb; `setRange(total, page, pos)`, `setPos`, `onScroll`; wheel / click-page / drag |
+| `ScrollBar` | `newScrollBar(axis = axV)` | focusable: arrows along its axis step, PgUp/PgDn page, Home/End jump, bright `■` while focused (deviation #38); TV look (deviation #35): `▲`/`▼` (`◄`/`►`) arrows step by one, `▒` rail pages, one `■` thumb drags; `setRange(total, page, pos)`, `setPos`, `onScroll`; wheel. Pure helpers `scrollGlyphs` / `thumbCell` / `arrowCells` in `core/geometry`, also used by the ListView/Table/TextView indicator column |
 | `Scroller` | `newScroller(content)` | viewport over an over-sized child; wheel + PageUp/Dn; `scrollTo`/`scrollBy`/`ensureVisible`; focus auto-scroll; `onScroll` for bar sync |
 | `Splitter` | `newSplitter(axis, first, second, pos = 0)` | two panes + draggable focusable divider (`divider()`); Alt+arrows nudge; mins from child hints |
 | `TreeView` | `newTreeView(roots = @[])` | `TreeNode{label, children, expanded, loader}`; ▸/▾, Left/Right, Enter; `onSelect`/`onActivate`; `visibleRows`, `selectedNode` |

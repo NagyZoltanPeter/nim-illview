@@ -9,7 +9,9 @@ import ../src/illview/vocab
 import ../src/illview/core/[geometry, theme, drawcontext, events, bus, view, routing]
 import ../src/illview/widgets/[button, checkbox, radio, list, input, textview,
                                editor, statusbar, menu, groupbox, table,
-                               progress, label, sparkline]
+                               progress, label, sparkline, tristate,
+                               controlbar, scrollbar, window]
+import ../src/illview/layout/layout
 
 proc rowStr(tb: TerminalBuffer, y, w: int): string =
   for x in 0 ..< w:
@@ -45,8 +47,9 @@ suite "slots + stub bus":
     check stub.actions.len == 1
     check stub.actions[0].cmd == Command(42)
     check stub.actions[0].senderId == b.id
-    # mouse activation too
+    # mouse activation too: fires on release (deviation #36)
     dispatchMouse(root, mouseEvent(maPress, mbLeft, 1, 0))
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 1, 0))
     check clicked == 2
     check stub.actions.len == 2
 
@@ -247,6 +250,7 @@ suite "groupbox (iteration 2)":
     let root = newGroup()
     root.bounds = rect(0, 0, 20, 8)
     let gb = newGroupBox("opts")
+    gb.border = bkSingle # optional frame (deviation #34: borderless default)
     gb.bounds = rect(1, 1, 14, 5)
     gb.add newLabel("inside")
     gb.children[0].bounds = rect(0, 0, 6, 1)
@@ -260,6 +264,25 @@ suite "groupbox (iteration 2)":
     check rowStr(tb, 2, 16).contains("inside")
     check $tb[2, 2].ch == "i"
 
+  test "borderless default: heading row above a cluster-filled block":
+    let root = newGroup()
+    root.theme = defaultTheme()
+    root.bounds = rect(0, 0, 20, 8)
+    let gb = newGroupBox("opts")
+    gb.hint = (fixedHint(10), fixedHint(2))
+    check gb.border == bkNone
+    check gb.measure().h == fixedHint(3) # heading + 2 content rows
+    gb.bounds = rect(1, 1, 10, 3)
+    gb.add newLabel("in")
+    gb.children[0].bounds = rect(0, 0, 2, 1)
+    root.add gb
+    let tb = newTerminalBuffer(20, 8)
+    root.draw(initDrawContext(tb))
+    check rowStr(tb, 1, 6) == " opts "  # heading at the group's top row
+    check rowStr(tb, 2, 4) == " in "    # content starts one row lower
+    let cluster = defaultTheme().style(tkCluster).bg
+    check tb[5, 3].bg == cluster         # empty content cell: cluster fill
+    check tb[5, 1].bg != cluster         # heading row: not the block
 suite "table (iteration 2)":
   setup:
     var rows: seq[seq[string]]
@@ -373,3 +396,324 @@ suite "live-data widgets (deviation #30)":
     check SetProgress.signal(s2.brokerCtx, SetProgress(value: 5)).isOk
     waitFor sleepAsync(5.milliseconds)
     check s2.last == 5
+
+suite "TriStateCheckBox (deviation #32)":
+  test "user path cycles unchecked -> checked -> intermediate -> unchecked":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 4)
+    let stub = newStubBus()
+    root.publishCb = proc(a: UiAction) {.gcsafe, raises: [].} =
+      {.cast(gcsafe).}: stub.publish(a)
+    var seen: seq[CheckState]
+    let c = newTriStateCheckBox("all", command = Command(9))
+    c.onChange = proc(sender: TriStateCheckBox) {.gcsafe, raises: [].} =
+      {.cast(gcsafe).}: seen.add sender.state
+    root.add c
+    c.arrange(rect(0, 0, 7, 1))
+    setFocus(root, c)
+    discard dispatchKey(root, keyEvent(Key.Space))
+    discard dispatchKey(root, keyEvent(Key.Space))
+    dispatchMouse(root, mouseEvent(maPress, mbLeft, 1, 0))
+    check seen == @[csChecked, csIntermediate, csUnchecked]
+    check stub.actions.len == 3
+    check stub.actions[0].cmd == Command(9)
+
+  test "setState is programmatic: no slot":
+    var fired = 0
+    let c = newTriStateCheckBox("x")
+    c.onChange = proc(sender: TriStateCheckBox) {.gcsafe, raises: [].} = inc fired
+    c.setState(csIntermediate)
+    check c.state == csIntermediate
+    check fired == 0
+
+  test "disabled widget does not cycle":
+    let c = newTriStateCheckBox("x")
+    c.enabled = false
+    c.cycle()
+    check c.state == csUnchecked
+
+  test "default marks [ ] / [x] / [?]":
+    let c = newTriStateCheckBox("all")
+    check rowStr(renderInto(c, 7, 1), 0, 7) == "[ ] all"
+    c.setState(csChecked)
+    check rowStr(renderInto(c, 7, 1), 0, 7) == "[x] all"
+    c.setState(csIntermediate)
+    check rowStr(renderInto(c, 7, 1), 0, 7) == "[?] all"
+
+  test "custom marks and per-state mark colour (mark cell only)":
+    let c = newTriStateCheckBox("all", state = csIntermediate)
+    c.setMarks(Rune(' '), "✓".runeAt(0), Rune('~'))
+    c.setMarkStyle(csIntermediate, StyleOverride(fg: fgRed, bg: bgYellow))
+    var tb = renderInto(c, 7, 1)
+    check rowStr(tb, 0, 7) == "[~] all"
+    check tb[1, 0].fg == fgRed
+    check tb[1, 0].bg == bgYellow
+    check tb[0, 0].fg != fgRed # bracket keeps the widget style
+    check tb[4, 0].fg != fgRed # caption too
+    c.setState(csChecked) # no override for checked: inherits
+    tb = renderInto(c, 7, 1)
+    check rowStr(tb, 0, 7) == "[✓] all"
+    check tb[1, 0].fg != fgRed
+
+  test "mark focus colour applies while focused":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 2)
+    let c = newTriStateCheckBox("all", state = csChecked)
+    c.setMarkStyle(csChecked, StyleOverride(fg: fgGreen, focusFg: fgMagenta))
+    root.add c
+    var tb = renderInto(c, 7, 1)
+    check tb[1, 0].fg == fgGreen
+    setFocus(root, c)
+    tb = renderInto(c, 7, 1)
+    check tb[1, 0].fg == fgMagenta
+
+suite "ControlBar (deviation #32)":
+  test "height: lines clamped to 1..3, zero-init means 1":
+    check newControlBar(lines = 0).measure().h == fixedHint(1)
+    check newControlBar(lines = 2).measure().h == fixedHint(2)
+    check newControlBar(lines = 7).measure().h == fixedHint(3)
+    let cb = newControlBar()
+    cb.setLines(3)
+    check cb.measure().h == fixedHint(3)
+
+  test "left group fills, right group flush right, spacing between":
+    let cb = newControlBar(lines = 2)
+    let run = newButton("Run")             # fixed 8 x 1 ("> Run <" + shift cell)
+    let log = newTextView()                # pref 0, stretch
+    let sb = newScrollBar(axH)             # min 2, pref 8, stretch
+    let r = newRadio(@["a", "b", "c", "d"]) # fixed 5 x 4
+    let ok = newButton("OK")               # fixed 7 x 1
+    cb.add run
+    cb.add log
+    cb.add sb
+    cb.add r
+    cb.addRight ok
+    cb.arrange(rect(0, 0, 40, 2))
+    check ok.bounds == rect(33, 0, 7, 1)
+    # 32 cells for the left group: 8+0+8+5 pref + 3 gaps, 8 leftover split
+    check run.bounds == rect(0, 0, 8, 1)
+    check log.bounds == rect(9, 0, 4, 2)
+    check sb.bounds == rect(14, 0, 12, 1)
+    check r.bounds == rect(27, 0, 5, 2)    # 4 rows wanted, bar has 2
+
+  test "right group keeps declaration order":
+    let cb = newControlBar()
+    let a = newButton("A")
+    let b = newButton("B")
+    cb.addRight a
+    cb.addRight b
+    cb.arrange(rect(0, 0, 20, 1))
+    check a.bounds.x == 7 and b.bounds.x == 14 # 6 + 1 + 6, flush right
+
+  test "narrow bar: right group wins, left never overlaps it":
+    let cb = newControlBar()
+    let l1 = newButton("Left")
+    let l2 = newButton("More")
+    let ok = newButton("OK")
+    cb.add l1
+    cb.add l2
+    cb.addRight ok
+    cb.arrange(rect(0, 0, 10, 1))
+    check ok.bounds.x == 3
+    for c in [View(l1), l2]:
+      check c.bounds.x + c.bounds.w <= 2
+    cb.arrange(rect(0, 0, 4, 1)) # narrower than the right group
+    check l1.bounds.w == 0 and l2.bounds.w == 0
+    check ok.bounds.x == 0
+
+  test "alignRight moves an already-added child":
+    let cb = newControlBar()
+    let a = newButton("A")
+    cb.add a
+    cb.arrange(rect(0, 0, 20, 1))
+    check a.bounds.x == 0
+    cb.alignRight(a)
+    cb.arrange(rect(0, 0, 20, 1))
+    check a.bounds.x == 14
+
+  test "children are clipped to the bar (no cells drawn below it)":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 5)
+    let cb = newControlBar(lines = 2)
+    cb.dock = dkTop
+    cb.add newRadio(@["a", "b", "c", "d"])
+    root.add cb
+    root.theme = defaultTheme()
+    let tb = renderInto(root, 20, 5)
+    check tb[10, 1].bg == defaultTheme().style(tkControlBar).bg # bar fill
+    check rowStr(tb, 0, 5) == "(•) a"
+    check rowStr(tb, 1, 5) == "( ) b"
+    check rowStr(tb, 2, 5) == "     "
+    check rowStr(tb, 3, 5) == "     "
+
+  test "docked bottom: fill sibling shrinks by the bar height":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 10)
+    let cb = newControlBar(lines = 3)
+    let body = newGroup()
+    body.dock = dkFill
+    root.add cb
+    root.add body
+    root.arrange(rect(0, 0, 40, 10))
+    check cb.bounds == rect(0, 7, 40, 3)
+    check body.bounds == rect(0, 0, 40, 7)
+
+  test "focus traversal and mouse reach bar children":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 5)
+    let cb = newControlBar()
+    var clicks = 0
+    let a = newButton("A")
+    let b = newButton("B")
+    b.onClick = proc(sender: Button) {.gcsafe, raises: [].} = inc clicks
+    cb.add a
+    cb.addRight b
+    root.add cb
+    root.arrange(rect(0, 0, 40, 5))
+    focusNext(root)
+    check root.focusedLeaf == View(a)
+    focusNext(root)
+    check root.focusedLeaf == View(b)
+    dispatchMouse(root, mouseEvent(maPress, mbLeft, 36, 4))
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 36, 4))
+    check clicks == 1
+
+suite "surfaces (deviation #34)":
+  setup:
+    let th = defaultTheme()
+    let root = newGroup()
+    root.theme = th
+    root.bounds = rect(0, 0, 30, 10)
+
+  test "checkbox / radio fill their whole arranged width with the cluster bg":
+    let c = newCheckbox("ab")
+    let r = newRadio(@["x", "y"])
+    root.add c
+    root.add r
+    var tb = renderInto(c, 12, 1)
+    check tb[11, 0].bg == th.style(tkCheckbox).bg
+    tb = renderInto(r, 12, 2)
+    check tb[11, 1].bg == th.style(tkCheckbox).bg
+
+  test "list rows and empty space use the list surface; editor the field":
+    let l = newListView(@["a"])
+    let e = newEditor("x")
+    root.add l
+    root.add e
+    var tb = renderInto(l, 6, 3)
+    check tb[5, 2].bg == th.style(tkList).bg
+    tb = renderInto(e, 6, 3)
+    check tb[5, 2].bg == th.style(tkInput).bg
+
+  test "control hotkey keeps the control bg, bars keep the red hotkey":
+    let b = newButton("~R~un")
+    root.add b
+    let tb = renderInto(b, 8, 1) # face 7 from x 1: "Run" centred at x 3
+    check tb[3, 0].bg == th.style(tkButton).bg
+    check tb[3, 0].fg == th.style(tkHotkey).fg
+
+  test "label lights up while its linked control has focus":
+    let inp = newInput()
+    let lbl = newLabel("~N~ame")
+    lbl.linkTo = inp
+    root.add lbl
+    root.add inp
+    var tb = renderInto(lbl, 4, 1)
+    check tb[1, 0].fg == th.style(tkText).fg
+    setFocus(root, inp)
+    tb = renderInto(lbl, 4, 1)
+    check tb[1, 0].fg == th.style(tkLabelFocused).fg
+
+suite "buttons (deviation #36)":
+  test "flat face one cell in; > caption < while focused; no shadow":
+    let root = newGroup()
+    root.theme = defaultTheme()
+    root.bounds = rect(0, 0, 20, 3)
+    let b = newButton("OK")
+    check b.hint == (fixedHint(7), fixedHint(1)) # "> OK <" + shift cell
+    root.add b
+    var tb = renderInto(b, 7, 1)
+    check rowStr(tb, 0, 7) == "   OK  "
+    check tb[0, 0].bg != defaultTheme().style(tkButton).bg # the shift cell
+    check tb[1, 0].bg == defaultTheme().style(tkButton).bg
+    setFocus(root, b)
+    tb = renderInto(b, 7, 1)
+    check rowStr(tb, 0, 7) == " > OK <"
+
+  test "mouse: press shifts the face left, release over the button fires":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 3)
+    var clicks = 0
+    let b = newButton("OK")
+    b.onClick = proc(s: Button) {.gcsafe, raises: [].} = inc clicks
+    root.add b
+    b.arrange(rect(0, 0, 7, 1))
+    dispatchMouse(root, mouseEvent(maPress, mbLeft, 3, 0))
+    check b.pressed and clicks == 0        # nothing fires on press
+    check rowStr(renderInto(b, 7, 1), 0, 7) == "> OK < " # press focuses + shifts left
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 3, 0))
+    check clicks == 1 and not b.pressed
+
+  test "mouse: dragging off before release cancels":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 3)
+    var clicks = 0
+    let b = newButton("OK")
+    b.onClick = proc(s: Button) {.gcsafe, raises: [].} = inc clicks
+    root.add b
+    b.arrange(rect(0, 0, 7, 1))
+    dispatchMouse(root, mouseEvent(maPress, mbLeft, 3, 0))
+    dispatchMouse(root, mouseEvent(maMove, mbLeft, 15, 2))
+    check not b.pressed                    # dragged off: face back
+    dispatchMouse(root, mouseEvent(maRelease, mbLeft, 15, 2))
+    check clicks == 0
+
+  test "keys fire at once and flash the pressed face":
+    let root = newGroup()
+    root.bounds = rect(0, 0, 20, 3)
+    var clicks = 0
+    let b = newButton("OK")
+    b.onClick = proc(s: Button) {.gcsafe, raises: [].} = inc clicks
+    root.add b
+    setFocus(root, b)
+    check dispatchKey(root, keyEvent(Key.Enter))
+    check clicks == 1 and b.pressed        # synchronous slot (contract)
+    waitFor sleepAsync(150.milliseconds)
+    check not b.pressed                    # flash over
+
+  test "default button: bright caption; Enter not consumed fires it":
+    let win = newWindow("w", rect(0, 0, 30, 10))
+    let box = newVBox()
+    box.dock = dkFill
+    let plain = newInput()              # nobody listens: passes Enter on
+    let wired = newInput()
+    var submitted = 0
+    wired.onSubmit = proc(s: Input) {.gcsafe, raises: [].} = inc submitted
+    let chk = newCheckbox("c")
+    let ok = newButton("OK")
+    ok.isDefault = true
+    var fired = 0
+    ok.onClick = proc(s: Button) {.gcsafe, raises: [].} = inc fired
+    box.add plain
+    box.add wired
+    box.add chk
+    box.add ok
+    win.add box
+    let root = newGroup()
+    root.theme = defaultTheme()
+    root.bounds = rect(0, 0, 40, 12)
+    root.add win
+    root.arrange(rect(0, 0, 40, 12))
+    setFocus(root, plain)
+    check dispatchKey(root, keyEvent(Key.Enter))
+    check fired == 1
+    setFocus(root, chk)
+    check dispatchKey(root, keyEvent(Key.Enter))
+    check fired == 2 and not chk.checked  # Enter no longer toggles (TV)
+    discard dispatchKey(root, keyEvent(Key.Space))
+    check chk.checked
+    setFocus(root, wired)
+    check dispatchKey(root, keyEvent(Key.Enter))
+    check submitted == 1 and fired == 2   # a listened input keeps Enter
+    let tb = renderInto(ok, 7, 1)
+    check tb[3, 0].fg == defaultTheme().style(tkButtonDefault).fg # "O" 

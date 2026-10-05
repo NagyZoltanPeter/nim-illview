@@ -57,7 +57,7 @@ proc cascade*(d: Desktop) =
   d.invalidate()
 
 method draw*(d: Desktop, dc: DrawContext) {.gcsafe, raises: [].} =
-  dc.fill(rect(0, 0, d.contentW, d.contentH), "▒".runeAt(0), d.styleOf(tkDesktop))
+  dc.fill(rect(0, 0, d.contentW, d.contentH), "░".runeAt(0), d.styleOf(tkDesktop))
   procCall Group(d).draw(dc)
 
 method handleEvent*(d: Desktop, ev: Event): bool {.gcsafe, raises: [].} =

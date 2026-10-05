@@ -25,6 +25,9 @@ import ./core/[view, routing]
 export results, chronos
 export broker_context
 
+type CheckState* = enum ## TriStateCheckBox value; user clicks cycle in this order
+  csUnchecked, csChecked, csIntermediate
+
 # --- events: widget → app (EventBroker: many listeners per (type, ctx)) ------
 
 EventBroker:
@@ -41,6 +44,10 @@ EventBroker:
 EventBroker:
   type Toggled* = object ## Checkbox
     checked*: bool
+
+EventBroker:
+  type StateChanged* = object ## TriStateCheckBox
+    state*: CheckState
 
 EventBroker:
   type SelectionChanged* = object ## Radio / ListView / Table, selection moved
@@ -61,6 +68,10 @@ SignalBroker:
 SignalBroker:
   type SetChecked* = object ## Checkbox
     checked*: bool
+
+SignalBroker:
+  type SetCheckState* = object ## TriStateCheckBox
+    state*: CheckState
 
 SignalBroker:
   type SetSelected* = object ## Radio, ListView, Table

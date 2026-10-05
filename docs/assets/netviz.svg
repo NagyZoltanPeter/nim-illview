@@ -1,58 +1,60 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="270" viewBox="0 0 720 270">
 <rect width="720" height="270" fill="#1c1c1c"/>
 <g font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="14">
-<rect x="0" y="0" width="720" height="18" fill="#20409a"/>
-<text x="0" y="14" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╔[■]══════════════════ network events - nim-brokers live ══════════════════════╗</text>
-<rect x="0" y="18" width="9" height="18" fill="#20409a"/>
+<rect x="0" y="0" width="720" height="18" fill="#a8a8a8"/>
+<text x="0" y="14" textLength="18" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╔[</text>
+<text x="18" y="14" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#8ae234">■</text>
+<text x="27" y="14" textLength="693" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">]══════════════════ network events - nim-brokers live ══════════════════════╗</text>
+<rect x="0" y="18" width="9" height="18" fill="#a8a8a8"/>
 <rect x="9" y="18" width="702" height="18" fill="#178b8d"/>
-<rect x="711" y="18" width="9" height="18" fill="#20409a"/>
+<rect x="711" y="18" width="9" height="18" fill="#a8a8a8"/>
 <text x="0" y="32" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="32" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c"> events: 8 | peer: 3 | relay: 3 | store: 2                                    </text>
+<text x="9" y="32" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#fce94f"> events: 8 | peer: 3 | relay: 3 | store: 2                                    </text>
 <text x="711" y="32" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="36" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="36" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="50" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="50" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">[peer] connected 16Uiu2HAm...  #1                                             </text>
+<text x="9" y="50" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[peer] connected 16Uiu2HAm...  #1                                             </text>
 <text x="711" y="50" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="54" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="54" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="68" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="68" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">[relay] subscribed /waku/2/rs/0/1  #2                                         </text>
+<text x="9" y="68" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[relay] subscribed /waku/2/rs/0/1  #2                                         </text>
 <text x="711" y="68" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="72" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="72" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="86" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="86" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">[relay] push 1.2 kB msgHash=0xa1f3...  #3                                     </text>
+<text x="9" y="86" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[relay] push 1.2 kB msgHash=0xa1f3...  #3                                     </text>
 <text x="711" y="86" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="90" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="90" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="104" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="104" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">[store] archive insert ok  #4                                                 </text>
+<text x="9" y="104" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[store] archive insert ok  #4                                                 </text>
 <text x="711" y="104" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="108" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="108" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="122" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="122" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">[peer] score +1  #5                                                           </text>
+<text x="9" y="122" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[peer] score +1  #5                                                           </text>
 <text x="711" y="122" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="126" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="126" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="140" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="140" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">[relay] duplicate ignored  #6                                                 </text>
+<text x="9" y="140" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[relay] duplicate ignored  #6                                                 </text>
 <text x="711" y="140" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="144" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="144" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="158" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="158" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">[store] query served (12 msgs)  #7                                            </text>
+<text x="9" y="158" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[store] query served (12 msgs)  #7                                            </text>
 <text x="711" y="158" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="162" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="162" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="176" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<text x="9" y="176" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#d3d7cf">[peer] disconnected 16Uiu2HAk...  #8                                          </text>
+<text x="9" y="176" textLength="702" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#30302c">[peer] disconnected 16Uiu2HAk...  #8                                          </text>
 <text x="711" y="176" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="180" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="180" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="194" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
 <text x="711" y="194" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="198" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="198" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="212" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
 <text x="711" y="212" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="216" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="216" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="230" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
 <text x="711" y="230" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">║</text>
-<rect x="0" y="234" width="720" height="18" fill="#20409a"/>
+<rect x="0" y="234" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="248" textLength="720" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╚══════════════════════════════════════════════════════════════════════════════╝</text>
-<rect x="0" y="252" width="720" height="18" fill="#d0d0c8"/>
+<rect x="0" y="252" width="720" height="18" fill="#a8a8a8"/>
 <text x="9" y="266" textLength="90" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#cc4444"> Esc Quit </text>
 </g>
 </svg>

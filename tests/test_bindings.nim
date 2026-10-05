@@ -6,7 +6,7 @@
 import std/[unittest, strutils]
 import chronos
 import ../src/illview/core/[geometry, events, bus, view, routing, app]
-import ../src/illview/widgets/[window, checkbox, input, button]
+import ../src/illview/widgets/[window, checkbox, input, button, tristate]
 import ../src/illview/dsl/pragmas
 import ../src/illview/dsl/mount
 import ../src/illview/dsl/uievents
@@ -362,3 +362,56 @@ suite "opened bus: subscribe + wildcards (plan-2 D6)":
     bus.publishDomain("nomatch", "z")
     waitFor sleepAsync(10.milliseconds)
     check got == @["viz/peer=up"]
+
+# --- TriStateCheckBox in the DSL (deviation #32) ----------------------------------
+
+var triLog: seq[CheckState]
+
+type TriForm {.view, vbox.} = ref object of Group
+  all {.child, caption: "~A~ll", bindValue: "allVal", bindTo: "onAll",
+       emits: "AllChanged".}: TriStateCheckBox
+  allVal: CheckState
+
+uiEvents(TriForm)
+
+proc onAll(self: TriForm, sender: TriStateCheckBox) {.gcsafe, raises: [].} =
+  {.cast(gcsafe).}:
+    triLog.add self.allVal # store must run before bindTo
+
+suite "TriStateCheckBox joins bindValue/bindTo/emits (deviation #32)":
+  test "user cycle stores, calls bindTo, emits the state payload":
+    triLog.setLen 0
+    let root = newGroup()
+    root.bounds = rect(0, 0, 40, 6)
+    let form = mount(TriForm)
+    form.dock = dkFill
+    root.add form
+    root.arrangeChildren()
+    check form.all.caption == "All"
+    var got: seq[CheckState]
+    check AllChanged.listen(form.sessionCtx,
+      proc(ev: AllChanged): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}: got.add ev.state).isOk
+    setFocus(root, form.all)
+    discard dispatchKey(root, keyEvent(Key.Space))
+    discard dispatchKey(root, keyEvent(Key.Space))
+    waitFor sleepAsync(10.milliseconds)
+    check form.allVal == csIntermediate
+    check triLog == @[csChecked, csIntermediate]
+    check got == @[csChecked, csIntermediate]
+    waitFor AllChanged.dropAllListeners(form.sessionCtx)
+    dispose(form)
+
+  test "generated setAllVal drives the widget without re-emitting":
+    let form = mount(TriForm)
+    var got = 0
+    check AllChanged.listen(form.sessionCtx,
+      proc(ev: AllChanged): Future[void] {.async: (raises: []), gcsafe.} =
+        {.cast(gcsafe).}: inc got).isOk
+    form.setAllVal(csIntermediate)
+    waitFor sleepAsync(5.milliseconds)
+    check form.allVal == csIntermediate
+    check form.all.state == csIntermediate
+    check got == 0
+    waitFor AllChanged.dropAllListeners(form.sessionCtx)
+    dispose(form)

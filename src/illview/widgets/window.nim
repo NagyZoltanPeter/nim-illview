@@ -9,6 +9,7 @@
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events]
+import ./button
 
 const
   MinW = 8
@@ -27,12 +28,13 @@ type
     savedBounds: Rect # pre-zoom bounds, restored on un-zoom
     onClose*: proc(w: Window) {.gcsafe, raises: [].}
       ## Close override; nil = default (detach from the parent + dispose).
+    framed*: bool = true # false: no border / [■] / [↑] / ◢ (embedded in a TabView)
 
 proc newWindow*(title: string, bounds: Rect): Window =
   result = Window(borderTitle: title, closable: true, zoomable: true)
   initView(result)
   result.bounds = bounds
-  result.border = bkSingle
+  result.border = bkSingle # palette pDefault: the theme's base (gray, deviation #35)
 
 proc title*(w: Window): string =
   w.borderTitle
@@ -46,7 +48,9 @@ func isActive*(w: Window): bool =
   w.parent != nil and w.parent.focused == w
 
 method borderKind*(w: Window): BorderKind {.gcsafe, raises: [].} =
-  if w.isActive: bkDouble else: bkSingle
+  if not w.framed: bkNone
+  elif w.isActive: bkDouble
+  else: bkSingle
 
 method borderStyle*(w: Window): Style {.gcsafe, raises: [].} =
   w.styleOf(if w.isActive: tkWindowFrameActive else: tkWindowFrame)
@@ -60,13 +64,28 @@ method draw*(w: Window, dc: DrawContext) {.gcsafe, raises: [].} =
 
 method drawOverlay*(w: Window, dc: DrawContext) {.gcsafe, raises: [].} =
   ## Resize handle on the frame corner (dc spans the FULL rect incl. border).
+  if not w.framed:
+    return
   if w.isActive and w.dock == dkNone and w.bounds.w >= 2 and w.bounds.h >= 2:
     dc.putCell(w.bounds.w - 1, w.bounds.h - 1, "◢".runeAt(0), w.borderStyle)
   # title-row chrome (plan-4 P21): close box at the left, zoom box at the right
   if w.closable and w.bounds.w >= 6:
     dc.write(1, 0, "[■]", w.borderStyle)
+    dc.write(2, 0, "■", w.styleOf(tkWindowCloseBox))
   if w.zoomable and w.dock == dkNone and w.bounds.w >= 10:
     dc.write(w.bounds.w - 4, 0, (if w.zoomed: "[↓]" else: "[↑]"), w.borderStyle)
+
+proc defaultButton*(g: Group): Button =
+  ## First visible, enabled `isDefault` Button in `g`'s subtree, else nil.
+  for c in g.children:
+    if not c.visible or not c.enabled:
+      continue
+    if c of Button and Button(c).isDefault:
+      return Button(c)
+    if c of Group:
+      let d = defaultButton(Group(c))
+      if d != nil:
+        return d
 
 func floating(w: Window): bool =
   w.dock == dkNone # docked windows are layout-owned: not movable/resizable
@@ -172,6 +191,13 @@ method handleEvent*(w: Window, ev: Event): bool {.gcsafe, raises: [].} =
       else:
         w.moveTo(w.bounds.x + dx, w.bounds.y + dy)
       return true
+    if k.key == Key.Enter and k.keyMods == {}:
+      # Enter the focused widget did not consume fires the default button
+      # (TV bfDefault, deviation #34)
+      let d = w.defaultButton()
+      if d != nil:
+        d.activate()
+        return true
   else:
     discard
   false

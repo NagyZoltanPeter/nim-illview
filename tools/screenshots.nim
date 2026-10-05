@@ -37,7 +37,8 @@ func bgHex(c: BackgroundColor): string =
   of bgBlue: "#20409a"
   of bgMagenta: "#7c3b96"
   of bgCyan: "#178b8d"
-  of bgWhite: "#d0d0c8"
+  of bgWhite: "#e5e5e5" # true white-ish: a stray bgWhite shows in the docs
+  of bgGray: "#a8a8a8"  # TV lightgray (deviation #37)
 
 func esc(s: string): string =
   s.multiReplace(("&", "&amp;"), ("<", "&lt;"), (">", "&gt;"))
@@ -76,6 +77,94 @@ proc toSvg(tb: TerminalBuffer): string =
         result.add &"""<text x="{x * CellW}" y="{y * CellH + FontSize}" textLength="{tl}" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="{fgHex(c.fg, bright)}">{esc(text)}</text>""" & "\n"
       x = rx
   result.add "</g>\n</svg>\n"
+
+# --- scene: TV visual language (deviation #34) --------------------------------
+
+proc tvDialogScene(d: Desktop) =
+  ## Turbo Vision's demo dialog rebuilt with stock widgets: gray dialog
+  ## palette, borderless cyan clusters, blue field, shadowed buttons.
+  d.add newMenuBar(@[menu("~F~ile", @[menuItem("Quit", Command(1))]),
+                     menu("~W~indow", @[menuItem("Tile", Command(2))])])
+  d.add newStatusBar(@[statusItem("Alt-X Exit", Command(1)),
+                       statusItem("Alt-F3 Close", Command(2))])
+  let dlg = newWindow("Demo Dialog", rect(12, 2, 46, 15))
+  dlg.palette = pGray
+  dlg.zoomable = false
+  dlg.shadow = true
+  let body = newVBox(spacing = 1)
+  body.dock = dkFill
+  body.padding = 1
+  let row = newHBox(spacing = 3)
+  row.hint = (prefHint(0, stretch = 1), fixedHint(4))
+  let cheeses = newGroupBox("Cheeses")
+  cheeses.hint = (fixedHint(16), fixedHint(3))
+  let cb = newVBox()
+  cb.dock = dkFill
+  cb.add newCheckbox("~H~varti")
+  cb.add newCheckbox("~T~ilset")
+  cb.add newCheckbox("~J~arlsberg", checked = true)
+  cheeses.add cb
+  let cons = newGroupBox("Consistency")
+  cons.hint = (fixedHint(13), fixedHint(3))
+  let rad = newRadio(@["Solid", "Runny", "Melted"], selected = 1)
+  rad.dock = dkFill
+  cons.add rad
+  row.add cheeses
+  row.add cons
+  body.add row
+  let lbl = newLabel("~D~elivery Instructions")
+  let inp = newInput("Leave it on the doorstep")
+  lbl.linkTo = inp
+  body.add lbl
+  body.add inp
+  let btns = newHBox(spacing = 2)
+  btns.hint = (prefHint(0, stretch = 1), fixedHint(1))
+  let gap = newLabel("")
+  gap.hint = (prefHint(0, stretch = 1), fixedHint(1))
+  btns.add gap
+  let ok = newButton("O~K~")
+  ok.isDefault = true
+  btns.add ok
+  btns.add newButton("~C~ancel")
+  body.add btns
+  dlg.add body
+  d.add dlg
+  setFocus(d, inp)
+
+# --- scene: tab container (deviation #39) --------------------------------------
+
+proc tabsScene(d: Desktop) =
+  ## ex15: a TabView holding three frameless windows; the Log page is blue.
+  d.add newStatusBar(@[statusItem("Ctrl+PgUp/PgDn Switch", Command(1)),
+                       statusItem("Esc Quit", Command(2))])
+  let win = newWindow("tabs", rect(0, 0, 0, 0))
+  win.dock = dkFill
+  let tabs = newTabView()
+  tabs.dock = dkFill
+  let form = newWindow("Form", rect(0, 0, 0, 0))
+  form.closable = false
+  let fl = newFormLayout(spacing = 1)
+  fl.dock = dkFill
+  fl.padding = 1
+  fl.add newLabel("Name")
+  let name = newInput("nim-illview")
+  fl.add name
+  fl.add newLabel("Port")
+  fl.add newInput("8000")
+  fl.add newLabel("TLS")
+  fl.add newCheckbox("enabled", checked = true)
+  form.add fl
+  let lst = newWindow("List", rect(0, 0, 0, 0))
+  lst.closable = false
+  lst.add newLabel("")
+  let logw = newWindow("Log", rect(0, 0, 0, 0))
+  logw.palette = pBlue
+  tabs.addPage(form)
+  tabs.addPage(lst)
+  tabs.addPage(logw)
+  win.add tabs
+  d.add win
+  setFocus(d, name)
 
 proc shoot(name: string, w, h: int, build: proc(d: Desktop)) =
   let d = newDesktop()
@@ -248,7 +337,8 @@ proc dialogScene(d: Desktop) =
   let bg = newWindow("editor", rect(0, 0, 0, 0))
   bg.dock = dkFill
   d.add bg
-  let dlg = newWindow("Confirm", rect(10, 3, 30, 6))
+  let dlg = newWindow("Confirm", rect(10, 3, 30, 7))
+  dlg.palette = pGray # what messageBox/confirm build (deviation #34)
   dlg.closable = false
   dlg.zoomable = false
   dlg.shadow = true
@@ -258,6 +348,7 @@ proc dialogScene(d: Desktop) =
   let row = newHBox(spacing = 1)
   row.dock = dkBottom
   let yes = newButton("~Y~es")
+  yes.isDefault = true
   row.add yes
   row.add newButton("~N~o")
   dlg.add row
@@ -314,5 +405,7 @@ when isMainModule:
   shoot("windows", 70, 21, windowsScene)
   shoot("features", 80, 22, featuresScene)
   shoot("dialog", 50, 12, dialogScene)
+  shoot("tvdialog", 70, 20, tvDialogScene)
+  shoot("tabs", 60, 14, tabsScene)
   shoot("netviz", 80, 15, netvizScene)
   shoot("showcase", 84, 24, showcaseScene)

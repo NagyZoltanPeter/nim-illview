@@ -289,6 +289,7 @@ proc enableTui*(app: App) =
   when defined(posix) and not defined(noCrashRestore):
     installCrashRestore() # capture the cooked termios BEFORE illwill goes raw
   illwillInit(fullScreen = true, mouse = true)
+  invalidateScreen() # re-entry: full repaint, no stale diff/SGR cache (deviation #40)
   hideCursor()
   stdout.write("\e[?2004h") # bracketed paste on
   stdout.flushFile()
