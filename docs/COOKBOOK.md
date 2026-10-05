@@ -545,3 +545,27 @@ without firing `onSelect`. `tabs.removePage(w)` hands the window back
 (framed again, not disposed) — add it to the desktop to float it.
 Declaratively, `{.child.}` windows of a `{.view.}` TabView subtype become the
 pages in declaration order.
+
+## 26. Keep stdout/stderr while the TUI is up
+
+Libraries, C code and child processes print straight to fd 1/2; on the
+alternate screen that garbles the UI and is lost when you leave it. Capture
+it instead (deviation #41, POSIX):
+
+```nim
+let app = newApp(captureOutput = true)   # default off
+let pane = newTextView(maxLines = 500)
+app.captureTo(pane)                      # live, one line per captured line
+# ... build the desktop, then:
+await app.run()
+```
+
+While the TUI runs, `echo`, `printf` and children write into a pty instead of
+the screen; `pane` shows the lines as they come. `app.disableTui()` (e.g. an
+F2 "terminal mode", see `examples/ex14_logpane.nim`) and the final exit
+replay everything printed meanwhile into the terminal's scrollback, colours
+included; in terminal mode output then flows to the terminal live while the
+pane keeps receiving it. With capture on, the simplest chronicles setup is to
+let it write to stderr like any other code (ex14 does): one path feeds both
+the pane and the scrollback. Routing chronicles into a pane through its
+dynamic sink (recipe 23) still works when capture is off.

@@ -813,3 +813,63 @@ Verified on a real pty: ex14's initial frame is 3539 bytes; before the fix a
 resume re-sent 254 bytes (status bar and gray backgrounds missing), after it
 3399 and 3505 bytes on two consecutive F2/Enter round trips, status text and
 `bgGray` present each time.
+
+## 41. Capturing stdout/stderr while the TUI is up
+
+While the TUI drew on the alternate screen, anything else written to fd 1/2 —
+`echo`, C `printf`, child processes — landed on that screen too: it garbled
+the UI until the next repaint and vanished when the alternate screen was left,
+so terminal mode (F2) had nothing to scroll back to.
+
+Opt-in `newApp(captureOutput = true)` (POSIX with threads; `CaptureSupported`):
+
+- **Renderer output handle**: third local illwill patch, `setOutput(f)` /
+  `output()`. All illwill terminal writes (12 `stdout` sites and every
+  `std/terminal` call, including `setCursorXPos`, which the diff renderer uses
+  to skip unchanged cells — missing it drew text shifted left whenever capture
+  was on) and app.nim's cursor / bracketed-paste writes go through it.
+  Verified byte-identical on a pty (ex04's first frame, 5291 bytes).
+- **Redirect**: `enableTui` dups the real terminal for the renderer, then
+  `dup2`s a **pty** slave over fd 1 and fd 2 (one channel keeps stdout/stderr
+  interleaving). A pty, not a pipe, keeps `isatty(1)` true: libraries keep
+  their colours and C stdio stays line-buffered. Input is unaffected — the
+  driver reads its own tty fd.
+- **Drain thread**: a pty buffers only **1024 bytes on macOS** (~4 KiB on
+  Linux; a pipe 64 KiB — measured). With the loop thread as the reader, one
+  larger synchronous write from that same thread would block forever. A small
+  internal thread `poll()`s the pty master and a stop pipe, `read()`s into a
+  fixed-size shared ring (`allocShared`, drop-oldest, default 1 MiB) under a
+  lock, and wakes the loop through a pipe. It touches no GC memory — same
+  under refc and ORC — and exposes no cross-thread API. Stop: a byte on the
+  stop pipe → final non-blocking sweep → exit, so children still holding the
+  pty can't hang the join.
+- **Capture stays on; terminal mode passes through**: capture starts with the
+  first `enableTui` and ends when `run` returns. `disableTui` leaves the
+  alternate screen, then — in one locked step — replays the not-yet-shown
+  backlog through `sanitizeForReplay` (keeps text and SGR colours, strips
+  cursor movement, clears, mode/alt-screen switches, OSC titles, bells) and
+  switches the drain thread to *passthrough*: every new chunk is also written
+  to the real terminal as it arrives. `enableTui` switches passthrough off.
+  A shared `shown` mark guarantees no byte is lost or shown twice. So both the
+  scrollback and a `captureTo` pane hold every line, whichever mode printed it
+  (stopping capture per mode lost lines on each side: the pane missed
+  terminal-mode output, the scrollback missed what had gone only to the
+  pane). Cost: in terminal mode fd 1/2 still point at the pty — `isatty` stays
+  true and programs behave the same; only an interactive child that reads the
+  terminal would notice.
+- **Pane feed** (author's requirement): `app.captureTo(tv)` turns chunks into
+  lines (`LineSplitter`, escapes stripped) and appends them; several sinks may
+  coexist; `onCapturedOutput` sees raw chunks. ex14's chronicles → pane path is
+  unchanged.
+- **Resize**: on SIGWINCH the pty gets the real terminal size.
+- **Crash**: `restoreOnSignal` first `dup2`s fd 1/2 back (async-signal-safe),
+  writes the restore sequence, then dumps the captured tail with `write(2)` —
+  after leaving the alternate screen, so it stays visible.
+
+Verification (real pty): ex14 over two F2/Enter round trips — the pane holds
+chronicles ticks 1..10 and the terminal scrollback ticks 1..14, both with no
+gaps and no duplicates, plus every plain stdout/stderr write; no raw captured
+bytes reach the screen in desktop mode;
+a 200 KB single write from the loop thread completes (200020 bytes captured,
+tail replayed); SIGSEGV with capture on restores the terminal and prints the
+captured line on the main screen. Unit tests: `tests/test_capture.nim`.

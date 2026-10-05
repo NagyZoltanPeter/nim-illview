@@ -25,6 +25,13 @@ when defined(posix):
   import ../backend/driver_posix
 else:
   import ../backend/driver_fallback
+import ../backend/ansitext
+import ../widgets/textview
+
+# stdout/stderr capture needs POSIX fds + an internal drain thread (deviation #41)
+const CaptureSupported* = defined(posix) and compileOption("threads")
+when CaptureSupported:
+  import ../backend/capture_posix
 
 export illwill_vendored.TerminalBuffer
 
@@ -37,6 +44,13 @@ type
     running*: bool
     onInput*: proc(ev: InputEvent) {.gcsafe, raises: [].}
     onRender*: proc(tb: var TerminalBuffer) {.gcsafe, raises: [].}
+    captureOutput*: bool # while the TUI is up, collect stdout/stderr (deviation #41)
+    captureLimit*: int   # bytes kept for replay (drop-oldest)
+    onCapturedOutput*: proc(chunk: string) {.gcsafe, raises: [].}
+      ## Raw captured bytes as they arrive (loop thread).
+    captureSinks: seq[proc(chunk: string) {.gcsafe, raises: [].}]
+    when CaptureSupported:
+      capture: OutputCapture
     dirty: bool
     renderPending: bool
     tuiActive: bool
@@ -90,9 +104,13 @@ when defined(posix):
     "\e[0m"                         # reset attributes
 
   proc restoreOnSignal(sig: cint, info: ptr posix.SigInfo, ctx: pointer) {.noconv.} =
+    when CaptureSupported:
+      captureCrashFds() # fd 1/2 back on the terminal first (deviation #41)
     discard posix.write(cint(1), cast[pointer](cstring(RestoreSeq)), RestoreSeq.len)
     if gTermiosSaved:
       discard tcSetAttr(cint(0), TCSANOW, addr gOrigTermios)
+    when CaptureSupported:
+      captureCrashDump() # then the captured tail, on the main screen
     # Hand the signal on. sa_handler/sa_sigaction share one union slot on every
     # POSIX we build for, so the cast reads whichever the previous owner set.
     var prev = gPrevActions[int(sig)]
@@ -120,7 +138,7 @@ proc execView*(app: App, v: Group): Future[Command] {.gcsafe, raises: [].}
 proc endModal*(app: App, cmd: Command) {.gcsafe, raises: [].}
 
 proc newApp*(fpsCap = 30, theme: Theme = nil,
-             sessionCtx = BrokerContext(0)): App =
+             sessionCtx = BrokerContext(0), captureOutput = false): App =
   ## The App's session broker context: the scope uiEvents `emits:` events fire
   ## on and every view built under it shares (normalized to instanceCtx 0 so it
   ## equals `someView.sessionCtx`). Resolution (deviation #27): an
@@ -134,7 +152,8 @@ proc newApp*(fpsCap = 30, theme: Theme = nil,
   let raw = if explicit: sessionCtx else: globalBrokerContext()
   let sc = makeBrokerContext(classCtx(raw), 0'u16)
   bindSessionCtx(if explicit: sc else: BrokerContext(0))
-  let app = App(fpsCap: fpsCap, sessionCtx: sc)
+  let app = App(fpsCap: fpsCap, sessionCtx: sc, captureOutput: captureOutput,
+                captureLimit: 1 shl 20)
   app.driver = newInputDriver(
     proc(ev: InputEvent) {.gcsafe, raises: [].} = app.handleInput(ev))
   app.bus = newNullBus()
@@ -251,6 +270,9 @@ proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].} =
   of ikPaste:
     discard dispatchPaste(app.scope, ev.text)
   of ikResize:
+    when CaptureSupported:
+      if app.capture.active:
+        app.capture.syncSize() # captured programs see the new width
     app.requestRedraw() # frame() re-sizes the buffer; Phase 3 adds relayout
   if app.onInput != nil:
     app.onInput(ev) # observer hook, runs after routing
@@ -288,11 +310,24 @@ proc enableTui*(app: App) =
     return
   when defined(posix) and not defined(noCrashRestore):
     installCrashRestore() # capture the cooked termios BEFORE illwill goes raw
+  when CaptureSupported:
+    if app.captureOutput:
+      if app.capture == nil:
+        app.capture = newOutputCapture(app.captureLimit)
+        app.capture.onChunk = proc(chunk: string) {.gcsafe, raises: [].} =
+          for sink in app.captureSinks:
+            sink(chunk)
+          if app.onCapturedOutput != nil:
+            app.onCapturedOutput(chunk)
+      if app.capture.active:
+        app.capture.setPassthrough(false) # back from terminal mode: collect again
+      else:
+        app.capture.start() # fd 1/2 -> pty; the renderer -> the real terminal
   illwillInit(fullScreen = true, mouse = true)
   invalidateScreen() # re-entry: full repaint, no stale diff/SGR cache (deviation #40)
-  hideCursor()
-  stdout.write("\e[?2004h") # bracketed paste on
-  stdout.flushFile()
+  hideCursor(output()) # the renderer's handle (deviation #41)
+  output().write("\e[?2004h") # bracketed paste on
+  output().flushFile()
   app.tb = nil # force full-size rebuild on first frame
   app.tuiActive = true
   app.driver.start()
@@ -305,9 +340,33 @@ proc disableTui*(app: App) =
     return
   app.tuiActive = false
   app.driver.stop()
-  stdout.write("\e[?2004l") # bracketed paste off
-  stdout.flushFile()
+  output().write("\e[?2004l") # bracketed paste off
+  output().flushFile()
   illwillDeinit() # exits altscreen, restores termios, shows cursor
+  when CaptureSupported:
+    if app.capture.active:
+      try:
+        output().flushFile() # the alt-screen exit reaches the terminal first
+      except IOError:
+        discard
+      # replay the desktop-period backlog into the normal scrollback, then keep
+      # passing output through live; capture (and the pane feed) stays on
+      app.capture.setPassthrough(true, sanitizeForReplay)
+
+proc captureTo*(app: App, tv: TextView) =
+  ## Feed captured stdout/stderr into `tv` line by line (escape sequences
+  ## stripped), as it arrives (deviation #41). Needs `captureOutput`.
+  var splitter: LineSplitter
+  app.captureSinks.add proc(chunk: string) {.gcsafe, raises: [].} =
+    for line in splitter.feed(stripAnsi(chunk)):
+      tv.addLine(line)
+
+proc capturedOutput*(app: App): string =
+  ## Captured bytes not yet replayed into the scrollback (raw).
+  when CaptureSupported:
+    if app.capture != nil:
+      return app.capture.pending
+  ""
 
 proc stop*(app: App) {.gcsafe, raises: [].} =
   ## Ends run(). Safe to call from any handler.
@@ -325,3 +384,7 @@ proc run*(app: App) {.async.} =
     await app.quitFut
   finally:
     app.disableTui()
+    when CaptureSupported:
+      if app.capture.active:
+        app.capture.stop() # fd 1/2 back on the terminal for good
+        app.capture.dispose()

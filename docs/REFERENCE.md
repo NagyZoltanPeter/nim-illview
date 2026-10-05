@@ -291,7 +291,7 @@ Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 
 ## 9. App
 
-`newApp(fpsCap = 30, theme = nil, sessionCtx = BrokerContext(0))` → `App`
+`newApp(fpsCap = 30, theme = nil, sessionCtx = BrokerContext(0), captureOutput = false)` → `App`
 (session ctx = the thread's `globalBrokerContext()` unless one is passed,
 deviation #27) with `desktop`, `bus`, `running`,
 `onInput` hook; `await app.run()`, `app.stop()`, `app.requestRedraw()`,
@@ -300,6 +300,19 @@ deviation #27) with `desktop`, `bus`, `running`,
 and fps-capped; an idle app has zero pending timers. Everything runs on ONE
 chronos thread — no marshaling; `--mm:refc` and `--mm:orc` are both CI-gated
 (`nimble test` / `nimble testRefc`, see `docs/EMBEDDING.md §6`).
+
+**Output capture** (deviation #41; POSIX with threads, `CaptureSupported`):
+with `captureOutput = true`, while the TUI is up fd 1/2 point at a pty, so
+`echo`, C `printf` and child processes never touch the screen. On
+`disableTui` (terminal mode, or exit) the collected output is replayed into
+the terminal's scrollback — colours kept, cursor/clear/mode sequences
+stripped — and from then on passes through live; capture stays on until `run`
+returns, so the scrollback and the pane both get every line. `app.captureTo(textView)` feeds it into a pane line by line as it
+arrives (several panes may share it); `app.onCapturedOutput = proc(chunk)`
+sees the raw bytes; `app.capturedOutput()` returns what is not yet replayed;
+`app.captureLimit` bounds the history (default 1 MiB, drop-oldest). A small
+internal drain thread reads the pty, so a large synchronous write never
+blocks the loop.
 
 Command gating (P22/D19): `app.disableCommand(cmd)` / `app.enableCommand(cmd)`
 / `app.isCommandEnabled(cmd)`. A disabled command greys and blocks any
