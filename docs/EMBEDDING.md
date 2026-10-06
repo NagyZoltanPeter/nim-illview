@@ -81,7 +81,9 @@ flowing to the terminal live (and to the pane). `app.captureTo(pane)` shows the
 same output live in a TextView. The renderer writes to its own handle on the
 real terminal (illwill `setOutput`), input reads its own tty fd, and the crash
 handler puts fd 1/2 back and dumps the captured tail before chaining.
-Default off: without it `isatty(1)` and fd 1/2 are untouched.
+Default off: without it `isatty(1)` and fd 1/2 are untouched. Architecture,
+ownership and every flow (start, desktop, F2, terminal mode, Enter, exit,
+crash): [OUTPUT-CAPTURE.md](OUTPUT-CAPTURE.md).
 
 ## 4. Crash handling in a host
 

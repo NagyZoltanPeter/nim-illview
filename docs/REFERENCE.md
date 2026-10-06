@@ -312,7 +312,7 @@ arrives (several panes may share it); `app.onCapturedOutput = proc(chunk)`
 sees the raw bytes; `app.capturedOutput()` returns what is not yet replayed;
 `app.captureLimit` bounds the history (default 1 MiB, drop-oldest). A small
 internal drain thread reads the pty, so a large synchronous write never
-blocks the loop.
+blocks the loop. Architecture and flows: [OUTPUT-CAPTURE.md](OUTPUT-CAPTURE.md).
 
 Command gating (P22/D19): `app.disableCommand(cmd)` / `app.enableCommand(cmd)`
 / `app.isCommandEnabled(cmd)`. A disabled command greys and blocks any

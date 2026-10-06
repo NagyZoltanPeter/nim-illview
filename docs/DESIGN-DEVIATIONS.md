@@ -816,6 +816,9 @@ resume re-sent 254 bytes (status bar and gray backgrounds missing), after it
 
 ## 41. Capturing stdout/stderr while the TUI is up
 
+User-facing architecture, ownership table and flow diagrams:
+[OUTPUT-CAPTURE.md](OUTPUT-CAPTURE.md).
+
 While the TUI drew on the alternate screen, anything else written to fd 1/2 —
 `echo`, C `printf`, child processes — landed on that screen too: it garbled
 the UI until the next repaint and vanished when the alternate screen was left,

@@ -268,6 +268,10 @@ Details: [docs/DESIGN.md](docs/DESIGN.md) · build plan
 - [docs/COOKBOOK.md](docs/COOKBOOK.md) — copy-paste recipes: forms,
   two-way binding, validation, driving widgets from async model code,
   focus, testing patterns, custom widgets.
+- [docs/EMBEDDING.md](docs/EMBEDDING.md) — running illview inside a host
+  process: the loop, broker contexts, daemon mode, crash handling.
+- [docs/OUTPUT-CAPTURE.md](docs/OUTPUT-CAPTURE.md) — capturing stdout/stderr
+  while the TUI is up: architecture, data flow, mode switches, guarantees.
 
 ## Examples
 
