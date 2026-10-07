@@ -2,13 +2,14 @@
 ##   https://github.com/johnnovak/illwill
 ##   commit db080b4e2432868e188efb4fb72c1ee6c6c28428 (vendored 2026-07-02)
 ##   license: WTFPL
-## Kept verbatim apart from this header and TWO local patches: `bgGray`, a
+## Kept verbatim apart from this header and THREE local patches: `bgGray`, a
 ## 256-colour lightgray background (xterm 248, TV's #AAAAAA), emitted by
 ## `emitBg` with a 16-colour fallback (`wants256Colors`) — illview deviation
 ## #37; and `invalidateScreen`, which forgets the previous frame and the
 ## cached SGR attributes so the next display() is a full, correct redraw
-## after leaving and re-entering the TUI — deviation #40. illview uses it as
-## the "hardware
+## after leaving and re-entering the TUI — deviation #40; and `setOutput`, a
+## rendering output handle (default stdout) so drawing can bypass a redirected
+## fd 1 — deviation #41. illview uses it as the "hardware
 ## layer" (TerminalBuffer + display() diffing + Key/color/style types); input
 ## decoding is reimplemented incrementally in backend/decoder.nim.
 ##
@@ -47,6 +48,18 @@
 ##
 
 import macros, os, terminal, unicode, bitops, strutils
+
+# --- illview patch (deviation #41): the renderer's own output handle ----------
+var gOut: File = stdout ## every illwill terminal write goes here (default stdout)
+
+proc setOutput*(f: File) =
+  ## illview patch: route all rendering to `f` (e.g. the real terminal while
+  ## fd 1/2 are redirected into an output capture). `stdout` by default.
+  gOut = f
+
+proc output*(): File =
+  ## The current rendering output (see `setOutput`).
+  gOut
 
 export terminal.terminalWidth
 export terminal.terminalHeight
@@ -593,8 +606,8 @@ else:  # OS X & Linux
   proc SIGTSTP_handler(sig: cint) {.noconv.} =
     signal(SIGTSTP, SIG_DFL)
     # XXX why don't the below 3 lines seem to have any effect?
-    resetAttributes()
-    showCursor()
+    resetAttributes(gOut)
+    showCursor(gOut)
     consoleDeinit()
     discard posix.raise(SIGTSTP)
 
@@ -604,7 +617,7 @@ else:  # OS X & Linux
 
     gFullRedrawNextFrame = true
     consoleInit()
-    hideCursor()
+    hideCursor(gOut)
 
   proc installSignalHandlers() =
     signal(SIGCONT, SIGCONT_handler)
@@ -766,7 +779,7 @@ else:  # OS X & Linux
     if kbhit(ms) > 0:
       result = parseStdin(cint(STDIN_FILENO))
 
-  template put(s: string) = stdout.write s
+  template put(s: string) = gOut.write s
 
 when defined(posix):
   const
@@ -778,36 +791,36 @@ proc enterFullScreen() =
   when defined(posix):
     case getEnv("TERM"):
     of XtermColor:
-      stdout.write "\e7\e[?47h"
+      gOut.write "\e7\e[?47h"
     of Xterm256Color:
-      stdout.write "\e[?1049h"
+      gOut.write "\e[?1049h"
     else:
-      eraseScreen()
+      eraseScreen(gOut)
   else:
-    eraseScreen()
+    eraseScreen(gOut)
 
 proc exitFullScreen() =
   ## Exits full-screen mode (restores the previous contents of the terminal).
   when defined(posix):
     case getEnv("TERM"):
     of XtermColor:
-      stdout.write "\e[2J\e[?47l\e8"
+      gOut.write "\e[2J\e[?47l\e8"
     of Xterm256Color:
-      stdout.write "\e[?1049l"
+      gOut.write "\e[?1049l"
     else:
-      eraseScreen()
+      eraseScreen(gOut)
   else:
-    eraseScreen()
-    setCursorPos(0, 0)
+    eraseScreen(gOut)
+    setCursorPos(gOut, 0, 0)
 
 when defined(posix):
   proc enableMouse() =
-    stdout.write(MouseTrackAny)
-    stdout.flushFile()
+    gOut.write(MouseTrackAny)
+    gOut.flushFile()
 
   proc disableMouse() =
-    stdout.write(DisableMouseTrackAny)
-    stdout.flushFile()
+    gOut.write(DisableMouseTrackAny)
+    gOut.flushFile()
 else:
   proc enableMouse(hConsoleInput: Handle) =
     var currentMode: DWORD
@@ -842,7 +855,7 @@ proc illwillInit*(fullScreen: bool=true, mouse: bool=false) =
     else:
       enableMouse(getStdHandle(STD_INPUT_HANDLE))
   gIllwillInitialised = true
-  resetAttributes()
+  resetAttributes(gOut)
 
 proc checkInit() =
   if not gIllwillInitialised:
@@ -862,8 +875,8 @@ proc illwillDeinit*() =
       disableMouse(getStdHandle(STD_INPUT_HANDLE), gOldConsoleModeInput)
   consoleDeinit()
   gIllwillInitialised = false
-  resetAttributes()
-  showCursor()
+  resetAttributes(gOut)
+  showCursor(gOut)
 
 proc getKey*(): Key =
   ## Reads the next keystroke in a non-blocking manner. If there are no
@@ -1190,40 +1203,40 @@ proc use256(): bool =
 proc emitBg(bg: BackgroundColor) =
   if bg == bgGray:
     when defined(windows): # legacy console: no 256-colour escapes
-      setBackgroundColor(terminal.bgWhite)
+      setBackgroundColor(gOut, terminal.bgWhite)
     else:
-      stdout.write(bgGrayEscape(use256()))
+      gOut.write(bgGrayEscape(use256()))
   else:
-    setBackgroundColor(cast[terminal.BackgroundColor](bg))
+    setBackgroundColor(gOut, cast[terminal.BackgroundColor](bg))
 
 proc setAttribs(c: TerminalChar) =
   if c.bg == bgNone or c.fg == fgNone or c.style == {}:
-    resetAttributes()
+    resetAttributes(gOut)
     gCurrBg = c.bg
     gCurrFg = c.fg
     gCurrStyle = c.style
     if gCurrBg != bgNone:
       emitBg(gCurrBg)
     if gCurrFg != fgNone:
-      setForegroundColor(cast[terminal.ForegroundColor](gCurrFg))
+      setForegroundColor(gOut, cast[terminal.ForegroundColor](gCurrFg))
     if gCurrStyle != {}:
-      setStyle(gCurrStyle)
+      setStyle(gOut, gCurrStyle)
   else:
     if c.bg != gCurrBg:
       gCurrBg = c.bg
       emitBg(gCurrBg)
     if c.fg != gCurrFg:
       gCurrFg = c.fg
-      setForegroundColor(cast[terminal.ForegroundColor](gCurrFg))
+      setForegroundColor(gOut, cast[terminal.ForegroundColor](gCurrFg))
     if c.style != gCurrStyle:
       gCurrStyle = c.style
-      setStyle(gCurrStyle)
+      setStyle(gOut, gCurrStyle)
 
 proc setPos(x, y: Natural) =
-  terminal.setCursorPos(x, y)
+  terminal.setCursorPos(gOut, x, y)
 
 proc setXPos(x: Natural) =
-  terminal.setCursorXPos(x)
+  terminal.setCursorXPos(gOut, x)
 
 proc displayFull(tb: TerminalBuffer) =
   var buf = ""
@@ -1312,10 +1325,10 @@ proc display*(tb: TerminalBuffer) =
       else:
         displayFull(tb)
         gPrevTerminalBuffer = newTerminalBufferFrom(tb)
-    flushFile(stdout)
+    flushFile(gOut)
   else:
     displayFull(tb)
-    flushFile(stdout)
+    flushFile(gOut)
     gFullRedrawNextFrame = false
 
 type BoxChar = int

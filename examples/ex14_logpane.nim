@@ -10,6 +10,15 @@
 ## Esc quits. Terminal-mode logs stay in the normal-screen scrollback, so you
 ## can still read them after the app exits.
 ##
+## Output capture (deviation #41): every third tick the program also writes
+## plainly to stdout (`echo`) and stderr — what a library or child process
+## would do. With `captureOutput` those writes never touch the TUI: they show
+## up in the pane (`captureTo`) and, on F2, are replayed into the terminal's
+## scrollback, so you can scroll back to what was printed in desktop mode.
+## Capture stays on in terminal mode too (output passes through live), so the
+## pane and the scrollback both hold every line, whichever mode printed it;
+## with capture on, chronicles simply writes to stderr like any other code.
+##
 ## Memory model: builds under --mm:orc and --mm:refc. The chronicles writer is
 ## ONE persistent closure over two globals (no per-widget app-capturing
 ## closures, no churn — deviation #22 pattern).
@@ -35,7 +44,14 @@ proc installLogRouter() =
   defaultChroniclesStream.outputs[0].writer =
     proc(logLevel: LogLevel, logRecord: LogOutputStr) {.gcsafe, raises: [].} =
       {.cast(gcsafe).}:
-        if gApp != nil and gApp.tuiActive and gLogView != nil:
+        if gApp != nil and gApp.captureOutput and CaptureSupported:
+          # capture on: one path. stderr is captured -> the pane (captureTo)
+          # and the terminal (replay on F2, live passthrough in terminal mode)
+          try:
+            stderr.write logRecord
+          except IOError:
+            discard
+        elif gApp != nil and gApp.tuiActive and gLogView != nil:
           gLogView.addLine logRecord.strip(leading = false, chars = {'\r', '\n'})
           gApp.requestRedraw()
         else:
@@ -58,6 +74,12 @@ proc logLoop(app: App) {.async.} =
       warn "every fifth tick is a warning", tick = n, mode
     else:
       info "heartbeat", tick = n, mode
+    if n mod 3 == 0: # plain writes, as a library would do them
+      echo "plain stdout write, tick ", n
+      try:
+        stderr.writeLine "plain stderr write, tick " & $n
+      except IOError:
+        discard
 
 # --- TUI suspend / resume -------------------------------------------------------
 
@@ -101,13 +123,14 @@ proc main() {.async.} =
   installLogRouter()
   info "starting up (TUI not yet enabled: this line goes to the terminal)"
 
-  let app = newApp()
+  let app = newApp(captureOutput = true) # stdout/stderr collected while the TUI is up
   let win = newWindow("chronicles log", rect(0, 0, 0, 0))
   win.dock = dkFill
   let log = newTextView(maxLines = 200)
   log.dock = dkFill
   win.add log
   app.desktop.add win
+  app.captureTo(log) # captured stdout/stderr lines land in the same pane
   app.desktop.add newStatusBar(@[
     statusItem("F2 terminal mode", cmdNone),
     statusItem("Esc quit", cmdNone)])

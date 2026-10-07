@@ -72,6 +72,19 @@ plain daemon with the UI object still alive. `examples/ex14_logpane.nim`
 demonstrates F2 → `disableTui()` (logs stream to the terminal) and Enter →
 `enableTui()`. Re-enabling always repaints the whole screen (deviation #40).
 
+**Keeping what was printed meanwhile** (deviation #41): with
+`newApp(captureOutput = true)`, stdout and stderr are collected while the TUI
+is up — the host's own prints, C libraries, child processes — and replayed
+into the normal scrollback on `disableTui()`, so after F2 you can scroll back
+through everything printed in desktop mode; while the TUI is off, output keeps
+flowing to the terminal live (and to the pane). `app.captureTo(pane)` shows the
+same output live in a TextView. The renderer writes to its own handle on the
+real terminal (illwill `setOutput`), input reads its own tty fd, and the crash
+handler puts fd 1/2 back and dumps the captured tail before chaining.
+Default off: without it `isatty(1)` and fd 1/2 are untouched. Architecture,
+ownership and every flow (start, desktop, F2, terminal mode, Enter, exit,
+crash): [OUTPUT-CAPTURE.md](OUTPUT-CAPTURE.md).
+
 ## 4. Crash handling in a host
 
 `enableTui` installs terminal-restore handlers for `SIGSEGV`/`SIGABRT`/
