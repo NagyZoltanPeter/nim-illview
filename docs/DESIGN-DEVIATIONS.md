@@ -876,3 +876,33 @@ bytes reach the screen in desktop mode;
 a 200 KB single write from the loop thread completes (200020 bytes captured,
 tail replayed); SIGSEGV with capture on restores the terminal and prints the
 captured line on the main screen. Unit tests: `tests/test_capture.nim`.
+
+## 42. Alternate screen for every capable TERM
+
+illwill's `enterFullScreen` / `exitFullScreen` used the alternate screen only
+when `TERM` was exactly `xterm-256color` (`ESC[?1049h` / `ESC[?1049l`) or
+`xterm-color` (`ESC 7 ESC[?47h` / `ESC[2J ESC[?47l ESC 8`). Every other TERM —
+`xterm-ghostty`, `tmux-256color`, `screen-256color`, `xterm-kitty`,
+`alacritty`, `wezterm`, … — fell through to `eraseScreen()`: the TUI drew on
+the main screen, overwrote the visible scrollback, and nothing came back on
+exit or on `disableTui()` (ex14's F2 terminal mode).
+
+Fourth local illwill patch (provenance header): on POSIX the alternate screen
+(`?1049`) is the default; `xterm-color` keeps its `?47` sequence; a denylist
+keeps `eraseScreen()` for terminals that have no alternate screen. The
+denylist matches the TERM name before any `-suffix` (so `linux-16color`,
+`vt100-am` are covered): empty TERM, `dumb`, `linux` (kernel VT console),
+`vt100`, `vt220`, `ansi`, `cons25` (FreeBSD console) — each has no `smcup`
+in terminfo (checked with `infocmp -1`), whereas `screen-256color` and
+`tmux-256color` list `smcup=\E[?1049h`. Terminals not in the system terminfo
+database (ghostty, kitty, alacritty, wezterm ship their own entries) all
+implement `?1049`. A terminal that ignores the mode would just not erase — the
+first `display()` after `illwillInit` is a full frame either way. Windows is
+unchanged (`eraseScreen()`). Plain procs and string constants on the calling
+thread: identical under refc and ORC. `restoreOnSignal` already sends
+`ESC[?1049l` unconditionally.
+
+Verified on a real pty (ex04, Esc to quit): `xterm-ghostty` and
+`tmux-256color` emitted neither `?1049h` nor `?1049l` before, both after;
+`xterm-256color` unchanged, `xterm-color` still uses `?47h`, `linux` and
+`dumb` still get neither.

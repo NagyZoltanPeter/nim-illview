@@ -2,16 +2,20 @@
 ##   https://github.com/johnnovak/illwill
 ##   commit db080b4e2432868e188efb4fb72c1ee6c6c28428 (vendored 2026-07-02)
 ##   license: WTFPL
-## Kept verbatim apart from this header and THREE local patches: `bgGray`, a
+## Kept verbatim apart from this header and FOUR local patches: `bgGray`, a
 ## 256-colour lightgray background (xterm 248, TV's #AAAAAA), emitted by
 ## `emitBg` with a 16-colour fallback (`wants256Colors`) — illview deviation
 ## #37; and `invalidateScreen`, which forgets the previous frame and the
 ## cached SGR attributes so the next display() is a full, correct redraw
 ## after leaving and re-entering the TUI — deviation #40; and `setOutput`, a
 ## rendering output handle (default stdout) so drawing can bypass a redirected
-## fd 1 — deviation #41. illview uses it as the "hardware
-## layer" (TerminalBuffer + display() diffing + Key/color/style types); input
-## decoding is reimplemented incrementally in backend/decoder.nim.
+## fd 1 — deviation #41; and `hasAltScreen`, so on POSIX `enterFullScreen` /
+## `exitFullScreen` use the alternate screen (`ESC[?1049h` / `ESC[?1049l`) for
+## every TERM except a short denylist, not only `xterm-256color` (`xterm-color`
+## keeps its `ESC 7 ESC[?47h` sequence) — deviation #42. illview uses it as
+## the "hardware layer" (TerminalBuffer + display() diffing + Key/color/style
+## types); input decoding is reimplemented incrementally in
+## backend/decoder.nim.
 ##
 ## :Authors: John Novak
 ##
@@ -784,15 +788,20 @@ else:  # OS X & Linux
 when defined(posix):
   const
     XtermColor    = "xterm-color"
-    Xterm256Color = "xterm-256color"
+    # illview patch (deviation #42): terminals without an alternate screen
+    # (no smcup in terminfo); matched on the TERM name before any `-suffix`.
+    NoAltScreenTerms = ["", "dumb", "linux", "vt100", "vt220", "ansi", "cons25"]
+
+  proc hasAltScreen(term: string): bool =
+    term.split('-')[0] notin NoAltScreenTerms
 
 proc enterFullScreen() =
   ## Enters full-screen mode (clears the terminal).
   when defined(posix):
-    case getEnv("TERM"):
-    of XtermColor:
+    let term = getEnv("TERM")
+    if term == XtermColor:
       gOut.write "\e7\e[?47h"
-    of Xterm256Color:
+    elif hasAltScreen(term):
       gOut.write "\e[?1049h"
     else:
       eraseScreen(gOut)
@@ -802,10 +811,10 @@ proc enterFullScreen() =
 proc exitFullScreen() =
   ## Exits full-screen mode (restores the previous contents of the terminal).
   when defined(posix):
-    case getEnv("TERM"):
-    of XtermColor:
+    let term = getEnv("TERM")
+    if term == XtermColor:
       gOut.write "\e[2J\e[?47l\e8"
-    of Xterm256Color:
+    elif hasAltScreen(term):
       gOut.write "\e[?1049l"
     else:
       eraseScreen(gOut)
