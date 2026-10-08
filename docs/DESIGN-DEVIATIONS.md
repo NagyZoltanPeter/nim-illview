@@ -906,3 +906,41 @@ Verified on a real pty (ex04, Esc to quit): `xterm-ghostty` and
 `tmux-256color` emitted neither `?1049h` nor `?1049l` before, both after;
 `xterm-256color` unchanged, `xterm-color` still uses `?47h`, `linux` and
 `dumb` still get neither.
+
+## 43. TreeView: scrolling and live refresh
+
+The plan-4 TreeView only scrolled vertically by following the selection. It had
+no paging, no wheel and no horizontal scroll, and long rows were clipped at the
+right edge. Refreshing a live tree meant replacing `roots`, which collapsed
+every branch and moved the selection. Both problems showed up in a host that
+redraws a peer tree every few seconds, keyed by 53-character peer ids and long
+multiaddrs.
+
+- **Paging and wheel.** PgUp/PgDn page the selection. The wheel moves the
+  viewport by one row and leaves the selection alone (the ListView rule).
+  Ctrl+PgUp/PgDn bubbles up, so TabView keeps its tab switch (#39).
+- **Horizontal scroll.** `scrollX` is the first visible column. Shift+Left/Right
+  scroll by `hScrollStep` (default 4), Shift+Home/End jump to either edge, and
+  Shift+wheel scrolls sideways. `contentWidth` is the widest *visible* row, so
+  `scrollMaxX` shrinks when branches collapse. Plain Left/Right keep their
+  expand/collapse meaning. A row clipped on a side shows `◀` / `▶` at that
+  edge. Marker hit-testing works in content space (`mx + scrollX`), so a click
+  on column 0 of a scrolled view lands on the label, not on an off-screen
+  marker.
+- **`setRoots`.** It swaps in a rebuilt tree and keeps what the user did.
+  Nodes are identified by their *path* of ids from the root, where the id is
+  `TreeNode.key` if set (new, optional) and otherwise `label`. A label can
+  therefore change between refreshes (counts, short forms) while the node is
+  still recognised. The same key under two parents gives two different paths.
+  - A node whose path existed before takes its old expanded state, including
+    nodes hidden under a collapsed parent. Only already-loaded children are
+    walked, so no lazy loader fires for a collapsed branch.
+  - A new node keeps its own `expanded`. A lazy branch restored open is loaded.
+  - The selection follows its node's path. If that node is gone, the selection
+    keeps its index, clamped.
+  - `top` and `scrollX` are clamped. `onSelect` does not fire.
+
+All of this is plain procs and a `HashSet[string]` on the loop thread, and
+behaves identically under refc and ORC. `tests/test_tree.nim` gained 9 cases;
+the full suite passes under ORC, refc and ASAN.
+

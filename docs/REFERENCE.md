@@ -341,7 +341,7 @@ Button/Checkbox/StatusBar/menu item that carries it.
 | `ScrollBar` | `newScrollBar(axis = axV)` | focusable: arrows along its axis step, PgUp/PgDn page, Home/End jump, bright `■` while focused (deviation #38); TV look (deviation #35): `▲`/`▼` (`◄`/`►`) arrows step by one, `▒` rail pages, one `■` thumb drags; `setRange(total, page, pos)`, `setPos`, `onScroll`; wheel. Pure helpers `scrollGlyphs` / `thumbCell` / `arrowCells` in `core/geometry`, also used by the ListView/Table/TextView indicator column |
 | `Scroller` | `newScroller(content)` | viewport over an over-sized child; wheel + PageUp/Dn; `scrollTo`/`scrollBy`/`ensureVisible`; focus auto-scroll; `onScroll` for bar sync |
 | `Splitter` | `newSplitter(axis, first, second, pos = 0)` | two panes + draggable focusable divider (`divider()`); Alt+arrows nudge; mins from child hints |
-| `TreeView` | `newTreeView(roots = @[])` | `TreeNode{label, children, expanded, loader}`; ▸/▾, Left/Right, Enter; `onSelect`/`onActivate`; `visibleRows`, `selectedNode` |
+| `TreeView` | `newTreeView(roots = @[])` | `TreeNode{label, children, expanded, loader, key}` (`treeNode(label, children, key = "")`); ▸/▾, Left/Right, Enter, PgUp/PgDn, wheel; horizontal scroll: Shift+Left/Right/Home/End, Shift+wheel, `scrollX`, `hScrollStep`, `scrollToX`/`scrollByX`/`scrollMaxX`, `◀`/`▶` clip marks; `setRoots` (live refresh keeping expansion / selection / scroll by `key`-or-`label` path); `onSelect`/`onActivate`; `visibleRows`, `selectedNode` |
 
 `ListView`/`Table`/`TextView` gain `showScrollbar` (indicator column). Double-
 clicks arrive as `Event.clicks == 2` (synthesized by the App; 300 ms window).
