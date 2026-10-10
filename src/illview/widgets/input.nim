@@ -166,7 +166,7 @@ method draw*(i: Input, dc: DrawContext) {.gcsafe, raises: [].} =
   if focused:
     let cx = i.cursor - i.scrollX
     let ch = if i.cursor < i.runes.len: i.runes[i.cursor] else: " ".runeAt(0)
-    dc.putCell(cx, 0, ch, i.styleOf(tkSelection)) # cell-style cursor
+    dc.putCell(cx, 0, ch, i.styleOf(tkCursor)) # cell-style cursor
 
 method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

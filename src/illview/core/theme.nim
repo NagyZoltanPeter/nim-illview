@@ -49,6 +49,7 @@ type
     tkList           # ListView / Table / TreeView rows (selection: tkSelection*)
     tkButtonDefault  # Button.isDefault caption
     tkWindowCloseBox # the ■ in a window's [■]
+    tkCursor         # the text cursor cell in Input / Editor (deviation #44)
 
   Palette* = enum
     ## Window colour set (TV blue / cyan / gray). `pDefault` inherits; a view
@@ -115,6 +116,7 @@ proc tvControls(t: Theme, cluster, field, list: BackgroundColor,
   t.styles[tkInputFocused] = style(fieldFg, field, bright = fieldFg == fgWhite)
   t.styles[tkList] = style(ink, list)
   t.styles[tkSelection] = style(fgYellow, list, bright = true)
+  t.styles[tkCursor] = style(fgYellow, list, bright = true) # = tkSelection
   t.styles[tkTableHeader] = style(fgWhite, list, bright = true)
   t.styles[tkScrollBar] = style(fgBlue, list)
   t.styles[tkProgress] = style(fgBlue, list)
@@ -186,3 +188,4 @@ proc classicBlueTheme*(): Theme =
   result.styles[tkList] = style(fgWhite, bgBlue)
   result.styles[tkButtonDefault] = style(fgWhite, bgGreen, bright = true)
   result.styles[tkWindowCloseBox] = style(fgWhite, bgBlue, bright = true)
+  result.styles[tkCursor] = style(fgBlack, bgCyan) # = tkSelection

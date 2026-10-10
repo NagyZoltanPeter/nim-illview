@@ -234,6 +234,21 @@ suite "editor (snapshot)":
     check e.scrollY == 5 # line 7 visible in a 3-row viewport
     check e.scrollX > 0  # horizontally scrolled to the line end
 
+  test "the cursor cell uses tkCursor, not tkSelection":
+    let t = defaultTheme()
+    t.styles[tkSelection] = style(fgYellow, bgBlue)
+    t.styles[tkCursor] = style(fgBlack, bgYellow)
+    let e = newEditor("ab")
+    e.theme = t # a lone view is focused: no parent chain
+    e.curCol = 1
+    let tb = renderInto(e, 4, 1)
+    check tb[1, 0].bg == bgYellow
+    check tb[0, 0].bg != bgYellow
+    let inp = newInput("ab")
+    inp.theme = t
+    let tb2 = renderInto(inp, 4, 1)
+    check tb2[2, 0].bg == bgYellow # Input cursor at the end
+
   test "onChange fires for edits only":
     var changes = 0
     let e = newEditor("ab")
