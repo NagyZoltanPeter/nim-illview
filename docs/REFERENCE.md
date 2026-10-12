@@ -100,19 +100,38 @@ Common to every View: `id`, `brokerCtx`, `disposers`, `bounds`, `hint`,
 
 Widget-specific extras:
 
-- **Input**: `text`, `setText(s)`, `insertText(s)`, `cursor`, `scrollX`; Enter is consumed only when something may listen for submit (`onSubmit`, a `command`, or an instance route anyone asked for), else it reaches the window's default button (deviation #34)
+- **Input**: `text`, `setText(s)`, `insertText(s)`, `cursor`, `scrollX`, `readOnly`, selection (below); Enter is consumed only when something may listen for submit (`onSubmit`, a `command`, or an instance route anyone asked for), else it reaches the window's default button (deviation #34)
 - **Button**: flat green face, caption centred, `> caption <` while focused; width = caption + 5 (the face sits one cell in and shifts into that cell while `pressed`); mouse fires on release over the button (drag off cancels), Enter/Space/hotkey fire at once and flash the pressed face; `isDefault` = bright caption + fired by an unconsumed Enter in its Window (deviations #34, #36)
 - **Checkbox / TriStateCheckBox**: toggle on Space (and mouse / hotkey); Enter goes to the default button (deviation #34)
 - **GroupBox**: borderless by default — title as a heading row above a `tkCluster` block; `border = bkSingle` puts the title back in a frame (deviation #34)
 - **Label**: drawn with `tkLabelFocused` while its `linkTo` control has focus
-- **Editor**: `text`, `setText(s)`, `lines`, `curLine`/`curCol`, `moveCursor`
+- **Editor**: `text`, `setText(s)`, `lines`, `curLine`/`curCol`, `moveCursor`, `readOnly`, selection (below)
 - **ListView**: `setItems(items)`, `select(i)`, `activate()`, `ensureVisible()`, `top`
 - **Table**: `tableColumn(title, hint)`, `setRows`, `addRow`, `select(i)`, `activate()`; column widths distribute via layout hints
 - **ProgressBar**: `setValue(v)` (clamped), `value`, `maxValue`
-- **TextView**: `addLine(s)`, `clear()`, `scrollBy(delta)`; follows the bottom unless scrolled up (End re-pins)
+- **TextView**: `addLine(s)`, `clear()`, `scrollBy(delta)`; follows the bottom unless scrolled up (End re-pins) or while text is selected; selection (below)
 - **NetVizWidget**: `addEvent(topic, payload)` — per-topic counters + log line
 - **TriStateCheckBox**: user path cycles `csUnchecked → csChecked → csIntermediate → csUnchecked`; `setState(s)` (programmatic); `setMarks(unchecked, checked, intermediate: Rune)` — the one cell between the brackets, default `' '`/`'x'`/`'?'`; `setMarkStyle(state, StyleOverride)` — fg/bg/bright and focusFg/focusBg on the mark cell only (zero = inherit); `~tilde~` accelerator cycles
 - **StatusBar**: `statusItem(label, command)`, `setText(s)`
+
+Text selection and the clipboard (deviation #47), on Input, Editor and TextView.
+Keys follow Midnight Commander (F5 copy, F6 move) and Turbo Vision (Ctrl+Insert,
+Shift+Delete); paste is the terminal's own (bracketed paste):
+
+| Action | Input / Editor | TextView | `readOnly` Input / Editor |
+|---|---|---|---|
+| Select | Shift + arrows / Home / End (Editor also PgUp / PgDn), mouse drag, Shift+click | mouse drag, Shift+click | same |
+| Select all | Ctrl+A | Ctrl+A | Ctrl+A |
+| Copy | F5, Ctrl+Insert | F5, Ctrl+Insert | same |
+| Cut | F6, Shift+Delete | — | bubbles |
+| Type, Enter, Backspace, Delete, paste | replace the selection | — | bubble |
+
+API: `hasSelection`, `selectedText`, `selectAll()`, `clearSelection()`,
+`copySelection(): bool` (false, and the key bubbles, when nothing is
+selected); Input / Editor also `deleteSelection(): bool`, `cutSelection(): bool`. Selected cells use
+`tkTextSelection`. `core/clipboard.copyToClipboard(s)` writes OSC 52 to the
+renderer's output and pipes `s` to `pbcopy` / `wl-copy` / `xclip` / `xsel`
+when found; set `clipboard.copyHook` to replace both.
 - **TabView**: tab container (deviation #39). Every child except its private strip is a page (`addPage(v, title = "")`, `removePage(v)` detaches without disposing, `select(i)`, `pages`, `page`); a `Window` page is embedded frameless (`Window.framed = false`) and its title is the tab label. One-row strip on top: inactive tabs cyan, the active tab in the page's colours; `◄`/`►` when tabs overflow, the active tab kept visible. Switch by clicking a tab, Ctrl+PgUp/PgDn anywhere inside (paging widgets let it bubble: `isTabSwitch`), or focusing the strip (Tab) and Left/Right/Home/End. A closable page Window shows `×`: a click calls its `close()` and a neighbour takes over. Hidden pages are unreachable by focus, mouse and hotkeys (`canFocus` requires visible ancestors); each page remembers its focused widget. As a `{.view.}` base type, `{.child.}` fields become pages in declaration order
 - **ControlBar**: a `Group`, docked `dkBottom`, height `clamp(lines, 1, 3)` (`setLines(n)`). Children in one row: left group (`add`) gets the remaining width via `distribute`; right group (`addRight(v)`, or `alignRight(v)` for an existing child) is packed at preferred widths against the right edge and wins when space is short. Children are clipped to the bar height; `View.align` places them vertically. Background `tkControlBar`. As a `{.view.}` base type: zero-init (`lines = 0` = 1), set `{.dock: dkBottom.}`, no layout pragma, call `alignRight` after `mount` (deviation #32)
 - **MenuBar**: `menu(title, items)`, `menuItem(label, command)`, `openMenu(i)`; popups run as modals
@@ -306,7 +325,7 @@ Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 `tkMenuSelected`, `tkStatusBar`, `tkStatusBarHotkey`, `tkTableHeader`,
 `tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`, `tkScrollBar`, `tkControlBar`,
 `tkHotkey`, `tkLabelFocused`, `tkCluster`, `tkList`, `tkButtonDefault`,
-`tkWindowCloseBox`, `tkCursor`.
+`tkWindowCloseBox`, `tkCursor`, `tkTextSelection`.
 
 ---
 

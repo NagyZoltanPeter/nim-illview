@@ -2,10 +2,16 @@
 ## overflow, and the full slot set: onChange (text edited), onSubmit
 ## (Enter), onFocus / onBlur (focus in / out) — deliberately NOT collapsed
 ## into one event (plan Phase 4 note).
+##
+## Selection and copy as in Editor (deviation #47): Shift+Left/Right/Home/End
+## or a mouse drag select, Ctrl+A selects all, F5 / Ctrl+Insert copy,
+## F6 / Shift+Delete cut; typing and paste replace the selection.
+## `readOnly` keeps selection and copy only (Enter, Down and editing keys
+## bubble). Ctrl+C stays SIGINT.
 
 import std/[unicode, strutils]
 import results
-import ../core/[geometry, theme, view, drawcontext, events, bus]
+import ../core/[geometry, theme, view, drawcontext, events, bus, clipboard]
 import ../vocab
 
 type
@@ -21,6 +27,10 @@ type
     filter*: KeyFilter # nil = accept everything
     history*: seq[string] # most-recent-first; Down opens a picker (P26)
     historyMax*: int      # cap; 0 = unbounded
+    readOnly*: bool ## no editing: selection and copy only
+    selAnchor: int  ## selection start (rune index); the cursor is the other end
+    hasSelAnchor: bool
+    dragging: bool
     onChange*: proc(sender: Input) {.gcsafe, raises: [].}
     onSubmit*: proc(sender: Input) {.gcsafe, raises: [].}
     onFocus*: proc(sender: Input) {.gcsafe, raises: [].}
@@ -34,6 +44,7 @@ proc setText*(i: Input, s: string) =
   i.runes = s.toRunes
   i.cursor = i.runes.len
   i.scrollX = 0
+  i.hasSelAnchor = false
   i.invalidate()
 
 proc newInput*(text = "", command = cmdNone): Input =
@@ -66,7 +77,70 @@ proc ensureCursorVisible(i: Input) =
 proc accepts(i: Input, r: Rune): bool =
   i.filter == nil or i.filter(r, i.text)
 
+# --- selection (deviation #47) -----------------------------------------------
+
+proc selRange(i: Input): (int, int) =
+  if not i.hasSelAnchor: (i.cursor, i.cursor)
+  else: (min(i.selAnchor, i.cursor), max(i.selAnchor, i.cursor))
+
+proc hasSelection*(i: Input): bool =
+  i.hasSelAnchor and i.selAnchor != i.cursor
+
+proc selectedText*(i: Input): string =
+  let (a, b) = i.selRange
+  for r in i.runes[a ..< b]:
+    result.add r.toUTF8
+
+proc selectAll*(i: Input) =
+  i.selAnchor = 0
+  i.hasSelAnchor = true
+  i.cursor = i.runes.len
+  i.invalidate()
+
+proc clearSelection*(i: Input) =
+  i.hasSelAnchor = false
+  i.invalidate()
+
+proc copySelection*(i: Input): bool =
+  ## Copy the selection to the clipboard; false when nothing is selected.
+  if not i.hasSelection:
+    return false
+  copyToClipboard(i.selectedText)
+  true
+
+proc deleteSelection*(i: Input): bool =
+  ## Remove the selected text (cursor to its start); false when none.
+  if not i.hasSelection:
+    i.hasSelAnchor = false
+    return false
+  let (a, b) = i.selRange
+  for _ in a ..< b:
+    i.runes.delete(a)
+  i.cursor = a
+  i.hasSelAnchor = false
+  i.changed()
+  true
+
+proc cutSelection*(i: Input): bool =
+  ## Copy the selection to the clipboard and remove it; false when none.
+  i.copySelection() and i.deleteSelection()
+
+template navigate(i: Input, extend: bool, body: untyped) =
+  ## Move the cursor; with `extend` (Shift held) the selection follows it.
+  if extend:
+    if not i.hasSelAnchor:
+      i.selAnchor = i.cursor
+      i.hasSelAnchor = true
+  else:
+    i.hasSelAnchor = false
+  body
+  i.invalidate()
+
+# --- editing -------------------------------------------------------------------
+
 proc insertText*(i: Input, s: string) =
+  ## Insert at the cursor, replacing the selection.
+  discard i.deleteSelection()
   var at = i.cursor
   var any = false
   for r in s.runes:
@@ -158,12 +232,15 @@ method draw*(i: Input, dc: DrawContext) {.gcsafe, raises: [].} =
   let focused = i.isFocused
   let st = i.styleOf(if focused: tkInputFocused else: tkInput)
   i.ensureCursorVisible()
+  let selSt = i.styleOf(tkTextSelection)
+  let (a, b) = i.selRange
   dc.fill(rect(0, 0, i.contentW, 1), " ", st)
   var col = 0 # display column of the next rune
-  for r in i.runes:
+  for k, r in i.runes:
     if col - i.scrollX >= i.contentW:
       break
-    dc.putCell(col - i.scrollX, 0, r, st) # left of the view: clipped
+    let cs = if k >= a and k < b: selSt else: st
+    dc.putCell(col - i.scrollX, 0, r, cs) # left of the view: clipped
     col += r.runeWidth
   if focused:
     let cx = i.runes.colOf(i.cursor) - i.scrollX
@@ -177,63 +254,103 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
     let k = ev.ikey
     if modAlt in k.keyMods:
       return false # Alt-chords are window/app level (move/resize)
+    let shift = modShift in k.keyMods
     case k.key
     of Key.Left:
-      i.cursor = max(i.cursor - 1, 0)
-      i.invalidate()
+      i.navigate(shift): i.cursor = max(i.cursor - 1, 0)
     of Key.Right:
-      i.cursor = min(i.cursor + 1, i.runes.len)
-      i.invalidate()
+      i.navigate(shift): i.cursor = min(i.cursor + 1, i.runes.len)
     of Key.Home:
-      i.cursor = 0
-      i.invalidate()
+      i.navigate(shift): i.cursor = 0
     of Key.End:
-      i.cursor = i.runes.len
-      i.invalidate()
-    of Key.Backspace:
-      if i.cursor > 0:
-        i.runes.delete(i.cursor - 1)
-        dec i.cursor
-        i.changed()
-    of Key.Delete:
-      if i.cursor < i.runes.len:
-        i.runes.delete(i.cursor)
-        i.changed()
-    of Key.Down:
-      if i.history.len > 0:
-        i.openHistory()
-      else:
-        return false
-    of Key.Enter:
-      i.addHistory(i.text) # record before firing (recency)
-      # consumed only when someone may listen for submit (slot, command, or
-      # an instance route anyone asked for); otherwise Enter bubbles on to
-      # the window's default button (TV, deviation #34)
-      let listened = i.onSubmit != nil or i.command != cmdNone or i.hasBrokerCtx
-      if i.onSubmit != nil:
-        i.onSubmit(i)
-      i.publish(i.command)
-      if i.hasBrokerCtx: Submitted.emit(i.brokerCtx, Submitted(text: i.text))
-      return listened
+      i.navigate(shift): i.cursor = i.runes.len
+    of Key.CtrlA:
+      i.selectAll()
+    of Key.F5:
+      return i.copySelection()
+    of Key.Insert:
+      if modCtrl notin k.keyMods: return false
+      return i.copySelection()
     else:
-      # printable rune with no Ctrl/Alt chord -> insert (if the filter allows)
-      if k.rune.int32 >= 32 and k.keyMods * {modCtrl, modAlt} == {}:
-        if i.accepts(k.rune):
-          i.runes.insert(k.rune, i.cursor)
-          inc i.cursor
+      if i.readOnly:
+        return false # editing keys bubble
+      case k.key
+      of Key.F6:
+        return i.cutSelection()
+      of Key.Backspace:
+        if i.deleteSelection(): discard
+        elif i.cursor > 0:
+          i.runes.delete(i.cursor - 1)
+          dec i.cursor
           i.changed()
-        # rejected: consume the key, no change (silent, per D18)
+      of Key.Delete:
+        if shift: return i.cutSelection()
+        if i.deleteSelection(): discard
+        elif i.cursor < i.runes.len:
+          i.runes.delete(i.cursor)
+          i.changed()
+      of Key.Down:
+        if i.history.len > 0:
+          i.openHistory()
+        else:
+          return false
+      of Key.Enter:
+        i.addHistory(i.text) # record before firing (recency)
+        # consumed only when someone may listen for submit (slot, command, or
+        # an instance route anyone asked for); otherwise Enter bubbles on to
+        # the window's default button (TV, deviation #34)
+        let listened = i.onSubmit != nil or i.command != cmdNone or i.hasBrokerCtx
+        if i.onSubmit != nil:
+          i.onSubmit(i)
+        i.publish(i.command)
+        if i.hasBrokerCtx: Submitted.emit(i.brokerCtx, Submitted(text: i.text))
+        return listened
       else:
-        return false
+        # printable rune with no Ctrl/Alt chord -> insert (if the filter allows)
+        if k.rune.int32 >= 32 and k.keyMods * {modCtrl, modAlt} == {}:
+          if i.accepts(k.rune):
+            discard i.deleteSelection()
+            i.runes.insert(k.rune, i.cursor)
+            inc i.cursor
+            i.changed()
+          # rejected: consume the key, no change (silent, per D18)
+        else:
+          return false
     return true
   of evPaste:
+    if i.readOnly:
+      return false
     i.insertText(ev.pasteText)
     return true
   of evMouse:
-    if ev.imouse.action == maPress:
-      i.cursor = i.runes.indexAtCol(i.scrollX + ev.imouse.mx)
+    let m = ev.imouse
+    case m.action
+    of maPress:
+      if modShift in m.mouseMods: # Shift+click extends from the cursor
+        if not i.hasSelAnchor:
+          i.selAnchor = i.cursor
+          i.hasSelAnchor = true
+        i.cursor = i.runes.indexAtCol(i.scrollX + m.mx)
+      else:
+        i.cursor = i.runes.indexAtCol(i.scrollX + m.mx)
+        i.selAnchor = i.cursor
+        i.hasSelAnchor = true
+      i.dragging = true
+      i.captureMouse() # drag selects, also past the edges (scrolls)
       i.invalidate()
       return true
+    of maMove:
+      if i.dragging:
+        i.cursor = i.runes.indexAtCol(i.scrollX + m.mx)
+        i.invalidate()
+        return true
+    of maRelease:
+      if i.dragging:
+        i.dragging = false
+        i.releaseMouse()
+        return true
+    else:
+      discard
   of evFocusGained:
     if i.onFocus != nil:
       i.onFocus(i)

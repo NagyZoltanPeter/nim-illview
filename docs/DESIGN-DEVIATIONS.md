@@ -1017,3 +1017,44 @@ those terminals got the same drift for emoji that #45 removed for CJK (CJK is
 emoji, not CJK. Verified live in an xterm.js terminal (measured 1: rows with
 emoji now stay aligned through diff updates). One blocking read with a
 timeout at startup, on the UI thread: the same under refc and ORC.
+
+## 47. Read-only text widgets, selection and the clipboard
+
+Input and Editor had no read-only mode, and no text widget could select or
+copy; a terminal's own selection (Shift/Option+drag) takes a screen
+rectangle, borders and neighbouring panes included, and only what is
+visible.
+
+- `core/selection`: `TextPos` (line, rune index), `ordered`, `selected`
+  (half-open: the caret's own character is not selected) and
+  `selectedText` over a `seq` or a `Deque` of lines.
+- `core/clipboard.copyToClipboard`: OSC 52 (`ESC]52;c;<base64>BEL`) to
+  the renderer's `output()` — stdout may be captured into a pty — and the
+  OS tool when found: `pbcopy` (macOS; Terminal.app ignores OSC 52),
+  `wl-copy` (Wayland), `xclip` / `xsel` (X11). Both run: OSC 52 also
+  reaches the local clipboard over ssh, the tool covers terminals without
+  OSC 52. `copyHook` replaces both (tests).
+- Input / Editor: `readOnly` (navigation, selection, copy; editing keys and
+  paste return false so they bubble), Shift+navigation and mouse-drag
+  selection (`captureMouse`; dragging past an edge scrolls the Editor via
+  its caret), Ctrl+A, F5 / Ctrl+Insert copy, F6 / Shift+Delete cut; typing, Enter,
+  Backspace, Delete and paste replace the selection. A selected line break
+  shows as one selected cell after the line.
+- TextView: mouse-drag selection, Ctrl+A, F5 / Ctrl+Insert copy. The selection is held
+  as buffer positions and moves up with the lines when the cap drops the
+  oldest; while text is selected the view stops following (End re-pins).
+- New token `tkTextSelection` (TV: white on green; classic: black on cyan),
+  distinct from the cursor's `tkCursor`.
+- Keys: Midnight Commander's F5 (copy) / F6 (move = cut) and Turbo Vision's
+  Ctrl+Insert / Shift+Delete. Not Ctrl+C / Ctrl+X: raw mode keeps ISIG, so
+  Ctrl+C is SIGINT. Not Ctrl+Shift+C: in the classic encoding it is the same
+  byte as Ctrl+C, and GNOME Terminal / Ptyxis / Konsole keep it for their own
+  copy (as macOS terminals keep Cmd+C). Paste is the terminal's own
+  (Cmd+V, Ctrl+Shift+V, Shift+Insert), received as a bracketed paste. With
+  nothing selected the copy / cut keys return false and bubble.
+
+`tests/test_select.nim` covers the selection model, OSC 52 encoding, the
+decoder's Shift / Ctrl+Insert keys, editing over a selection, read-only
+refusal, mouse drags with wide characters and TextView's cap. String and
+index work on the loop thread plus a short child process for the OS tool:
+the same under refc and ORC; the suite passes under ORC, refc and ASAN.

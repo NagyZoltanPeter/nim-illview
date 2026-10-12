@@ -50,6 +50,7 @@ type
     tkButtonDefault  # Button.isDefault caption
     tkWindowCloseBox # the ■ in a window's [■]
     tkCursor         # the text cursor cell in Input / Editor (deviation #44)
+    tkTextSelection  # selected text in Input / Editor / TextView (deviation #47)
 
   Palette* = enum
     ## Window colour set (TV blue / cyan / gray). `pDefault` inherits; a view
@@ -91,6 +92,7 @@ proc tvShared(t: Theme) =
   t.styles[tkButtonFocused] = style(fgWhite, bgGreen, bright = true)
   t.styles[tkButtonDefault] = style(fgCyan, bgGreen, bright = true)
   t.styles[tkSelectionFocused] = style(fgWhite, bgGreen, bright = true)
+  t.styles[tkTextSelection] = style(fgWhite, bgGreen, bright = true)
 
 proc tvWindow(t: Theme, bg: BackgroundColor, text, frame: ForegroundColor) =
   ## The window surface and everything drawn directly on it.
@@ -189,3 +191,4 @@ proc classicBlueTheme*(): Theme =
   result.styles[tkButtonDefault] = style(fgWhite, bgGreen, bright = true)
   result.styles[tkWindowCloseBox] = style(fgWhite, bgBlue, bright = true)
   result.styles[tkCursor] = style(fgBlack, bgCyan) # = tkSelection
+  result.styles[tkTextSelection] = style(fgBlack, bgCyan)
