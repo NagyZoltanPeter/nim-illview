@@ -285,7 +285,7 @@ Theme tokens: `tkDesktop`, `tkWindowFrame`, `tkWindowFrameActive`,
 `tkMenuSelected`, `tkStatusBar`, `tkStatusBarHotkey`, `tkTableHeader`,
 `tkGroupBox`, `tkProgress`, `tkBorder`, `tkShadow`, `tkScrollBar`, `tkControlBar`,
 `tkHotkey`, `tkLabelFocused`, `tkCluster`, `tkList`, `tkButtonDefault`,
-`tkWindowCloseBox`.
+`tkWindowCloseBox`, `tkCursor`.
 
 ---
 

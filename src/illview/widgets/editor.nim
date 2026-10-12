@@ -145,7 +145,7 @@ method draw*(e: Editor, dc: DrawContext) {.gcsafe, raises: [].} =
     let rs = e.lines[e.curLine].toRunes
     let ch = if e.curCol < rs.len: rs[e.curCol] else: " ".runeAt(0)
     dc.putCell(e.curCol - e.scrollX, e.curLine - e.scrollY, ch,
-               e.styleOf(tkSelection))
+               e.styleOf(tkCursor))
 
 method handleEvent*(e: Editor, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

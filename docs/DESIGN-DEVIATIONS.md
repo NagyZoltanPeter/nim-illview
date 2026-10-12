@@ -944,3 +944,18 @@ All of this is plain procs and a `HashSet[string]` on the loop thread, and
 behaves identically under refc and ORC. `tests/test_tree.nim` gained 9 cases;
 the full suite passes under ORC, refc and ASAN.
 
+
+## 44. tkCursor: a theme token for the text cursor
+
+`Input` and `Editor` drew their cursor cell with `tkSelection`, the list
+selection style. A theme that styles selection as a colour on the field's own
+background (for example yellow on blue over a blue field) made the cursor
+invisible on a blank cell: the cell differed in foreground only, and a space
+has no foreground.
+
+The cursor now has its own token, `tkCursor`, so lists and text fields can be
+styled independently. Every built-in theme sets it to its old `tkSelection`
+value, so the default look is unchanged; an application theme can give the
+cursor a contrasting background. `tests/test_widgets.nim` checks that both
+widgets paint the cursor cell with `tkCursor`. Plain style lookup on the loop
+thread: identical under refc and ORC.
