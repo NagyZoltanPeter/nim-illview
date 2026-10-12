@@ -18,7 +18,7 @@ proc newRadio*(items: seq[string], selected = 0, command = cmdNone): Radio =
   result.focusable = true
   var w = 0
   for it in items:
-    w = max(w, it.runeLen + 4)
+    w = max(w, it.textWidth + 4)
   result.hint = (fixedHint(w), fixedHint(items.len))
   let r = result
   r.installSignal(SetSelected):
@@ -32,7 +32,7 @@ proc setItems*(r: Radio, items: seq[string]) =
   r.selected = clamp(r.selected, 0, max(items.high, 0))
   var w = 0
   for it in items:
-    w = max(w, it.runeLen + 4)
+    w = max(w, it.textWidth + 4)
   r.hint = (fixedHint(w), fixedHint(items.len))
   r.invalidate()
 

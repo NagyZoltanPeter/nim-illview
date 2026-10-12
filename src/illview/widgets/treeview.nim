@@ -72,7 +72,7 @@ proc selectedNode*(t: TreeView): TreeNode =
 # --- horizontal scroll --------------------------------------------------------
 
 func rowWidth(n: TreeNode, depth: int): int =
-  depth * 2 + 2 + n.label.runeLen # indent + marker + label
+  depth * 2 + 2 + n.label.textWidth # indent + marker + label
 
 proc contentWidth*(t: TreeView): int =
   ## Widest visible row, in cells.

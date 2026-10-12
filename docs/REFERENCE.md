@@ -240,6 +240,23 @@ nowhere, nothing is recorded) until you set `app.bus = newBrokersBus()`.
 
 ---
 
+### 7.1 Text width (deviation #45)
+
+Widgets measure text in terminal **columns**, not runes. `illview/core/textwidth`
+(re-exported by `drawcontext` and the umbrella module):
+
+| Proc | Meaning |
+|---|---|
+| `runeWidth(r)` | 0 (combining marks, ZWJ, variation selectors), 2 (CJK, fullwidth, emoji), else 1 |
+| `textWidth(s)` | columns `s` takes |
+| `clipWidth(s, w)` / `padWidth(s, w)` | prefix that fits `w` columns / that prefix padded to exactly `w` |
+| `colOf(runes, i)` / `indexAtCol(runes, col)` | rune index ↔ display column |
+
+`DrawContext.write` advances by width; a wide character occupies its cell and
+the next (a `Rune(0)` continuation); zero-width characters are stored in the
+previous cell's `TerminalChar.extra`. `Input.scrollX` / `Editor.scrollX` are
+display columns; `cursor` / `curCol` stay rune indexes.
+
 ## 8. Styling & themes
 
 Resolution order: theme token → per-view `styleOv` → focus override

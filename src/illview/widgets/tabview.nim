@@ -196,7 +196,7 @@ proc spans(t: TabView, width: int): tuple[tabs: seq[TabSpan], left, right: bool]
   let ps = t.pages
   var ws: seq[int]
   for i, p in ps:
-    ws.add t.label(p, i).runeLen
+    ws.add t.label(p, i).textWidth
   var total = max(ws.len - 1, 0) # one rule cell between tabs
   for w in ws:
     total += w

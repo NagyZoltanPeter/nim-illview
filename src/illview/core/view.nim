@@ -320,7 +320,7 @@ method draw*(g: Group, dc: DrawContext) {.gcsafe, raises: [].} =
       dc.box(b, child.borderStyle, double = bk == bkDouble)
       if child.borderTitle.len > 0 and b.w >= 4:
         let t = " " & child.borderTitle & " "
-        let x = b.x + max((b.w - t.runeLen) div 2, 1)
+        let x = b.x + max((b.w - t.textWidth) div 2, 1)
         dc.write(x, b.y, t, child.titleStyle)
     child.draw(dc.sub(b).sub(child.clientRect))
     child.drawOverlay(dc.sub(b))

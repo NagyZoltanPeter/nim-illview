@@ -12,7 +12,8 @@ type
     lines*: seq[string]
     curLine*: int  # 0..lines.high
     curCol*: int   # rune index, 0..len(line)
-    scrollX*, scrollY*: int
+    scrollX*: int  # first visible display column (wide characters take 2)
+    scrollY*: int
     onChange*: proc(sender: Editor) {.gcsafe, raises: [].}
 
 proc setText*(e: Editor, s: string) =
@@ -59,8 +60,12 @@ proc ensureVisible(e: Editor) =
   let h = max(e.contentH, 1)
   if e.curLine < e.scrollY: e.scrollY = e.curLine
   elif e.curLine >= e.scrollY + h: e.scrollY = e.curLine - h + 1
-  if e.curCol < e.scrollX: e.scrollX = e.curCol
-  elif e.curCol >= e.scrollX + w: e.scrollX = e.curCol - w + 1
+  # horizontal: in display columns, so wide characters keep their place
+  let rs = e.lines[e.curLine].toRunes
+  let cx = rs.colOf(e.curCol)
+  let cw = if e.curCol < rs.len: max(rs[e.curCol].runeWidth, 1) else: 1
+  if cx < e.scrollX: e.scrollX = cx
+  elif cx + cw > e.scrollX + w: e.scrollX = cx + cw - w
 
 proc moveCursor*(e: Editor, dLine, dCol: int) =
   if dLine != 0:
@@ -132,19 +137,17 @@ method draw*(e: Editor, dc: DrawContext) {.gcsafe, raises: [].} =
     let idx = e.scrollY + y
     if idx > e.lines.high:
       break
-    var x = 0
-    var ri = 0
+    var col = 0 # display column of the next rune
     for r in e.lines[idx].runes:
-      if ri >= e.scrollX:
-        if x >= e.contentW:
-          break
-        dc.putCell(x, y, r, st)
-        inc x
-      inc ri
+      if col - e.scrollX >= e.contentW:
+        break
+      dc.putCell(col - e.scrollX, y, r, st) # left of the view: clipped
+      col += r.runeWidth
   if e.isFocused:
     let rs = e.lines[e.curLine].toRunes
-    let ch = if e.curCol < rs.len: rs[e.curCol] else: " ".runeAt(0)
-    dc.putCell(e.curCol - e.scrollX, e.curLine - e.scrollY, ch,
+    var ch = if e.curCol < rs.len: rs[e.curCol] else: " ".runeAt(0)
+    if ch.runeWidth == 0: ch = " ".runeAt(0) # a combining mark: mark the cell
+    dc.putCell(rs.colOf(e.curCol) - e.scrollX, e.curLine - e.scrollY, ch,
                e.styleOf(tkCursor))
 
 method handleEvent*(e: Editor, ev: Event): bool {.gcsafe, raises: [].} =
@@ -183,7 +186,7 @@ method handleEvent*(e: Editor, ev: Event): bool {.gcsafe, raises: [].} =
   of evMouse:
     if ev.imouse.action == maPress:
       e.curLine = clamp(e.scrollY + ev.imouse.my, 0, e.lines.high)
-      e.curCol = clamp(e.scrollX + ev.imouse.mx, 0, e.lineLen(e.curLine))
+      e.curCol = e.lines[e.curLine].toRunes.indexAtCol(e.scrollX + ev.imouse.mx)
       e.invalidate()
       return true
   of evFocusGained, evFocusLost:

@@ -16,7 +16,7 @@ type
   Input* = ref object of View
     runes: seq[Rune]
     cursor*: int  # rune index, 0..runes.len
-    scrollX*: int # first visible rune
+    scrollX*: int # first visible display column (wide characters take 2)
     command*: Command
     filter*: KeyFilter # nil = accept everything
     history*: seq[string] # most-recent-first; Down opens a picker (P26)
@@ -56,10 +56,12 @@ proc changed(i: Input) =
 
 proc ensureCursorVisible(i: Input) =
   let w = max(i.contentW, 1)
-  if i.cursor < i.scrollX:
-    i.scrollX = i.cursor
-  elif i.cursor >= i.scrollX + w:
-    i.scrollX = i.cursor - w + 1
+  let cx = i.runes.colOf(i.cursor)
+  let cw = if i.cursor < i.runes.len: max(i.runes[i.cursor].runeWidth, 1) else: 1
+  if cx < i.scrollX:
+    i.scrollX = cx
+  elif cx + cw > i.scrollX + w:
+    i.scrollX = cx + cw - w
 
 proc accepts(i: Input, r: Rune): bool =
   i.filter == nil or i.filter(r, i.text)
@@ -140,7 +142,7 @@ proc openHistory(i: Input) =
   let shown = i.history[0 ..< min(i.history.len, 8)]
   var w = 0
   for h in shown:
-    w = max(w, h.runeLen)
+    w = max(w, h.textWidth)
   let o = i.absOrigin
   let popup = HistoryPopup(items: shown, selected: 0)
   initView(popup)
@@ -157,15 +159,16 @@ method draw*(i: Input, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = i.styleOf(if focused: tkInputFocused else: tkInput)
   i.ensureCursorVisible()
   dc.fill(rect(0, 0, i.contentW, 1), " ", st)
-  var x = 0
-  for idx in i.scrollX ..< i.runes.len:
-    if x >= i.contentW:
+  var col = 0 # display column of the next rune
+  for r in i.runes:
+    if col - i.scrollX >= i.contentW:
       break
-    dc.putCell(x, 0, i.runes[idx], st)
-    inc x
+    dc.putCell(col - i.scrollX, 0, r, st) # left of the view: clipped
+    col += r.runeWidth
   if focused:
-    let cx = i.cursor - i.scrollX
-    let ch = if i.cursor < i.runes.len: i.runes[i.cursor] else: " ".runeAt(0)
+    let cx = i.runes.colOf(i.cursor) - i.scrollX
+    var ch = if i.cursor < i.runes.len: i.runes[i.cursor] else: " ".runeAt(0)
+    if ch.runeWidth == 0: ch = " ".runeAt(0) # a combining mark: mark the cell
     dc.putCell(cx, 0, ch, i.styleOf(tkCursor)) # cell-style cursor
 
 method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
@@ -228,7 +231,7 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
     return true
   of evMouse:
     if ev.imouse.action == maPress:
-      i.cursor = clamp(i.scrollX + ev.imouse.mx, 0, i.runes.len)
+      i.cursor = i.runes.indexAtCol(i.scrollX + ev.imouse.mx)
       i.invalidate()
       return true
   of evFocusGained:

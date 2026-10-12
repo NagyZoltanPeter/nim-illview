@@ -3,6 +3,7 @@
 ## shared by Button/Checkbox/Label/menu captions.
 
 import std/unicode
+import ./textwidth
 
 type
   Hotkey* = object
@@ -30,6 +31,16 @@ func parseHotkey*(s: string): Hotkey =
       outp.add runes[i]
       inc i
   result.text = $outp
+
+func colX*(text: string, col: int): int =
+  ## Display column of the rune at index `col` (wide characters before it
+  ## count 2, deviation #45). For drawing the highlighted accelerator.
+  var i = 0
+  for r in text.runes:
+    if i >= col:
+      break
+    result += r.runeWidth
+    inc i
 
 func hotkeyMatches*(a, b: Rune): bool =
   ## Case-insensitive accelerator comparison (Alt+f matches ~F~).

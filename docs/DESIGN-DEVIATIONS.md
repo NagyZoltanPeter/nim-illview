@@ -959,3 +959,37 @@ value, so the default look is unchanged; an application theme can give the
 cursor a contrasting background. `tests/test_widgets.nim` checks that both
 widgets paint the cursor cell with `tkCursor`. Plain style lookup on the loop
 thread: identical under refc and ORC.
+
+## 45. Wide and zero-width characters
+
+The cell model was one rune per terminal cell. A CJK character or an emoji is
+drawn two columns wide by the terminal, so everything after it on the line
+landed one column right of where the buffer had it: table columns drifted,
+the editor's cursor sat on the wrong glyph, and a later diff left stale
+cells behind (a status "propagated ✓" updated to "sent ✓✓" showed
+"sent ✓✓   a ed ✓"). Combining marks took a cell of their own.
+
+- **Width table.** `core/textwidth`: `runeWidth` is 0 for combining marks,
+  joiners and variation selectors, 2 for East Asian Wide / Fullwidth and
+  emoji-presentation characters (as current terminals draw them), else 1.
+  A built-in range table, no dependency.
+- **Cell model.** A wide character takes its cell plus a continuation cell
+  (`Rune(0)`). `putCell` keeps pairs whole: overwriting either half blanks
+  the other, and a wide character with no room before the clip edge (or
+  whose left half is clipped away) is drawn as a space. Zero-width
+  characters go into the previous cell's new `TerminalChar.extra` and are
+  output with it.
+- **Renderer.** `displayFull` / `displayDiff` skip continuation cells and
+  advance their cursor bookkeeping by display width.
+  `displayDiffForTest` renders a diff to the `setOutput` handle for tests.
+- **Widgets** size and clip by width (`textWidth`, `clipWidth`): Table,
+  TreeView, ListView, Label, Button, Checkbox, Radio, TriState, Menu,
+  StatusBar, TabView, dialogs. Hotkey highlights are drawn at
+  `colX(text, col)`. `Input` / `Editor` keep rune-index cursors, while
+  `scrollX`, cursor placement and mouse clicks use display columns.
+
+`tests/test_wide.nim` covers the widths, the cell model, table alignment,
+editor and input columns, and replays the diff renderer's escape output
+through a minimal terminal emulator. Pure buffer arithmetic on the loop
+thread: the same under refc and ORC; the suite passes under ORC, refc and
+ASAN.

@@ -27,7 +27,7 @@ proc applyCaption*(b: Button, s: string) =
   b.hotkey = hk.key
   b.hlCol = hk.col
   # "> caption <" face + the cell the face shifts into while pressed
-  b.hint = (fixedHint(hk.text.runeLen + 5), fixedHint(1))
+  b.hint = (fixedHint(hk.text.textWidth + 5), fixedHint(1))
   b.invalidate()
 
 proc newButton*(caption: string, command = cmdNone): Button =
@@ -74,13 +74,13 @@ method draw*(b: Button, dc: DrawContext) {.gcsafe, raises: [].} =
   let fw = max(b.contentW - 1, 0)
   let ox = if b.pressed: 0 else: 1 # the face shifts one cell left when pressed
   dc.fill(rect(ox, 0, fw, 1), " ", st)
-  let x = ox + max((fw - b.caption.runeLen) div 2, 0)
+  let x = ox + max((fw - b.caption.textWidth) div 2, 0)
   dc.write(x, 0, b.caption, st)
   if b.isFocused and fw >= 2:
     dc.write(ox, 0, ">", st)
     dc.write(ox + fw - 1, 0, "<", st)
   if b.hlCol >= 0 and not dis: # highlight the accelerator letter
-    dc.write(x + b.hlCol, 0, $b.caption.runeAtPos(b.hlCol), b.hotkeyStyle(st))
+    dc.write(x + b.caption.colX(b.hlCol), 0, $b.caption.runeAtPos(b.hlCol), b.hotkeyStyle(st))
 
 method triggerHotkey*(b: Button, scope: Group) {.gcsafe, raises: [].} =
   b.keyPress()

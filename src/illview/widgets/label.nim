@@ -16,7 +16,7 @@ proc setText*(l: Label, s: string) =
   l.text = hk.text
   l.hotkey = hk.key
   l.hlCol = hk.col
-  l.hint = (fixedHint(hk.text.runeLen), fixedHint(1))
+  l.hint = (fixedHint(hk.text.textWidth), fixedHint(1))
   l.invalidate()
 
 proc newLabel*(text: string): Label =
@@ -38,4 +38,4 @@ method draw*(l: Label, dc: DrawContext) {.gcsafe, raises: [].} =
   let base = l.styleOf(tok)
   dc.write(0, 0, l.text, base)
   if l.hlCol >= 0 and l.enabled:
-    dc.write(l.hlCol, 0, $l.text.runeAtPos(l.hlCol), l.hotkeyStyle(base))
+    dc.write(l.text.colX(l.hlCol), 0, $l.text.runeAtPos(l.hlCol), l.hotkeyStyle(base))
