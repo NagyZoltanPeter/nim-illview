@@ -2,7 +2,7 @@
 ## lazy loading + activation, and Input history (recency, Enter records, Down
 ## opens a picker that sets the text). No terminal.
 
-import std/unittest
+import std/[strutils, unittest]
 import ../src/illview/core/[geometry, view, events, routing]
 import ../src/illview/widgets/[treeview, input]
 
@@ -63,6 +63,134 @@ suite "TreeView lazy loading + activation":
       {.cast(gcsafe).}: got = s.selectedNode.label
     discard tv.handleEvent(key(Key.Enter))
     check got == "leaf"
+
+suite "TreeView scrolling + live refresh (deviation #43)":
+  proc shiftKey(k: Key): Event = Event(kind: evKey, ikey: keyEvent(k, mods = {modShift}))
+  proc wheel(a: MouseAction, mods: set[Modifier] = {}): Event =
+    Event(kind: evMouse, imouse: mouseEvent(a, mbNone, 0, 0, mods))
+
+  test "Shift+Left/Right/Home/End scroll horizontally, clamped":
+    let tv = newTreeView(@[treeNode("x".repeat(30))]) # row width 32
+    tv.bounds = rect(0, 0, 10, 5)
+    check tv.scrollMaxX == 22
+    check tv.handleEvent(shiftKey(Key.Right))
+    check tv.scrollX == 4
+    discard tv.handleEvent(shiftKey(Key.End))
+    check tv.scrollX == 22
+    discard tv.handleEvent(shiftKey(Key.Right)) # clamped at the edge
+    check tv.scrollX == 22
+    discard tv.handleEvent(shiftKey(Key.Left))
+    check tv.scrollX == 18
+    discard tv.handleEvent(shiftKey(Key.Home))
+    check tv.scrollX == 0
+    check not tv.roots[0].expanded # plain Left/Right meaning untouched
+
+  test "no horizontal scroll when everything fits":
+    let tv = sampleTree()
+    check tv.scrollMaxX == 0
+    discard tv.handleEvent(shiftKey(Key.Right))
+    check tv.scrollX == 0
+
+  test "wheel moves the viewport, not the selection; Shift+wheel is horizontal":
+    var roots: seq[TreeNode]
+    for i in 0 ..< 20: roots.add treeNode("row " & $i & " " & "y".repeat(20))
+    let tv = newTreeView(roots)
+    tv.bounds = rect(0, 0, 10, 5)
+    check tv.handleEvent(wheel(maWheelDown))
+    check tv.top == 1
+    check tv.selected == 0
+    for _ in 0 ..< 30: discard tv.handleEvent(wheel(maWheelDown))
+    check tv.top == 15 # 20 rows - 5 visible
+    discard tv.handleEvent(wheel(maWheelUp))
+    check tv.top == 14
+    discard tv.handleEvent(wheel(maWheelDown, {modShift}))
+    check tv.scrollX == 4
+    check tv.top == 14
+
+  test "PgDn / PgUp page the selection; Ctrl+PgDn bubbles for tab switching":
+    var roots: seq[TreeNode]
+    for i in 0 ..< 20: roots.add treeNode($i)
+    let tv = newTreeView(roots)
+    tv.bounds = rect(0, 0, 10, 5)
+    discard tv.handleEvent(key(Key.PageDown))
+    check tv.selected == 5
+    discard tv.handleEvent(key(Key.PageUp))
+    check tv.selected == 0
+    check not tv.handleEvent(Event(kind: evKey,
+      ikey: keyEvent(Key.PageDown, mods = {modCtrl})))
+
+  test "a click on the marker still toggles when scrolled horizontally":
+    let tv = newTreeView(@[treeNode("p", @[treeNode("x".repeat(40))])])
+    tv.bounds = rect(0, 0, 10, 5)
+    tv.roots[0].expanded = true
+    tv.scrollToX(2) # row 0 marker now at column -2: off screen
+    discard tv.handleEvent(Event(kind: evMouse,
+      imouse: mouseEvent(maPress, mbLeft, 0, 0)))
+    check tv.roots[0].expanded # column 0 is the label, not the marker
+    tv.scrollToX(0)
+    discard tv.handleEvent(Event(kind: evMouse,
+      imouse: mouseEvent(maPress, mbLeft, 0, 0)))
+    check not tv.roots[0].expanded
+
+  proc liveTree(peers: seq[string], extraLabel = ""): seq[TreeNode] =
+    ## by-protocol shape: same peer key under several protocols
+    for proto in ["relay", "store"]:
+      var kids: seq[TreeNode]
+      for p in peers:
+        kids.add treeNode(p & extraLabel, @[treeNode("addr")], key = p)
+      result.add treeNode(proto & " (" & $peers.len & ")", kids, key = proto)
+
+  test "setRoots keeps expansion and selection by key, labels may change":
+    let tv = newTreeView(liveTree(@["p1", "p2"]))
+    tv.bounds = rect(0, 0, 20, 10)
+    tv.roots[1].expanded = true                 # store
+    tv.roots[1].children[1].expanded = true     # store/p2
+    discard tv.handleEvent(key(Key.Down))       # store
+    discard tv.handleEvent(key(Key.Down))       # store/p1
+    discard tv.handleEvent(key(Key.Down))       # store/p2
+    check tv.selectedNode.key == "p2"
+    tv.setRoots(liveTree(@["p0", "p1", "p2"], extraLabel = " *"))
+    check not tv.roots[0].expanded              # relay stays collapsed
+    check tv.roots[1].expanded                  # store stays open, label "store (3)"
+    check tv.roots[1].children[2].expanded      # store/p2 by key
+    check not tv.roots[1].children[1].expanded  # store/p1 was collapsed
+    check not tv.roots[1].children[0].expanded  # p0 is new: its own default
+    check tv.selectedNode.key == "p2"           # followed the node, not the index
+    check tv.selectedNode.label == "p2 *"
+    # same key under another parent is a different path
+    check not tv.roots[0].children[2].expanded
+
+  test "setRoots keeps the state of nodes hidden under a collapsed parent":
+    let tv = newTreeView(liveTree(@["p1"]))
+    tv.bounds = rect(0, 0, 20, 10)
+    tv.roots[0].children[0].expanded = true # relay/p1 open, relay itself closed
+    tv.setRoots(liveTree(@["p1"]))
+    check not tv.roots[0].expanded
+    check tv.roots[0].children[0].expanded
+
+  test "setRoots: removed selection clamps; new nodes keep their own state":
+    let tv = newTreeView(@[treeNode("a"), treeNode("b"), treeNode("c")])
+    tv.bounds = rect(0, 0, 20, 10)
+    discard tv.handleEvent(key(Key.End))
+    check tv.selected == 2
+    let fresh = treeNode("d", @[treeNode("d1")])
+    fresh.expanded = true
+    tv.setRoots(@[treeNode("a"), fresh])
+    check tv.roots[1].expanded       # "d" never existed before
+    check tv.selected == 2           # "c" gone: index kept, clamped to 3 rows
+    check tv.selectedNode.label == "d1"
+
+  test "setRoots clamps the horizontal scroll and does not fire onSelect":
+    var fired = 0
+    let tv = newTreeView(@[treeNode("x".repeat(30))])
+    tv.bounds = rect(0, 0, 10, 5)
+    tv.onSelect = proc(s: TreeView) {.gcsafe, raises: [].} =
+      {.cast(gcsafe).}: inc fired
+    discard tv.handleEvent(shiftKey(Key.End))
+    check tv.scrollX == 22
+    tv.setRoots(@[treeNode("x".repeat(12))]) # width 14 -> max 4
+    check tv.scrollX == 4
+    check fired == 0
 
 suite "Input history (plan-4 P26)":
   test "addHistory de-duplicates, bumps recency, and caps":
