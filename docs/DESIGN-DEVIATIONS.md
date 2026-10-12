@@ -993,3 +993,27 @@ editor and input columns, and replays the diff renderer's escape output
 through a minimal terminal emulator. Pure buffer arithmetic on the loop
 thread: the same under refc and ORC; the suite passes under ORC, refc and
 ASAN.
+
+## 46. Measuring the terminal's emoji width
+
+Emoji width is not fixed: most native terminals (iTerm2, macOS Terminal,
+kitty, Alacritty, GNOME) draw emoji 2 columns, but xterm.js without its
+Unicode 11 table and some older terminals draw them 1. With #45 assuming 2,
+those terminals got the same drift for emoji that #45 removed for CJK (CJK is
+2 everywhere).
+
+- `core/textwidth` keeps emoji in their own range table; their width is
+  `emojiWidth()`, set by `setEmojiWidth(1|2)` (default 2). CJK stays 2.
+- `backend/probe_posix.probeEmojiWidth` prints U+1F642 at column 1, sends
+  DSR 6 (`ESC[6n`) and reads the `ESC[row;colR` reply from a separate
+  descriptor on the tty (300 ms limit): the column moved is the width.
+  No reply (not a tty, no DSR support): 0, the default stays.
+- `App.enableTui` runs it once per process, after raw mode is on (the reply
+  is not echoed) and before the input driver starts reading (the reply is
+  not taken as a keypress); the first frame repaints the probe away.
+  `ILLVIEW_EMOJI_WIDTH=1|2` skips it (tmux, recordings, tests).
+
+`tests/test_wide.nim` covers the reply parser and that a width of 1 changes
+emoji, not CJK. Verified live in an xterm.js terminal (measured 1: rows with
+emoji now stay aligned through diff updates). One blocking read with a
+timeout at startup, on the UI thread: the same under refc and ORC.

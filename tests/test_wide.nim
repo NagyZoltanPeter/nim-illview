@@ -6,6 +6,7 @@ import std/[unittest, unicode, strutils, os, sequtils]
 import ../src/illview/backend/illwill_vendored except Style
 import ../src/illview/core/[geometry, theme, drawcontext, textwidth, view, events]
 import ../src/illview/widgets/[table, input, editor]
+import ../src/illview/backend/probe_posix
 
 proc rowText(tb: TerminalBuffer, y: int): string =
   ## The row as a terminal shows it: continuation cells contribute nothing.
@@ -184,3 +185,20 @@ suite "renderer output":
         replay(path, screen, w)
       setOutput(stdout)
       check screen.shown == cur.rowText(0)
+
+suite "emoji width (deviation #46)":
+  test "the terminal's cursor report gives the column":
+    check:
+      parseCursorCol("\e[12;3R") == 3
+      parseCursorCol("junk\e[1;2R") == 2
+      parseCursorCol("\e[1;") == 0 # incomplete
+      parseCursorCol("") == 0
+
+  test "a measured width of 1 applies to emoji, not to CJK":
+    setEmojiWidth(1)
+    check:
+      "🙂".runeAt(0).runeWidth == 1
+      "Bye 👋 日本".textWidth == 4 + 1 + 1 + 4
+      "日".runeAt(0).runeWidth == 2
+    setEmojiWidth(2)
+    check "🙂".runeAt(0).runeWidth == 2
