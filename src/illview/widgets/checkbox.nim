@@ -17,7 +17,7 @@ proc applyCaption*(c: Checkbox, s: string) =
   c.caption = hk.text
   c.hotkey = hk.key
   c.hlCol = hk.col
-  c.hint = (fixedHint(hk.text.runeLen + 4), fixedHint(1))
+  c.hint = (fixedHint(hk.text.textWidth + 4), fixedHint(1))
   c.invalidate()
 
 proc newCheckbox*(caption: string, checked = false, command = cmdNone): Checkbox =
@@ -55,7 +55,7 @@ method draw*(c: Checkbox, dc: DrawContext) {.gcsafe, raises: [].} =
   dc.fill(rect(0, 0, c.contentW, c.contentH), " ", st) # cluster surface
   dc.write(0, 0, (if c.checked: "[x] " else: "[ ] ") & c.caption, st)
   if c.hlCol >= 0 and not dis: # box prefix "[x] " is 4 cells wide
-    dc.write(4 + c.hlCol, 0, $c.caption.runeAtPos(c.hlCol), c.hotkeyStyle(st))
+    dc.write(4 + c.caption.colX(c.hlCol), 0, $c.caption.runeAtPos(c.hlCol), c.hotkeyStyle(st))
 
 method handleEvent*(c: Checkbox, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

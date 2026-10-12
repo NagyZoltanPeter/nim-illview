@@ -29,8 +29,8 @@ proc setText*(sb: StatusBar, s: string) =
 func itemSpan(sb: StatusBar, i: int): tuple[x, w: int] =
   var x = 1
   for k in 0 ..< i:
-    x += sb.items[k].label.runeLen + 3
-  (x, sb.items[i].label.runeLen + 2)
+    x += sb.items[k].label.textWidth + 3
+  (x, sb.items[i].label.textWidth + 2)
 
 method draw*(sb: StatusBar, dc: DrawContext) {.gcsafe, raises: [].} =
   let st = sb.styleOf(tkStatusBar)
@@ -42,7 +42,7 @@ method draw*(sb: StatusBar, dc: DrawContext) {.gcsafe, raises: [].} =
     let s = if sb.commandEnabled(item.command): hot else: off # greyed (D19)
     dc.write(x, 0, " " & item.label & " ", s)
   if sb.text.len > 0:
-    let x = sb.contentW - sb.text.runeLen - 1
+    let x = sb.contentW - sb.text.textWidth - 1
     dc.write(max(x, 0), 0, sb.text, st)
 
 method handleEvent*(sb: StatusBar, ev: Event): bool {.gcsafe, raises: [].} =

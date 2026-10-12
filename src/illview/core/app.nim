@@ -26,6 +26,8 @@ when defined(posix):
 else:
   import ../backend/driver_fallback
 import ../backend/ansitext
+import ../backend/probe_posix
+from std/os import getEnv
 import ../widgets/textview
 
 # stdout/stderr capture needs POSIX fds + an internal drain thread (deviation #41)
@@ -37,6 +39,7 @@ export illwill_vendored.TerminalBuffer
 
 type
   App* = ref object
+    emojiProbed: bool ## the terminal's emoji width was measured (deviation #46)
     desktop*: Desktop
     bus*: EventBus # NullBus by default; set newBrokersBus() for real routing
     sessionCtx*: BrokerContext # session scope every view under this app shares
@@ -328,6 +331,15 @@ proc enableTui*(app: App) =
   hideCursor(output()) # the renderer's handle (deviation #41)
   output().write("\e[?2004h") # bracketed paste on
   output().flushFile()
+  if not app.emojiProbed: # raw now, driver not reading yet: the reply is ours
+    app.emojiProbed = true
+    case getEnv("ILLVIEW_EMOJI_WIDTH")
+    of "1": setEmojiWidth(1)
+    of "2": setEmojiWidth(2)
+    else:
+      let w = probeEmojiWidth(output())
+      if w > 0:
+        setEmojiWidth(w)
   app.tb = nil # force full-size rebuild on first frame
   app.tuiActive = true
   app.driver.start()

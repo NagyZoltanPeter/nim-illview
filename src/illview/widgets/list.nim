@@ -29,7 +29,7 @@ proc newListView*(items: seq[string] = @[], command = cmdNone): ListView =
   result.focusable = true
   var w = 0
   for it in items:
-    w = max(w, it.runeLen)
+    w = max(w, it.textWidth)
   result.hint = (prefHint(w, stretch = 1), prefHint(items.len, stretch = 1))
   let l = result
   l.installSignal(SetSelected):
@@ -46,7 +46,7 @@ proc setItems*(l: ListView, items: seq[string]) =
   l.top = 0
   var w = 0
   for it in items:
-    w = max(w, it.runeLen)
+    w = max(w, it.textWidth)
   l.hint = (prefHint(w, stretch = 1), prefHint(items.len, stretch = 1))
   l.invalidate()
 

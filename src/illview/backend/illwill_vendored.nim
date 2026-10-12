@@ -52,6 +52,7 @@
 ##
 
 import macros, os, terminal, unicode, bitops, strutils
+import ../core/textwidth # wide / zero-width cells (illview deviation #45)
 
 # --- illview patch (deviation #41): the renderer's own output handle ----------
 var gOut: File = stdout ## every illwill terminal write goes here (default stdout)
@@ -923,6 +924,10 @@ type
     bg*: BackgroundColor
     style*: set[Style]
     forceWrite*: bool
+    extra*: string
+      ## illview #45: zero-width characters (combining marks, joiners,
+      ## variation selectors) drawn together with `ch`. A cell whose `ch` is
+      ## Rune(0) is the right half of the wide character on its left.
 
   TerminalBuffer* = ref object
     ## A virtual terminal buffer of a fixed width and height. It remembers the
@@ -1247,6 +1252,16 @@ proc setPos(x, y: Natural) =
 proc setXPos(x: Natural) =
   terminal.setCursorXPos(gOut, x)
 
+func isContinuation(tb: TerminalBuffer, x, y: int): bool =
+  ## The right half of a wide character: the terminal already advanced past
+  ## it when the left half was written, so it is not output itself.
+  x > 0 and tb[x, y].ch == Rune(0) and tb[x - 1, y].ch.runeWidth == 2
+
+func cellText(c: TerminalChar): string =
+  ## What a cell outputs. A stray Rune(0) (no wide character on its left)
+  ## becomes a space so the terminal cursor stays in step with the buffer.
+  if c.ch == Rune(0): " " & c.extra else: $c.ch & c.extra
+
 proc displayFull(tb: TerminalBuffer) =
   var buf = ""
 
@@ -1258,11 +1273,13 @@ proc displayFull(tb: TerminalBuffer) =
   for y in 0..<tb.height:
     setPos(0, y)
     for x in 0..<tb.width:
+      if tb.isContinuation(x, y):
+        continue
       let c = tb[x,y]
       if c.bg != gCurrBg or c.fg != gCurrFg or c.style != gCurrStyle:
         flushBuf()
         setAttribs(c)
-      buf &= $c.ch
+      buf &= c.cellText
     flushBuf()
 
 
@@ -1283,25 +1300,44 @@ proc displayDiff(tb: TerminalBuffer) =
         currXPos = bufXPos
         setXPos(currXPos)
       put buf
-      inc(currXPos, buf.runeLen)
+      inc(currXPos, buf.textWidth) # columns, not runes: wide cells take 2
       buf = ""
 
   for y in 0..<tb.height:
     bufXPos = 0
     bufYPos = y
+    var leftWritten = false # the cell on the left went into `buf`
     for x in 0..<tb.width:
+      if tb.isContinuation(x, y):
+        # Covered by its wide left half: written with it, or unchanged with it.
+        if not leftWritten:
+          flushBuf()
+          bufXPos = x+1
+        continue
       let c = tb[x,y]
-      if c != gPrevTerminalBuffer[x,y] or c.forceWrite:
+      if c != gPrevTerminalBuffer[x,y] or c.forceWrite or
+          (x + 1 < tb.width and gPrevTerminalBuffer.isContinuation(x + 1, y) and
+            not tb.isContinuation(x + 1, y)):
+        # (a wide character that lost its right half must be rewritten: the
+        # terminal still shows the old glyph across both columns)
         if c.bg != gCurrBg or c.fg != gCurrFg or c.style != gCurrStyle:
           flushBuf()
           bufXPos = x
           setAttribs(c)
-        buf &= $c.ch
+        buf &= c.cellText
+        leftWritten = true
       else:
         flushBuf()
         bufXPos = x+1
+        leftWritten = false
     flushBuf()
 
+
+proc displayDiffForTest*(prev, cur: TerminalBuffer) =
+  ## illview #45 test hook: output `cur` as a diff against `prev` to the
+  ## current output (`setOutput`), as `display` does once initialised.
+  gPrevTerminalBuffer = prev
+  displayDiff(cur)
 
 var gDoubleBufferingEnabled = true
 

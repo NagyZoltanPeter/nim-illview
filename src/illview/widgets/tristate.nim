@@ -23,7 +23,7 @@ proc applyCaption*(c: TriStateCheckBox, s: string) =
   c.caption = hk.text
   c.hotkey = hk.key
   c.hlCol = hk.col
-  c.hint = (fixedHint(hk.text.runeLen + 4), fixedHint(1))
+  c.hint = (fixedHint(hk.text.textWidth + 4), fixedHint(1))
   c.invalidate()
 
 proc newTriStateCheckBox*(caption: string, state = csUnchecked,
@@ -94,7 +94,7 @@ method draw*(c: TriStateCheckBox, dc: DrawContext) {.gcsafe, raises: [].} =
   if not dis:
     dc.write(1, 0, mark, merged(st, c.markStyle[c.state], c.isFocused))
     if c.hlCol >= 0: # box prefix "[x] " is 4 cells wide
-      dc.write(4 + c.hlCol, 0, $c.caption.runeAtPos(c.hlCol), c.hotkeyStyle(st))
+      dc.write(4 + c.caption.colX(c.hlCol), 0, $c.caption.runeAtPos(c.hlCol), c.hotkeyStyle(st))
 
 method handleEvent*(c: TriStateCheckBox, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind

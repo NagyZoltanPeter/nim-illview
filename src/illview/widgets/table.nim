@@ -94,15 +94,11 @@ proc activate*(t: Table) =
   if t.hasBrokerCtx: Activated.emit(t.brokerCtx, Activated(selected: t.selected))
 
 func fit(s: string, w: int): string =
-  ## First w runes (draw clipping would bleed into the next column).
+  ## The part of s that fits w columns (draw clipping would bleed into the
+  ## next column); wide characters count 2 (deviation #45).
   if w <= 0:
     return ""
-  var n = 0
-  for r in s.runes:
-    if n >= w:
-      break
-    result.add r.toUTF8
-    inc n
+  s.clipWidth(w)
 
 func barVisible(t: Table): bool =
   t.showScrollbar and t.rows.len > t.viewportRows

@@ -115,7 +115,7 @@ proc menuBar*(menus: varargs[Menu]): MenuBar = newMenuBar(@menus)
 func titleX(mb: MenuBar, i: int): int =
   var x = 1
   for k in 0 ..< i:
-    x += mb.menus[k].title.runeLen + 3
+    x += mb.menus[k].title.textWidth + 3
   x
 
 proc itemDisabled(p: MenuPopup, i: int): bool =
@@ -135,7 +135,7 @@ proc firstEnabled(p: MenuPopup): int =
 func popupWidth(items: seq[MenuItem]): int =
   var w = 0
   for it in items:
-    w = max(w, it.label.runeLen + (if it.submenu.len > 0: 2 else: 0))
+    w = max(w, it.label.textWidth + (if it.submenu.len > 0: 2 else: 0))
   w + 4
 
 proc buildPopup(items: seq[MenuItem], parent: MenuPopup, host: View): MenuPopup =
@@ -215,7 +215,7 @@ method draw*(p: MenuPopup, dc: DrawContext) {.gcsafe, raises: [].} =
       dc.fill(rect(1, 1 + i, p.contentW - 2, 1), " ", s)
     dc.write(2, 1 + i, item.label, s)
     if item.hlCol >= 0 and not dis and i != p.selected:
-      dc.write(2 + item.hlCol, 1 + i, $item.label.runeAtPos(item.hlCol),
+      dc.write(2 + item.label.colX(item.hlCol), 1 + i, $item.label.runeAtPos(item.hlCol),
                p.styleOf(tkStatusBarHotkey))
     if item.submenu.len > 0:
       dc.write(p.contentW - 2, 1 + i, "▶", s)
@@ -307,7 +307,7 @@ method draw*(mb: MenuBar, dc: DrawContext) {.gcsafe, raises: [].} =
     let s = if mb.isFocused and i == mb.barSel: sel else: st
     dc.write(mb.titleX(i), 0, " " & m.title & " ", s)
     if m.hlCol >= 0 and not (mb.isFocused and i == mb.barSel):
-      dc.write(mb.titleX(i) + 1 + m.hlCol, 0, $m.title.runeAtPos(m.hlCol), hot)
+      dc.write(mb.titleX(i) + 1 + m.title.colX(m.hlCol), 0, $m.title.runeAtPos(m.hlCol), hot)
 
 method handleEvent*(mb: MenuBar, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
@@ -332,7 +332,7 @@ method handleEvent*(mb: MenuBar, ev: Event): bool {.gcsafe, raises: [].} =
     if ev.imouse.action == maPress:
       for i, m in mb.menus:
         let x = mb.titleX(i)
-        if ev.imouse.mx >= x and ev.imouse.mx < x + m.title.runeLen + 2:
+        if ev.imouse.mx >= x and ev.imouse.mx < x + m.title.textWidth + 2:
           mb.openMenu(i)
           return true
       return true
