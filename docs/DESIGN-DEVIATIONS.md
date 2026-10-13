@@ -1058,3 +1058,33 @@ decoder's Shift / Ctrl+Insert keys, editing over a selection, read-only
 refusal, mouse drags with wide characters and TextView's cap. String and
 index work on the loop thread plus a short child process for the OS tool:
 the same under refc and ORC; the suite passes under ORC, refc and ASAN.
+
+## 48. Ctrl+C stops the app cleanly; termination signals restore the terminal
+
+Raw mode clears only ICANON and ECHO, so ISIG stays on: Ctrl+C is SIGINT
+(and Ctrl+Z / Ctrl+\ keep their meaning — illwill's SIGTSTP / SIGCONT
+handlers already restore and re-enter the TUI). The crash restore of #31
+covered SEGV / ABRT / BUS / ILL / FPE only, so Ctrl+C, `kill`, or closing
+the terminal ended the process in raw mode, alt screen and mouse tracking.
+
+- **SIGINT while the TUI is up** (`enableTui` → `installInterruptStop`):
+  the handler writes one byte to a non-blocking self-pipe — async-signal-safe
+  and correct on whichever thread takes the signal (node / capture threads
+  included). The loop reads the pipe and calls `app.stop()`, so `run()`'s
+  `finally: disableTui` restores the terminal and the host shuts down as for
+  its own quit key. A second SIGINT before that (a stuck shutdown) restores
+  the terminal in the handler and chains to the previous action (Nim's: the
+  process ends). `disableTui` puts the previous SIGINT action back, so
+  terminal mode (F2-style `disableTui`) and headless hosts keep theirs.
+- **SIGTERM, SIGHUP, SIGQUIT**: the #31 restore handler, without the crash
+  dump, then the previous action; under the default action the signal is
+  sent again (`kill(getpid(), sig)`, delivered when the handler returns), so
+  the process still ends with the signal's status (143 for SIGTERM).
+- `-d:noCrashRestore` disables both, as before.
+
+`tests/test_app.nim` covers SIGTERM chaining and a self-sent SIGINT
+stopping a running App (and the second one being handed on). Verified live
+in logos-delivery-tui: Ctrl+C exits 0 after the node stops, with the alt
+screen, mouse tracking and bracketed paste reset; `kill -TERM` restores the
+same and exits 143. The handlers use only write(2), tcsetattr, sigaction
+and kill: no GC memory, the same under refc and ORC.
