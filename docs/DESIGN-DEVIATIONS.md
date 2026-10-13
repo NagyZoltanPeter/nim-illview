@@ -1088,3 +1088,42 @@ in logos-delivery-tui: Ctrl+C exits 0 after the node stops, with the alt
 screen, mouse tracking and bracketed paste reset; `kill -TERM` restores the
 same and exits 143. The handlers use only write(2), tcsetattr, sigaction
 and kill: no GC memory, the same under refc and ORC.
+
+## 49. Horizontal scrolling with a bottom bar in ListView, Table, TreeView, TextView
+
+Only TreeView scrolled sideways (#43, `◀`/`▶` marks, no bar); ListView,
+Table and TextView cut long text silently, and Table's header said
+"NOT in v1: horizontal scroll". Also, SGR wheel buttons 66/67 (horizontal
+wheel / trackpad) decoded as wheel up / down, so a sideways swipe scrolled
+vertically.
+
+- `widgets/hbar`: `barLayout(w, h, header, items, contentWidth, vbar)`
+  settles both bars (each takes room the other depends on; the horizontal
+  bar needs one item row above it); `drawHBar` (the `scrollGlyphs(axH)`
+  rail); `hbarPress` / `hbarDrag` (ScrollBar's arrow-step / rail-page /
+  thumb-drag rules); generic `hbarKey` / `hbarMouse` used by all four.
+- Keys: Shift+Left/Right by `hScrollStep` (plain Left/Right too where they
+  had no meaning: ListView, Table, TextView), Shift+Home/End, Shift+wheel,
+  `maWheelLeft` / `maWheelRight` (new `MouseAction` values; the decoder
+  maps 66/67; a horizontal ScrollBar takes them too).
+- ListView / TextView / TreeView shift whole rows by `scrollX`, drawn
+  through a sub-context clipped at the bars. TextView keeps a width per
+  line beside `lines` and the widest of them, recounted only when the
+  dropped oldest line was the widest; mouse selection maps through
+  `scrollX` and a drag past the left / right edge scrolls.
+- Table keeps its column widths: one shared offset, clamped per cell to
+  that cell's overflow (`sliceCols`), so short cells never move; `◀` / `▶`
+  in a cut cell's edge cell; the bar's range is the visible width plus the
+  largest overflow. Cell widths are cached per row set (`setRows` /
+  `addRow` drop the cache; a changed row count rebuilds it).
+- `textwidth.sliceCols(s, start, w)`: a column window; wide characters cut
+  by an edge become spaces.
+- `TreeView.isBarRow(y)`: subclasses that act on presses (menus,
+  double-click) skip the bar row.
+
+`tests/test_hscroll.nim` covers `sliceCols`, the decoder, bar settling,
+bar presses / drags and each widget; `test_tree`'s wheel test now counts
+the bar row. Verified live in logos-delivery-tui (sidebar, log pane,
+configuration table). Drawing arithmetic and cached integers on the loop
+thread: the same under refc and ORC; the suite passes under ORC, refc and
+ASAN.

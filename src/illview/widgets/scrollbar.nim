@@ -92,6 +92,9 @@ method handleEvent*(sb: ScrollBar, ev: Event): bool {.gcsafe, raises: [].} =
     sb.setPos(sb.pos - 1); return true
   of maWheelDown:
     sb.setPos(sb.pos + 1); return true
+  of maWheelLeft, maWheelRight: # horizontal wheel: a horizontal bar's
+    if sb.axis == axV: return false
+    sb.setPos(sb.pos + (if m.action == maWheelLeft: -1 else: 1)); return true
   of maPress:
     let a = arrowCells(t)
     let th = a + thumbCell(t, sb.total, sb.page, sb.pos)

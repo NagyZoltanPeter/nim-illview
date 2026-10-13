@@ -106,13 +106,26 @@ Widget-specific extras:
 - **GroupBox**: borderless by default — title as a heading row above a `tkCluster` block; `border = bkSingle` puts the title back in a frame (deviation #34)
 - **Label**: drawn with `tkLabelFocused` while its `linkTo` control has focus
 - **Editor**: `text`, `setText(s)`, `lines`, `curLine`/`curCol`, `moveCursor`, `readOnly`, selection (below)
-- **ListView**: `setItems(items)`, `select(i)`, `activate()`, `ensureVisible()`, `top`
-- **Table**: `tableColumn(title, hint)`, `setRows`, `addRow`, `select(i)`, `activate()`; column widths distribute via layout hints
+- **ListView**: `setItems(items)`, `select(i)`, `activate()`, `ensureVisible()`, `top`; horizontal scroll (below)
+- **Table**: `tableColumn(title, hint)`, `setRows`, `addRow`, `select(i)`, `activate()`; column widths distribute via layout hints; cut cells scroll inside their column, marked `◀`/`▶` (below)
 - **ProgressBar**: `setValue(v)` (clamped), `value`, `maxValue`
 - **TextView**: `addLine(s)`, `clear()`, `scrollBy(delta)`; follows the bottom unless scrolled up (End re-pins) or while text is selected; selection (below)
 - **NetVizWidget**: `addEvent(topic, payload)` — per-topic counters + log line
 - **TriStateCheckBox**: user path cycles `csUnchecked → csChecked → csIntermediate → csUnchecked`; `setState(s)` (programmatic); `setMarks(unchecked, checked, intermediate: Rune)` — the one cell between the brackets, default `' '`/`'x'`/`'?'`; `setMarkStyle(state, StyleOverride)` — fg/bg/bright and focusFg/focusBg on the mark cell only (zero = inherit); `~tilde~` accelerator cycles
 - **StatusBar**: `statusItem(label, command)`, `setText(s)`
+
+Horizontal scrolling (deviation #49), on ListView, Table, TreeView and TextView:
+a one-row scroll bar (`◄ ▒ ■ ►`) along the bottom, only while something is
+cut; it takes a row from the items and settles with the vertical bar (the
+corner stays blank). Keys: Shift+Left/Right by `hScrollStep` (4) — plain
+Left/Right too, except in TreeView (expand / collapse) — and Shift+Home/End
+to either edge; Shift+wheel and the horizontal wheel / trackpad
+(`maWheelLeft` / `maWheelRight`); on the bar, the arrows step, the rail
+pages and the thumb drags. API: `scrollX`, `hScrollStep`, `scrollToX(x)`,
+`contentWidth` (ListView, TreeView, TextView); `TreeView.isBarRow(y)` for
+subclasses that handle presses. Table keeps its column widths: every cut
+cell scrolls by `scrollX` clamped to its own overflow (short cells stay),
+with `◀` / `▶` in the cell's edge where text continues; the header stays.
 
 Text selection and the clipboard (deviation #47), on Input, Editor and TextView.
 Keys follow Midnight Commander (F5 copy, F6 move) and Turbo Vision (Ctrl+Insert,

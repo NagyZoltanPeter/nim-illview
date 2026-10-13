@@ -7,13 +7,15 @@
 ## Scrolling (deviation #43): PgUp/PgDn page the selection; the wheel moves
 ## the viewport by a row without moving the selection. Rows wider than the
 ## view scroll horizontally: Shift+Left/Right by `hScrollStep` columns,
-## Shift+Home/End to either edge, Shift+wheel; `◀`/`▶` mark a row clipped on
-## that side. `setRoots` swaps in a rebuilt tree keeping expansion, selection
+## Shift+Home/End to either edge, Shift+wheel or the horizontal wheel;
+## `◀`/`▶` mark a row clipped on that side, and a one-row bar at the bottom
+## shows the position while any row is cut (deviation #49). `setRoots` swaps in a rebuilt tree keeping expansion, selection
 ## and scroll, matched by node path (`key`, else `label`) — for live trees
 ## refreshed on a timer.
 
 import std/[sets, unicode]
 import ../core/[geometry, theme, view, drawcontext, events]
+import ./hbar
 
 type
   TreeNode* = ref object
@@ -30,6 +32,7 @@ type
     top*: int      # first visible row
     scrollX*: int  # first visible column (horizontal scroll)
     hScrollStep*: int = 4 # columns per Shift+Left/Right / Shift+wheel notch
+    hDragging: bool
     onSelect*: proc(sender: TreeView) {.gcsafe, raises: [].}
     onActivate*: proc(sender: TreeView) {.gcsafe, raises: [].}
 
@@ -79,6 +82,20 @@ proc contentWidth*(t: TreeView): int =
   for (n, d) in t.visibleRows:
     result = max(result, rowWidth(n, d))
 
+proc layout(t: TreeView): BarLayout =
+  barLayout(t.contentW, t.contentH, 0, t.visibleRows.len, t.contentWidth, false)
+
+func hbarTop(t: TreeView): int = 0
+
+proc isBarRow*(t: TreeView, my: int): bool =
+  ## True when view row `my` is the horizontal bar (for subclasses that act
+  ## on presses themselves).
+  let lay = t.layout
+  lay.hbar and my == lay.rows
+
+proc viewRows(t: TreeView): int =
+  max(t.layout.rows, 1)
+
 proc scrollMaxX*(t: TreeView): int =
   max(t.contentWidth - t.contentW, 0)
 
@@ -94,11 +111,11 @@ proc scrollByX*(t: TreeView, dx: int) =
 proc scrollRows(t: TreeView, dy: int) =
   ## Viewport only; the selection stays where it is (ListView wheel rule).
   let n = t.visibleRows.len
-  t.top = clamp(t.top + dy, 0, max(n - max(t.contentH, 1), 0))
+  t.top = clamp(t.top + dy, 0, max(n - t.viewRows, 0))
   t.invalidate()
 
 proc ensureVis(t: TreeView, count: int) =
-  let h = max(t.contentH, 1)
+  let h = t.viewRows
   if t.selected < t.top: t.top = t.selected
   elif t.selected >= t.top + h: t.top = t.selected - h + 1
   t.top = clamp(t.top, 0, max(count - 1, 0))
@@ -185,7 +202,7 @@ proc setRoots*(t: TreeView, roots: seq[TreeNode]) =
         sel = i
         break
   t.selected = if sel >= 0: sel else: clamp(t.selected, 0, max(v.len - 1, 0))
-  t.top = clamp(t.top, 0, max(v.len - max(t.contentH, 1), 0))
+  t.top = clamp(t.top, 0, max(v.len - t.viewRows, 0))
   t.ensureVis(v.len)
   t.scrollX = clamp(t.scrollX, 0, t.scrollMaxX)
   t.invalidate()
@@ -206,7 +223,9 @@ method draw*(t: TreeView, dc: DrawContext) {.gcsafe, raises: [].} =
   let normal = t.styleOf(tkList)
   let sel = t.styleOf(if t.isFocused: tkSelectionFocused else: tkSelection)
   dc.fill(rect(0, 0, t.contentW, t.contentH), " ", normal) # list surface
-  for y in 0 ..< max(t.contentH, 0):
+  let cw = t.contentWidth
+  let lay = barLayout(t.contentW, t.contentH, 0, v.len, cw, false)
+  for y in 0 ..< lay.rows:
     let idx = t.top + y
     if idx >= v.len: break
     let (node, depth) = v[idx]
@@ -220,6 +239,8 @@ method draw*(t: TreeView, dc: DrawContext) {.gcsafe, raises: [].} =
       dc.write(0, y, "◀", st) # clipped on the left
     if x0 + rowWidth(node, 0) > t.contentW and t.contentW > 0:
       dc.write(t.contentW - 1, y, "▶", st) # clipped on the right
+  if lay.hbar:
+    dc.drawHBar(lay.rows, lay.cols, cw, t.scrollX, t.styleOf(tkScrollBar))
 
 method handleEvent*(t: TreeView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
@@ -229,15 +250,9 @@ method handleEvent*(t: TreeView, ev: Event): bool {.gcsafe, raises: [].} =
     if ev.ikey.isTabSwitch:
       return false # Ctrl+PgUp/PgDn switch tabs (deviation #39)
     if modShift in ev.ikey.keyMods:
-      case ev.ikey.key
-      of Key.Left: t.scrollByX(-t.hScrollStep)
-      of Key.Right: t.scrollByX(t.hScrollStep)
-      of Key.Home: t.scrollToX(0)
-      of Key.End: t.scrollToX(t.scrollMaxX)
-      else: return false
-      return true
+      return t.hbarKey(ev.ikey, plainArrows = false)
     let n = t.selectedNode
-    let page = max(t.contentH, 1)
+    let page = t.viewRows
     case ev.ikey.key
     of Key.Up: t.selectRow(t.selected - 1)
     of Key.Down: t.selectRow(t.selected + 1)
@@ -260,20 +275,22 @@ method handleEvent*(t: TreeView, ev: Event): bool {.gcsafe, raises: [].} =
       return false
     return true
   of evMouse:
-    let shift = modShift in ev.imouse.mouseMods
+    let lay = t.layout
+    if t.hbarMouse(ev.imouse, lay, t.contentWidth):
+      return true
     case ev.imouse.action
     of maWheelUp:
-      if shift: t.scrollByX(-t.hScrollStep) else: t.scrollRows(-1)
+      t.scrollRows(-1)
       return true
     of maWheelDown:
-      if shift: t.scrollByX(t.hScrollStep) else: t.scrollRows(1)
+      t.scrollRows(1)
       return true
     else:
       discard
     if ev.imouse.action == maPress:
       let v = t.visibleRows
       let idx = t.top + ev.imouse.my
-      if idx >= 0 and idx < v.len:
+      if ev.imouse.my < lay.rows and idx >= 0 and idx < v.len:
         t.selected = idx
         let (node, depth) = v[idx]
         # a click on the ▸/▾ marker toggles; elsewhere just selects

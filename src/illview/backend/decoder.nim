@@ -91,7 +91,11 @@ proc decodeSgrMouse(body: string, release: bool): InputEvent =
   if (b and 8) != 0: mods.incl modAlt
   if (b and 16) != 0: mods.incl modCtrl
   if (b and 64) != 0:
-    let action = if (b and 1) != 0: maWheelDown else: maWheelUp
+    let action = case b and 3 # 64/65 vertical, 66/67 horizontal (deviation #49)
+      of 0: maWheelUp
+      of 1: maWheelDown
+      of 2: maWheelLeft
+      else: maWheelRight
     mouseEvent(action, mbNone, x, y, mods)
   elif (b and 32) != 0:
     let button = case b and 3

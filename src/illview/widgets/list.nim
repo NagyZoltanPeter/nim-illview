@@ -1,9 +1,13 @@
 ## ListView (Phase 4.2): viewport + selection + key/wheel navigation.
 ## Slots: onSelect (selection moved), onActivate (Enter / item re-click).
+## Items wider than the view scroll horizontally (deviation #49): Left/Right
+## or Shift+Left/Right by `hScrollStep`, Shift+Home/End, Shift+wheel or the
+## horizontal wheel, and a one-row bar at the bottom while anything is cut.
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
 import ../vocab
+import ./hbar
 
 type
   ListView* = ref object of View
@@ -12,11 +16,30 @@ type
     top*: int # first visible row
     command*: Command
     showScrollbar*: bool # draw a thumb indicator in the last column when overflowing
+    scrollX*: int # first visible column (deviation #49)
+    hScrollStep*: int = 4
+    hDragging: bool
     onSelect*: proc(sender: ListView) {.gcsafe, raises: [].}
     onActivate*: proc(sender: ListView) {.gcsafe, raises: [].}
 
+proc contentWidth*(l: ListView): int =
+  ## Widest item, in cells.
+  for it in l.items:
+    result = max(result, it.textWidth)
+
+proc layout(l: ListView): BarLayout =
+  barLayout(l.contentW, l.contentH, 0, l.items.len, l.contentWidth, l.showScrollbar)
+
+func hbarTop(l: ListView): int = 0
+
+proc scrollToX*(l: ListView, x: int) =
+  let nx = clamp(x, 0, hScrollMax(l.contentWidth, l.layout.cols))
+  if nx != l.scrollX:
+    l.scrollX = nx
+    l.invalidate()
+
 proc ensureVisible*(l: ListView) =
-  let h = max(l.contentH, 1)
+  let h = max(l.layout.rows, 1)
   if l.selected < l.top:
     l.top = l.selected
   elif l.selected >= l.top + h:
@@ -72,21 +95,25 @@ proc activate*(l: ListView) =
 method draw*(l: ListView, dc: DrawContext) {.gcsafe, raises: [].} =
   let normal = l.styleOf(tkList)
   let sel = l.styleOf(if l.isFocused: tkSelectionFocused else: tkSelection)
-  let bar = l.showScrollbar and l.items.len > l.contentH
+  let cw = l.contentWidth
+  let lay = l.layout
+  l.scrollX = clamp(l.scrollX, 0, hScrollMax(cw, lay.cols))
   dc.fill(rect(0, 0, l.contentW, l.contentH), " ", normal) # list surface
-  let rowW = if bar: max(l.contentW - 1, 0) else: l.contentW
-  for y in 0 ..< max(l.contentH, 0):
+  let rows = dc.sub(rect(0, 0, lay.cols, lay.rows)) # items clip at the bars
+  for y in 0 ..< lay.rows:
     let idx = l.top + y
     if idx > l.items.high:
       break
     let st = if idx == l.selected: sel else: normal
     if idx == l.selected:
-      dc.fill(rect(0, y, rowW, 1), " ", st)
-    dc.write(0, y, l.items[idx], st)
-  if bar:
-    let sbSt = l.styleOf(tkScrollBar)
-    for y, g in scrollGlyphs(l.contentH, l.items.len, l.contentH, l.top, axV):
+      dc.fill(rect(0, y, lay.cols, 1), " ", st)
+    rows.write(-l.scrollX, y, l.items[idx], st)
+  let sbSt = l.styleOf(tkScrollBar)
+  if lay.vbar:
+    for y, g in scrollGlyphs(lay.rows, l.items.len, lay.rows, l.top, axV):
       dc.write(l.contentW - 1, y, g, sbSt)
+  if lay.hbar:
+    dc.drawHBar(lay.rows, lay.cols, cw, l.scrollX, sbSt)
 
 method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
   case ev.kind
@@ -95,7 +122,9 @@ method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
       return false # Alt-chords are window/app level (move/resize)
     if ev.ikey.isTabSwitch:
       return false # Ctrl+PgUp/PgDn switch tabs (deviation #39)
-    let page = max(l.contentH, 1)
+    if l.hbarKey(ev.ikey, plainArrows = true):
+      return true
+    let page = max(l.layout.rows, 1)
     case ev.ikey.key
     of Key.Up: l.select(l.selected - 1)
     of Key.Down: l.select(l.selected + 1)
@@ -109,18 +138,21 @@ method handleEvent*(l: ListView, ev: Event): bool {.gcsafe, raises: [].} =
       return false
     return true
   of evMouse:
+    let lay = l.layout
+    if l.hbarMouse(ev.imouse, lay, l.contentWidth):
+      return true
     case ev.imouse.action
     of maWheelUp:
       l.top = max(l.top - 1, 0)
       l.invalidate()
       return true
     of maWheelDown:
-      l.top = clamp(l.top + 1, 0, max(l.items.len - l.contentH, 0))
+      l.top = clamp(l.top + 1, 0, max(l.items.len - lay.rows, 0))
       l.invalidate()
       return true
     of maPress:
       let idx = l.top + ev.imouse.my
-      if idx >= 0 and idx <= l.items.high:
+      if ev.imouse.my < lay.rows and idx >= 0 and idx <= l.items.high:
         if idx == l.selected:
           l.activate() # second click on the selection activates
         else:

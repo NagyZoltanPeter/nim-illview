@@ -100,12 +100,12 @@ suite "TreeView scrolling + live refresh (deviation #43)":
     check tv.top == 1
     check tv.selected == 0
     for _ in 0 ..< 30: discard tv.handleEvent(wheel(maWheelDown))
-    check tv.top == 15 # 20 rows - 5 visible
+    check tv.top == 16 # 20 rows - 4 visible (the 5th is the bar, #49)
     discard tv.handleEvent(wheel(maWheelUp))
-    check tv.top == 14
+    check tv.top == 15
     discard tv.handleEvent(wheel(maWheelDown, {modShift}))
     check tv.scrollX == 4
-    check tv.top == 14
+    check tv.top == 15
 
   test "PgDn / PgUp page the selection; Ctrl+PgDn bubbles for tab switching":
     var roots: seq[TreeNode]
