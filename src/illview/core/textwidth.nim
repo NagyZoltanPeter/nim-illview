@@ -103,6 +103,29 @@ func clipWidth*(s: string, w: int): string =
     i += s.runeLenAt(i)
   s[0 ..< i]
 
+func sliceCols*(s: string, start, w: int): string =
+  ## Display columns [start, start + w) of `s` (deviation #49). A wide
+  ## character cut by either edge becomes spaces; zero-width characters stay
+  ## with the character before them.
+  var col = 0
+  var lastIn = false
+  for r in s.runes:
+    let rw = r.runeWidth
+    if rw == 0:
+      if lastIn: result.add r.toUTF8
+      continue
+    if col >= start + w:
+      break
+    if col >= start and col + rw <= start + w:
+      result.add r.toUTF8
+      lastIn = true
+    else:
+      lastIn = false
+      let a = max(col, start)
+      let b = min(col + rw, start + w)
+      for _ in a ..< b: result.add ' '
+    col += rw
+
 func colOf*(rs: openArray[Rune], idx: int): int =
   ## Display column where rune `idx` starts.
   for k in 0 ..< min(idx, rs.len):

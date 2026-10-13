@@ -18,7 +18,8 @@ type
     modShift, modAlt, modCtrl
 
   MouseAction* = enum
-    maPress, maRelease, maMove, maWheelUp, maWheelDown
+    maPress, maRelease, maMove, maWheelUp, maWheelDown,
+    maWheelLeft, maWheelRight ## horizontal wheel / trackpad (deviation #49)
 
   MouseButton* = enum
     mbNone, mbLeft, mbMiddle, mbRight

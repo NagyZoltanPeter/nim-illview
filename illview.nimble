@@ -20,7 +20,7 @@ const testFiles = ["test_decoder", "test_layout", "test_render_snapshot",
                    "test_splitter", "test_desktop", "test_hotkey", "test_menu",
                    "test_validators", "test_dialogs", "test_tree", "test_app",
                    "test_theme", "test_tabview", "test_capture", "test_wide",
-                   "test_select"]
+                   "test_select", "test_hscroll"]
 
 const exampleFiles = ["ex00_echo", "ex01_loop", "ex02_windows", "ex03_layout",
                       "ex04_widgets_gallery", "ex05_declarative", "ex06_netviz",
