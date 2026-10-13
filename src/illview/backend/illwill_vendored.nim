@@ -336,6 +336,12 @@ func toKey(c: int): Key =
 var gIllwillInitialised = false
 var gFullScreen = false
 var gFullRedrawNextFrame = false
+# illview patch (deviation #48): what Ctrl+Z must undo and `fg` redo — the
+# alternate-screen sequences in use, bracketed paste — and the two byte
+# strings, precomputed so the signal handlers only write(2) them.
+var gAltEnter, gAltExit: string
+var gBracketedPaste = false
+var gSuspendSeq, gResumeSeq: string
 
 when defined(windows):
   import encodings, winlean
@@ -584,6 +590,8 @@ when defined(windows):
 else:  # OS X & Linux
   import posix, tables, termios
   import strutils, strformat
+  when not declared(SIGWINCH):
+    const SIGWINCH = cint(28) # same value on macOS and Linux (as driver_posix)
 
   proc consoleInit()
   proc consoleDeinit()
@@ -608,11 +616,19 @@ else:  # OS X & Linux
 
   # Adapted from:
   # https://ftp.gnu.org/old-gnu/Manuals/glibc-2.2.3/html_chapter/libc_24.html#SEC499
+  proc writeNow(s: string) =
+    ## Unbuffered, straight to the renderer's descriptor (signal handlers).
+    if s.len > 0:
+      discard posix.write(getFileHandle(gOut), unsafeAddr s[0], s.len)
+
   proc SIGTSTP_handler(sig: cint) {.noconv.} =
     signal(SIGTSTP, SIG_DFL)
-    # XXX why don't the below 3 lines seem to have any effect?
-    resetAttributes(gOut)
-    showCursor(gOut)
+    # illview patch (deviation #48): leave the terminal as the shell expects
+    # it — mouse tracking and bracketed paste off, cursor shown, attributes
+    # reset, off the alternate screen — written unbuffered (upstream wrote
+    # to the buffered gOut and stopped before it was flushed).
+    if gIllwillInitialised:
+      writeNow(gSuspendSeq)
     consoleDeinit()
     discard posix.raise(SIGTSTP)
 
@@ -622,12 +638,15 @@ else:  # OS X & Linux
     # illview patch (deviation #48): continued in the background (`kill -CONT`,
     # `bg`): leave the terminal alone — tcsetattr there means SIGTTOU, which
     # stops us again (a pending SIGTERM never runs). `fg` continues us again.
-    if tcgetpgrp(STDIN_FILENO) != getpgrp():
+    # Not initialised (the TUI is off, e.g. a host's terminal mode): nothing
+    # to redo.
+    if not gIllwillInitialised or tcgetpgrp(STDIN_FILENO) != getpgrp():
       return
 
     gFullRedrawNextFrame = true
     consoleInit()
-    hideCursor(gOut)
+    writeNow(gResumeSeq) # alternate screen, mouse, bracketed paste back
+    discard posix.raise(SIGWINCH) # the host redraws now (and sees any resize)
 
   proc installSignalHandlers() =
     signal(SIGCONT, SIGCONT_handler)
@@ -805,12 +824,17 @@ proc enterFullScreen() =
   ## Enters full-screen mode (clears the terminal).
   when defined(posix):
     let term = getEnv("TERM")
-    if term == XtermColor:
-      gOut.write "\e7\e[?47h"
-    elif hasAltScreen(term):
-      gOut.write "\e[?1049h"
-    else:
-      eraseScreen(gOut)
+    {.cast(gcsafe).}: # loop thread only (deviation #48 state)
+      if term == XtermColor:
+        (gAltEnter, gAltExit) = ("\e7\e[?47h", "\e[2J\e[?47l\e8")
+      elif hasAltScreen(term):
+        (gAltEnter, gAltExit) = ("\e[?1049h", "\e[?1049l")
+      else:
+        (gAltEnter, gAltExit) = ("", "")
+      if gAltEnter.len > 0:
+        gOut.write gAltEnter
+      else:
+        eraseScreen(gOut)
   else:
     eraseScreen(gOut)
 
@@ -827,6 +851,40 @@ proc exitFullScreen() =
   else:
     eraseScreen(gOut)
     setCursorPos(gOut, 0, 0)
+
+func suspendSeqFor*(altExit: string, mouse, paste: bool): string =
+  ## illview patch (deviation #48): what Ctrl+Z writes, in this order.
+  if mouse: result.add "\e[?1002l\e[?1003l\e[?1006l"
+  if paste: result.add "\e[?2004l"
+  result.add "\e[0m\e[?25h"
+  result.add altExit
+
+func resumeSeqFor*(altEnter: string, mouse, paste: bool): string =
+  ## illview patch (deviation #48): what `fg` writes, in this order.
+  result.add altEnter
+  if mouse: result.add "\e[?1002h\e[?1003h\e[?1006h"
+  if paste: result.add "\e[?2004h"
+  result.add "\e[?25l"
+
+proc refreshSigSeqs() {.gcsafe.} =
+  {.cast(gcsafe).}: # loop thread only; the handlers just read them
+    let full = gIllwillInitialised and gFullScreen
+    gSuspendSeq = suspendSeqFor(if full: gAltExit else: "", gMouse, gBracketedPaste)
+    gResumeSeq = resumeSeqFor(if full: gAltEnter else: "", gMouse, gBracketedPaste)
+
+proc setBracketedPaste*(on: bool) {.gcsafe.} =
+  ## illview patch (deviation #48): bracketed paste on / off, recorded so a
+  ## suspend (Ctrl+Z) turns it off for the shell and `fg` turns it back on.
+  ## Loop thread only, like every illwill call.
+  {.cast(gcsafe).}:
+    gOut.write(if on: "\e[?2004h" else: "\e[?2004l")
+    gOut.flushFile()
+    gBracketedPaste = on
+    refreshSigSeqs()
+
+proc bracketedPaste*(): bool = gBracketedPaste
+proc suspendSeq*(): string = gSuspendSeq ## for tests
+proc resumeSeq*(): string = gResumeSeq ## for tests
 
 when defined(posix):
   proc enableMouse() =
@@ -870,6 +928,7 @@ proc illwillInit*(fullScreen: bool=true, mouse: bool=false) =
     else:
       enableMouse(getStdHandle(STD_INPUT_HANDLE))
   gIllwillInitialised = true
+  refreshSigSeqs()
   resetAttributes(gOut)
 
 proc checkInit() =
@@ -890,6 +949,7 @@ proc illwillDeinit*() =
       disableMouse(getStdHandle(STD_INPUT_HANDLE), gOldConsoleModeInput)
   consoleDeinit()
   gIllwillInitialised = false
+  refreshSigSeqs()
   resetAttributes(gOut)
   showCursor(gOut)
 

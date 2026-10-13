@@ -3,9 +3,10 @@
 ## installed before it instead of replacing it. Deviation #48: termination
 ## signals restore and chain too; SIGINT stops the app.
 
-import std/unittest
+import std/[unittest, strutils]
 import chronos
 import ../src/illview/core/[bus, app]
+import ../src/illview/backend/illwill_vendored
 
 when defined(posix):
   from std/posix import nil
@@ -83,3 +84,21 @@ when defined(posix):
       var cur: posix.Sigaction
       discard posix.sigaction(posix.SIGINT, saved, cur)
       check cur.sa_handler == intPriorHandler
+
+suite "Ctrl+Z / fg terminal state (deviation #48)":
+  test "suspend undoes and resume redoes, in order":
+    check suspendSeqFor("\e[?1049l", true, true) ==
+      "\e[?1002l\e[?1003l\e[?1006l\e[?2004l\e[0m\e[?25h\e[?1049l"
+    check resumeSeqFor("\e[?1049h", true, true) ==
+      "\e[?1049h\e[?1002h\e[?1003h\e[?1006h\e[?2004h\e[?25l"
+    check suspendSeqFor("\e[2J\e[?47l\e8", false, false) == "\e[0m\e[?25h\e[2J\e[?47l\e8"
+    check resumeSeqFor("", false, true) == "\e[?2004h\e[?25l" # no alt screen
+
+  test "setBracketedPaste is recorded for suspend / resume":
+    setBracketedPaste(true)
+    check bracketedPaste()
+    check "\e[?2004l" in suspendSeq()
+    check "\e[?2004h" in resumeSeq()
+    setBracketedPaste(false)
+    check not bracketedPaste()
+    check "\e[?2004" notin suspendSeq()

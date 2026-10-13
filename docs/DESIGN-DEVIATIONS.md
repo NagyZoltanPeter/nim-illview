@@ -1086,6 +1086,22 @@ the terminal ended the process in raw mode, alt screen and mouse tracking.
   process is the terminal's foreground group (`tcgetpgrp == getpgrp`).
   Before, both drew SIGTTOU, which stopped the process again, so the
   pending SIGTERM never ran. `fg` still resumes the TUI.
+- **Ctrl+Z / `fg`** (illwill's SIGTSTP / SIGCONT handlers): upstream wrote
+  the cursor / attribute reset to the buffered `gOut` and stopped before it
+  was flushed, and never left the alternate screen or turned mouse tracking
+  and bracketed paste off — the shell prompt came up on the TUI's screen with
+  mouse reports typed into it, and after `fg` pastes were no longer
+  bracketed (the shell had turned that off). Now `enterFullScreen` records
+  the alternate-screen sequences it used, `setBracketedPaste(on)` (used by
+  `enableTui` / `disableTui`) records paste mode, and the suspend / resume
+  byte strings (`suspendSeqFor` / `resumeSeqFor`) are precomputed on the loop
+  thread; the handlers only write(2) them to the renderer's descriptor.
+  SIGTSTP: mouse off, paste off, attributes reset, cursor shown, alternate
+  screen left, cooked termios, stop. SIGCONT in the foreground: raw mode,
+  alternate screen, mouse, paste, cursor hidden, then SIGWINCH so the app
+  redraws at once (and picks up a resize made meanwhile). Not initialised
+  (the TUI off, e.g. a host's terminal mode): SIGCONT leaves the terminal as
+  it is.
 - `-d:noCrashRestore` disables both, as before.
 
 `tests/test_app.nim` covers SIGTERM chaining and a self-sent SIGINT
