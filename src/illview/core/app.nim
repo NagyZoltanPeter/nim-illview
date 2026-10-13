@@ -62,6 +62,8 @@ type
     lastFrame: Moment
     quitFut: Future[void]
     lastClick: tuple[t: Moment, x, y: int, button: events.MouseButton, count: int]
+    when defined(posix):
+      intPipe: array[2, cint] ## SIGINT self-pipe while the TUI is up (deviation #48)
     disabledCommands: seq[Command] # P22/D19: greyed + non-activatable
     modalStack: seq[tuple[view: Group, fut: Future[Command], prevFocus: View]]
     when compileOption("threads"):
@@ -80,6 +82,7 @@ func nextClicks*(last: tuple[t: Moment, x, y: int, button: events.MouseButton, c
 
 proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].}
 proc requestRedraw*(app: App) {.gcsafe, raises: [].}
+proc stop*(app: App) {.gcsafe, raises: [].}
 
 # --- terminal restore on a fatal crash (POSIX) -------------------------------
 # Nim runs `addExitProc` only on quit(), NOT on an unhandled exception or a
@@ -99,6 +102,7 @@ when defined(posix):
   var gPrevActions: array[0 .. 63, posix.Sigaction] # indexed by signal number
   let CrashSignals = [posix.SIGSEGV, posix.SIGABRT, posix.SIGBUS, posix.SIGILL,
                       posix.SIGFPE] # importc vars, not compile-time constants
+  let TermSignals = [posix.SIGTERM, posix.SIGHUP, posix.SIGQUIT] # deviation #48
   const RestoreSeq =
     "\e[?1002l\e[?1003l\e[?1006l" & # mouse tracking off
     "\e[?2004l" &                   # bracketed paste off
@@ -112,8 +116,12 @@ when defined(posix):
     discard posix.write(cint(1), cast[pointer](cstring(RestoreSeq)), RestoreSeq.len)
     if gTermiosSaved:
       discard tcSetAttr(cint(0), TCSANOW, addr gOrigTermios)
+    var crash = false
+    for s in CrashSignals:
+      if s == sig: crash = true
     when CaptureSupported:
-      captureCrashDump() # then the captured tail, on the main screen
+      if crash:
+        captureCrashDump() # then the captured tail, on the main screen
     # Hand the signal on. sa_handler/sa_sigaction share one union slot on every
     # POSIX we build for, so the cast reads whichever the previous owner set.
     var prev = gPrevActions[int(sig)]
@@ -122,7 +130,12 @@ when defined(posix):
       cast[SigInfoHandler](prev.sa_handler)(sig, info, ctx)
     elif prev.sa_handler != posix.SIG_DFL and prev.sa_handler != posix.SIG_IGN:
       prev.sa_handler(sig)
-    # else: returning re-runs the faulting op under the default action
+    elif crash or prev.sa_handler == posix.SIG_IGN:
+      discard # returning re-runs the faulting op under the default action
+    else:
+      # a termination signal under the default action: deliver it again; it is
+      # blocked while this handler runs, so it lands (and ends us) on return
+      discard posix.kill(posix.getpid(), sig)
 
   proc installCrashRestore*() =
     ## Idempotent; called by `enableTui` unless `-d:noCrashRestore`. Exported
@@ -137,6 +150,65 @@ when defined(posix):
     discard posix.sigemptyset(act.sa_mask)
     for s in CrashSignals:
       discard posix.sigaction(s, act, gPrevActions[int(s)])
+    for s in TermSignals:
+      discard posix.sigaction(s, act, gPrevActions[int(s)])
+
+  # --- Ctrl+C: a clean stop (deviation #48) ----------------------------------
+  # Raw mode keeps ISIG (Ctrl+Z and Ctrl+\ still work), so Ctrl+C is SIGINT.
+  # While the TUI is up the handler only writes a byte to a self-pipe — safe
+  # in a signal handler and on whichever thread takes the signal — and the
+  # loop stops the app, so run()'s `finally: disableTui` restores the terminal
+  # and the host shuts down as for its own quit key. A second Ctrl+C before
+  # that restores the terminal here and hands the signal on (to Nim's handler:
+  # the process ends), so a stuck shutdown can still be interrupted.
+  var gIntWriteFd: cint = -1
+  var gIntRequested = false
+
+  proc onSigint(sig: cint, info: ptr posix.SigInfo, ctx: pointer) {.noconv.} =
+    if gIntWriteFd >= 0 and not gIntRequested:
+      gIntRequested = true
+      var b = 1'u8
+      discard posix.write(gIntWriteFd, addr b, 1)
+    else:
+      restoreOnSignal(sig, info, ctx)
+
+  proc onIntReadable(arg: pointer) {.gcsafe, raises: [].} =
+    let app = cast[App](arg)
+    var buf: array[16, byte]
+    while posix.read(app.intPipe[0], addr buf[0], buf.len) > 0:
+      discard
+    app.stop()
+
+  proc installInterruptStop*(app: App) =
+    ## SIGINT stops `app` (called by `enableTui`). Exported for tests.
+    if gIntWriteFd >= 0 or posix.pipe(app.intPipe) != 0:
+      return
+    for fd in app.intPipe:
+      discard posix.fcntl(fd, posix.F_SETFL,
+                          posix.fcntl(fd, posix.F_GETFL, 0) or posix.O_NONBLOCK)
+    if register2(AsyncFD(app.intPipe[0])).isErr or
+        addReader2(AsyncFD(app.intPipe[0]), onIntReadable, cast[pointer](app)).isErr:
+      discard posix.close(app.intPipe[0])
+      discard posix.close(app.intPipe[1])
+      return
+    gIntRequested = false
+    gIntWriteFd = app.intPipe[1]
+    var act: posix.Sigaction
+    act.sa_handler = cast[proc (x: cint) {.noconv.}](onSigint)
+    act.sa_flags = posix.SA_SIGINFO
+    discard posix.sigemptyset(act.sa_mask)
+    discard posix.sigaction(posix.SIGINT, act, gPrevActions[int(posix.SIGINT)])
+
+  proc removeInterruptStop*(app: App) =
+    ## Put the previous SIGINT action back (called by `disableTui`).
+    if gIntWriteFd < 0 or gIntWriteFd != app.intPipe[1]:
+      return
+    discard posix.sigaction(posix.SIGINT, gPrevActions[int(posix.SIGINT)], nil)
+    gIntWriteFd = -1
+    discard removeReader2(AsyncFD(app.intPipe[0]))
+    discard unregister2(AsyncFD(app.intPipe[0]))
+    discard posix.close(app.intPipe[0])
+    discard posix.close(app.intPipe[1])
 proc execView*(app: App, v: Group): Future[Command] {.gcsafe, raises: [].}
 proc endModal*(app: App, cmd: Command) {.gcsafe, raises: [].}
 
@@ -313,6 +385,7 @@ proc enableTui*(app: App) =
     return
   when defined(posix) and not defined(noCrashRestore):
     installCrashRestore() # capture the cooked termios BEFORE illwill goes raw
+    app.installInterruptStop()
   when CaptureSupported:
     if app.captureOutput:
       if app.capture == nil:
@@ -352,6 +425,8 @@ proc disableTui*(app: App) =
     return
   app.tuiActive = false
   app.driver.stop()
+  when defined(posix) and not defined(noCrashRestore):
+    app.removeInterruptStop()
   output().write("\e[?2004l") # bracketed paste off
   output().flushFile()
   illwillDeinit() # exits altscreen, restores termios, shows cursor
