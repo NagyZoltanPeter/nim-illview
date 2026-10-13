@@ -111,11 +111,19 @@ when defined(posix):
     "\e[0m"                         # reset attributes
 
   proc restoreOnSignal(sig: cint, info: ptr posix.SigInfo, ctx: pointer) {.noconv.} =
+    # A background job (suspended with Ctrl+Z, then `kill`ed and continued)
+    # gets SIGTTOU for tcsetattr — and for the write under `stty tostop` —
+    # which stops it again before it can end: ignore SIGTTOU meanwhile.
+    var ign, prevTtou: posix.Sigaction
+    ign.sa_handler = posix.SIG_IGN
+    discard posix.sigemptyset(ign.sa_mask)
+    discard posix.sigaction(posix.SIGTTOU, ign, prevTtou)
     when CaptureSupported:
       captureCrashFds() # fd 1/2 back on the terminal first (deviation #41)
     discard posix.write(cint(1), cast[pointer](cstring(RestoreSeq)), RestoreSeq.len)
     if gTermiosSaved:
       discard tcSetAttr(cint(0), TCSANOW, addr gOrigTermios)
+    discard posix.sigaction(posix.SIGTTOU, prevTtou, nil)
     var crash = false
     for s in CrashSignals:
       if s == sig: crash = true

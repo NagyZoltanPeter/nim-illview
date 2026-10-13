@@ -619,6 +619,11 @@ else:  # OS X & Linux
   proc SIGCONT_handler(sig: cint) {.noconv.} =
     signal(SIGCONT, SIGCONT_handler)
     signal(SIGTSTP, SIGTSTP_handler)
+    # illview patch (deviation #48): continued in the background (`kill -CONT`,
+    # `bg`): leave the terminal alone — tcsetattr there means SIGTTOU, which
+    # stops us again (a pending SIGTERM never runs). `fg` continues us again.
+    if tcgetpgrp(STDIN_FILENO) != getpgrp():
+      return
 
     gFullRedrawNextFrame = true
     consoleInit()

@@ -1080,6 +1080,12 @@ the terminal ended the process in raw mode, alt screen and mouse tracking.
   dump, then the previous action; under the default action the signal is
   sent again (`kill(getpid(), sig)`, delivered when the handler returns), so
   the process still ends with the signal's status (143 for SIGTERM).
+- **A suspended TUI** (Ctrl+Z) that is then `kill`ed and continued runs as
+  a background job: the restore ignores SIGTTOU while it writes and calls
+  tcsetattr, and illwill's SIGCONT handler only re-enters raw mode when the
+  process is the terminal's foreground group (`tcgetpgrp == getpgrp`).
+  Before, both drew SIGTTOU, which stopped the process again, so the
+  pending SIGTERM never ran. `fg` still resumes the TUI.
 - `-d:noCrashRestore` disables both, as before.
 
 `tests/test_app.nim` covers SIGTERM chaining and a self-sent SIGINT
