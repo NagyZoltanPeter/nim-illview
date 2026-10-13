@@ -410,8 +410,7 @@ proc enableTui*(app: App) =
   illwillInit(fullScreen = true, mouse = true)
   invalidateScreen() # re-entry: full repaint, no stale diff/SGR cache (deviation #40)
   hideCursor(output()) # the renderer's handle (deviation #41)
-  output().write("\e[?2004h") # bracketed paste on
-  output().flushFile()
+  setBracketedPaste(true) # recorded for Ctrl+Z / fg (deviation #48)
   if not app.emojiProbed: # raw now, driver not reading yet: the reply is ours
     app.emojiProbed = true
     case getEnv("ILLVIEW_EMOJI_WIDTH")
@@ -435,8 +434,7 @@ proc disableTui*(app: App) =
   app.driver.stop()
   when defined(posix) and not defined(noCrashRestore):
     app.removeInterruptStop()
-  output().write("\e[?2004l") # bracketed paste off
-  output().flushFile()
+  setBracketedPaste(false)
   illwillDeinit() # exits altscreen, restores termios, shows cursor
   when CaptureSupported:
     if app.capture.active:
