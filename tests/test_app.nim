@@ -56,6 +56,10 @@ when defined(posix):
     test "SIGTERM restores and chains to the handler installed before (#48)":
       discard posix.kill(posix.getpid(), posix.SIGTERM) # handled, not fatal
       check gTermPriorRan
+      var ttou, none: posix.Sigaction # SIGTTOU ignored only during the restore
+      discard posix.sigaction(posix.SIGTTOU, none, ttou)
+      discard posix.sigaction(posix.SIGTTOU, ttou, nil)
+      check ttou.sa_handler == posix.SIG_DFL
       var cur, prior: posix.Sigaction
       discard posix.sigaction(posix.SIGTERM, prior, cur)
       check cur.sa_handler == termPriorHandler
