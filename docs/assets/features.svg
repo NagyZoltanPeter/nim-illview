@@ -9,7 +9,7 @@
 <rect x="0" y="18" width="720" height="18" fill="#a8a8a8"/>
 <text x="0" y="32" textLength="18" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">╔[</text>
 <text x="18" y="32" textLength="9" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#8ae234">■</text>
-<text x="27" y="32" textLength="693" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">]══════════════════════ iteration 4 — tree | list ══════════════════════════╗</text>
+<text x="27" y="32" textLength="693" lengthAdjust="spacingAndGlyphs" xml:space="preserve" fill="#ffffff">]═════════════════════════════ tree | list ═════════════════════════════════╗</text>
 <rect x="0" y="36" width="9" height="18" fill="#a8a8a8"/>
 <rect x="9" y="36" width="252" height="18" fill="#3f7d16"/>
 <rect x="261" y="36" width="9" height="18" fill="#a8a8a8"/>

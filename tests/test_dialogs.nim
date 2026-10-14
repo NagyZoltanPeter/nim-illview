@@ -1,4 +1,4 @@
-## Phase 25 exit criteria (plan-4 D20): stock dialogs resolve their modal
+## Coverage: stock dialogs resolve their modal
 ## future on Enter (default), Esc (cancel), accelerator and OK; inputBox maps
 ## OK->some / Cancel->none. Driven without the TUI — execView pushes the modal
 ## and endModal completes the future. No terminal.
@@ -17,7 +17,7 @@ proc modal(app: App): Group = Group(app.desktop.children[^1])
 
 proc pump() = waitFor sleepAsync(2.milliseconds)
 
-suite "messageBox (plan-4 D20)":
+suite "messageBox":
   test "Enter fires the default (first, focused) button":
     let app = newTestApp()
     let fut = messageBox(app, "T", "Proceed?", @[("~O~K", cmOk), ("~C~ancel", cmCancel)])
@@ -38,7 +38,7 @@ suite "messageBox (plan-4 D20)":
     discard dispatchKey(app.modal, keyEvent(Key.None, "c".runeAt(0), {modAlt}))
     check fut.read() == cmCancel
 
-suite "confirm (plan-4 D20)":
+suite "confirm":
   test "Yes -> true":
     let app = newTestApp()
     let f = confirm(app, "Sure?")
@@ -54,7 +54,7 @@ suite "confirm (plan-4 D20)":
     pump()
     check f.read() == false
 
-suite "inputBox (plan-4 D20)":
+suite "inputBox":
   test "typing + Enter -> some(text)":
     let app = newTestApp()
     let f = inputBox(app, "Name", "Enter name:", initial = "wa")

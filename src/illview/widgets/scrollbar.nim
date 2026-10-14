@@ -1,4 +1,4 @@
-## ScrollBar (Phase 18, plan-4 D15): a passive 1-cell-thick scroll control
+## ScrollBar: a passive 1-cell-thick scroll control
 ## (vertical or horizontal) plus a shared thumb-geometry helper reused by the
 ## list/table/textview indicator columns. Click-page, drag-thumb (via mouse
 ## capture) and wheel; reports through `onScroll(pos)`.

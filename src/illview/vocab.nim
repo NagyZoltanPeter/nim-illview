@@ -1,4 +1,4 @@
-## Framework event/signal vocabulary (Phase 12, plan-3 D8).
+## Framework event/signal vocabulary.
 ##
 ## Widget identity lives in the ROUTE, not the payload: every View owns a
 ## BrokerContext (`view.brokerCtx`) — widgets emit these events on it and
@@ -11,7 +11,7 @@
 ##
 ## Signal application deliberately bypasses change slots and re-emission:
 ## programmatic setters (setText & co.) have never fired onChange in illview,
-## so there is no echo path and no guard flag is needed (plan-3 D8 deviation).
+## so there is no echo path and no guard flag is needed.
 
 import chronos
 import results

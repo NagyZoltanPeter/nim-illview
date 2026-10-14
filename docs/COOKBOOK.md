@@ -200,6 +200,8 @@ action; `~X~` marks the accelerator):
 ```nim
 EventBroker:
   type TileRequested = object
+EventBroker:
+  type QuitRequested = object
 
 let mb = menuBar(
   menu("~F~ile", @[
@@ -208,9 +210,13 @@ let mb = menuBar(
     submenu("~R~ecent", @[item("a.nim", cmdOpenA)]),
     item("~Q~uit", QuitRequested)]))
 
-discard TileRequested.listenIt:   # NB: menu items emit on the DEFAULT ctx
-  ground.tile()                   # (not the session ctx — see recipe 21)
+discard TileRequested.listenIt(app.sessionCtx):  # items emit on the host's
+  ground.tile()                                  # session ctx (recipe 21)
 ```
+
+Right-click menus: build a `ContextMenu` once with the same items and show it
+where the click landed — `let cm = newContextMenu(@[item("~C~opy", cmdCopy)])`,
+then `cm.openAt(widget, point)` (`cm.source` is the widget it opened on).
 
 ## 11. Dynamic / conditional content
 
@@ -312,7 +318,7 @@ proc bindValueSlot*(w: Dial, h: proc(sender: Dial) {.gcsafe, raises: [].}) =
   w.onTurn = h                  # whatever change slot your widget exposes
 ```
 
-See [EXTENDING.md](EXTENDING.md) for the full extension contract.
+See [DESIGN.md §9](DESIGN.md#9-extending-illview) for the full extension contract.
 
 ## 16. Two-column forms, alignment & anchoring
 
@@ -383,7 +389,8 @@ if port.isSome: connect(port.get)
 
 `Input.filter` rejects keystrokes live (`digitsOnly`, `maxLen(n)`,
 `charSet(s)`, `allOf(...)`); `intRange(lo, hi)` is a `bindRequest` provider for
-value-level validation. `Input.history` + Down opens a recency picker.
+value-level validation. `Input.history` + Down opens a recency picker;
+`input.addHistory(s)` records an entry (most recent first, de-duplicated).
 
 ## 21. Session context: where events fire & sandboxing
 
@@ -569,3 +576,8 @@ pane keeps receiving it. With capture on, the simplest chronicles setup is to
 let it write to stderr like any other code (ex14 does): one path feeds both
 the pane and the scrollback. Routing chronicles into a pane through its
 dynamic sink (recipe 23) still works when capture is off.
+
+No pane? `app.capturedOutput()` returns what has not been replayed yet,
+`app.onCapturedOutput = proc(chunk: string)` sees the raw bytes, and
+`app.captureLimit` (set before `run`; default 1 MiB, drop-oldest) bounds the
+history. Design: [DESIGN.md §8](DESIGN.md#8-output-capture).

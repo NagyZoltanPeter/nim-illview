@@ -1,4 +1,4 @@
-## Phase 26 exit criteria (plan-4): TreeView expand/collapse/navigation +
+## Coverage: TreeView expand/collapse/navigation +
 ## lazy loading + activation, and Input history (recency, Enter records, Down
 ## opens a picker that sets the text). No terminal.
 
@@ -192,7 +192,7 @@ suite "TreeView scrolling + live refresh (deviation #43)":
     check tv.scrollX == 4
     check fired == 0
 
-suite "Input history (plan-4 P26)":
+suite "Input history":
   test "addHistory de-duplicates, bumps recency, and caps":
     let i = newInput(); i.historyMax = 3
     i.addHistory("a"); i.addHistory("b"); i.addHistory("a")

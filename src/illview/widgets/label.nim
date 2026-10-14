@@ -1,5 +1,5 @@
-## Label: static text (Phase 4.1). A tilde-marked caption (e.g. "~N~ame")
-## declares an Alt-accelerator that focuses `linkTo` (plan-4 P22).
+## Label: static text. A tilde-marked caption (e.g. "~N~ame")
+## declares an Alt-accelerator that focuses `linkTo`.
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, routing, hotkey]

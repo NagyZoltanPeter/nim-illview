@@ -1,4 +1,4 @@
-## Phase 6 demo: live network-event visualizer on the REAL nim-brokers bus.
+## Demo: live network-event visualizer on the REAL nim-brokers bus.
 ## A synthetic producer emits LogosDelivery-ish domain events on the chronos
 ## loop; they fan out through the broker to the NetVizWidget, which renders
 ## within one frame. The widget has zero input plumbing — the framework

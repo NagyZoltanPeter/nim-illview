@@ -35,7 +35,7 @@ proc newTriStateCheckBox*(caption: string, state = csUnchecked,
   result.applyCaption(caption)
   let c = result
   c.installSignal(SetCheckState):
-    # programmatic apply: no slot, no publish, no re-emit (plan-3 D8)
+    # programmatic apply: no slot, no publish, no re-emit
     c.state = sig.state
     c.invalidate()
   c.installFocusMe()

@@ -298,7 +298,7 @@ proc netvizScene(d: Desktop) =
   d.arrange(rect(0, 0, 80, 15))
   setFocus(d, nv)
 
-# --- scene 4: iteration-4 — tree | list split, submenu bar, scrollbar --------
+# --- scene 4: tree | list split, submenu bar, scrollbar -----------------------
 
 proc featuresScene(d: Desktop) =
   d.add newMenuBar(@[
@@ -308,7 +308,7 @@ proc featuresScene(d: Desktop) =
     menu("~V~iew", @[menuItem("Refresh", Command(4))])])
   d.add newStatusBar(@[statusItem("Tab move", Command(9)),
                        statusItem("Esc Quit", Command(8))])
-  let win = newWindow("iteration 4 — tree | list", rect(0, 0, 0, 0))
+  let win = newWindow("tree | list", rect(0, 0, 0, 0))
   win.dock = dkFill
   let tree = newTreeView(@[
     treeNode("src", @[
@@ -356,7 +356,7 @@ proc dialogScene(d: Desktop) =
   d.arrange(rect(0, 0, 50, 12))
   setFocus(d, yes)
 
-# --- scene 6: the iteration-5 showcase app (ex13) ----------------------------
+# --- scene 6: the showcase app (ex13) -----------------------------------------
 
 type ShotTitleBar = ref object of View
 proc newShotTitleBar(): ShotTitleBar =

@@ -1,11 +1,11 @@
-## Menu (Phase 4.5 + plan-4 P23 + iteration-5): menu bar, dropdowns and
+## Menu: menu bar, dropdowns and
 ## context menus as PERSISTENT views with transient tree membership. A popup
 ## is built ONCE (cached on the bar / parent popup / held by the caller),
 ## added on open and removed on close — never rebuilt, never leaking an
 ## instanceCtx (see deviation #21). Items carry a broker `command`, an
 ## `onActivate` closure (e.g. emit an EventBroker event), and/or a `submenu`.
 ##
-## Declarative surface (iteration-5): `menuBar(menu("~F~ile", @[
+## Declarative surface: `menuBar(menu("~F~ile", @[
 ##   item("~O~pen", OpenRequested), sep(), submenu("~R~ecent", @[...]),
 ##   item("~Q~uit", cmQuit)]))` — `item(label, EventType)` auto-emits the
 ## EventBroker type on activation (the type IS the semantic) on the host view's
@@ -78,7 +78,7 @@ proc newMenuBar*(menus: seq[Menu]): MenuBar =
   result.dock = dkTop
   result.hint = (prefHint(0, stretch = 1), fixedHint(1))
 
-# --- declarative sugar (iteration-5, 2b) -------------------------------------
+# --- declarative sugar -------------------------------------------------------
 
 proc item*(label: string, command: Command): MenuItem = menuItem(label, command)
 
@@ -272,7 +272,7 @@ proc openMenu*(mb: MenuBar, i: int) =
                       popupWidth(mb.menus[i].items), mb.menus[i].items.len + 2)
   mb.runModal(popup)
 
-# --- context menu (iteration-5, item 2) --------------------------------------
+# --- context menu ------------------------------------------------------------
 
 proc newContextMenu*(items: seq[MenuItem]): ContextMenu =
   ## Build once, hold the reference, and open()/reuse on every right-click.

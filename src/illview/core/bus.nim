@@ -1,12 +1,12 @@
-## EventBus abstraction (§3.8 + plan-2 D6). The real implementation wraps
+## EventBus abstraction. The real implementation wraps
 ## nim-brokers (illview/bus_brokers.nim); StubBus backs unit tests.
 ##
-## Iteration 2 opens the bus up: string-topic subscription with `prefix/*`
+## The bus is open: string-topic subscription with `prefix/*`
 ## wildcards lives in the BASE class, so every implementation dispatches
 ## the same way; implementations decide how published events reach
 ## dispatchDomain (StubBus: synchronously; BrokersBus: via the broker loop).
 ##
-## `Command` lives here (not in events.nim as §3.5 sketches) because both
+## `Command` lives here (not in events.nim) because both
 ## the view layer and the bus need it and bus.nim is the dependency-free
 ## bottom.
 
@@ -29,7 +29,7 @@ type
 
 const cmdNone* = Command(0)
 
-# Standard dialog commands (plan-4 D20). Negative so they never collide with
+# Standard dialog commands. Negative so they never collide with
 # an app's own (positive) command numbering.
 const
   cmOk* = Command(-2)

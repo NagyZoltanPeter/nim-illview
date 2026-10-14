@@ -10,7 +10,6 @@
 ## disposing. Zero-init safe for `mount(T)`: the strip is created lazily and
 ## `{.child.}` fields become pages in declaration order.
 
-import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, routing]
 import ../vocab
 import ./window
@@ -183,7 +182,7 @@ proc newTabView*(): TabView =
   result.ensureStrip()
   let t = result
   t.installSignal(SetSelected):
-    t.select(sig.selected) # programmatic: no slot, no re-emit (plan-3 D8)
+    t.select(sig.selected) # programmatic: no slot, no re-emit
 
 # --- strip geometry -----------------------------------------------------------
 

@@ -1,4 +1,4 @@
-## Phase 4 demo: a dialog hand-assembled from every widget, closure slots
+## Demo: a dialog hand-assembled from every widget, closure slots
 ## wired (tier 1), command-bearing widgets publishing to the bus (tier 2).
 ## Deviation #32: tri-state checkboxes in "options" and a ControlBar at the bottom
 ## of the window (the desktop StatusBar stays).
@@ -29,7 +29,7 @@ method publish(bus: GalleryBus, a: UiAction) {.gcsafe, raises: [].} =
   elif a.cmd == cmdMenu:
     bus.mb.openMenu(0)
   elif a.cmd == cmdAbout:
-    bus.log.addLine "bus: illview widget gallery (Phase 4)"
+    bus.log.addLine "bus: illview widget gallery"
   elif a.cmd == cmdDialog: # stock dialogs use the gray TV palette
     discard messageBox(bus.app, "Gray dialog",
       "Dialogs switch to the gray palette", @[("~O~K", cmOk), ("~C~ancel", cmCancel)])
@@ -62,7 +62,7 @@ proc main() {.async.} =
   inp.onSubmit = proc(s: Input) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine "input SUBMIT: " & s.text
   form.add inp
-  # group-box around the option widgets (Phase 8)
+  # group-box around the option widgets
   let opts = newGroupBox("options")
   opts.hint = (prefHint(0, stretch = 1), fixedHint(6)) # + heading row
   let optsBox = newVBox()
@@ -111,7 +111,7 @@ proc main() {.async.} =
   lst.onActivate = proc(s: ListView) {.gcsafe, raises: [].} =
     {.cast(gcsafe).}: log.addLine "list ACTIVATE: " & s.items[s.selected]
   right.add lst
-  # table (Phase 8): fixed + stretchy columns, header, row selection
+  # table: fixed + stretchy columns, header, row selection
   let tbl = newTable(
     @[tableColumn("proto", fixedHint(8)),
       tableColumn("status", prefHint(0, stretch = 1))],

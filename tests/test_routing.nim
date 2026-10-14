@@ -1,4 +1,4 @@
-## Phase 2 exit criteria: synthetic mouse coords hit the correct topmost
+## Coverage: synthetic mouse coords hit the correct topmost
 ## view; Tab order is correct; unhandled keys bubble to the scope root.
 ## Pure view-tree logic — no terminal, no chronos.
 
@@ -172,7 +172,7 @@ suite "routing: keys, focus traversal, bubbling":
     check a1.got[^1].kind == evFocusLost
     check a2.got[^1].kind == evFocusGained
 
-suite "routing: border-inset coordinates (iteration 2)":
+suite "routing: border-inset coordinates":
   test "bordered group: content clicks are content-local, frame clicks hit the group":
     let root = newRecordingRoot(40, 20)
     let box = newGroup()

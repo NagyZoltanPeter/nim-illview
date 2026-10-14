@@ -1,6 +1,6 @@
-## Poll-based input driver stub for non-POSIX platforms (plan §0.7).
+## Poll-based input driver stub for non-POSIX platforms.
 ##
-## Windows async input is out of scope for v1: the Windows console handle is
+## Windows async input is out of scope: the Windows console handle is
 ## not selectable through the chronos POSIX selector, so readiness-driven
 ## input is not available. The intended (unimplemented) design is a chronos
 ## timer at ~60 Hz calling the vendored illwill `getKeyAsync(0)`-style
@@ -8,6 +8,8 @@
 ## on Windows, but a busy loop we refuse on POSIX. Deliberately deferred.
 
 import ../core/events
+
+{.warning: "illview: no input driver for this platform; App.run raises OSError (POSIX only)".}
 
 type
   InputEventHandler* = proc(ev: InputEvent) {.gcsafe, raises: [].}
@@ -20,8 +22,8 @@ proc newInputDriver*(onEvent: InputEventHandler): InputDriver =
 
 proc start*(dr: InputDriver) {.raises: [OSError].} =
   raise newException(OSError,
-    "illview: async input driver is not implemented on this platform " &
-    "(v1 is POSIX-only, see plan §0.7)")
+    "illview: async input is not implemented on this platform " &
+    "(POSIX only; see docs/design-notes/WINDOWS-DRIVER.md)")
 
 proc stop*(dr: InputDriver) {.raises: [].} =
   discard

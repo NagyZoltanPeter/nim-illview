@@ -1,4 +1,4 @@
-## Phase 20 exit criteria (plan-4): a Splitter lays out two panes around a
+## Coverage: a Splitter lays out two panes around a
 ## 1-cell handle; the handle drags (absolute, mouse-capture) and nudges with
 ## Alt+arrows when focused; pane minimums (child hints) clamp the divider.
 ## No terminal.

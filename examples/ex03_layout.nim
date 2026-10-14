@@ -1,4 +1,4 @@
-## Phase 3 demo: size-hint-driven auto-arrange. A status bar docked at the
+## Demo: size-hint-driven auto-arrange. A status bar docked at the
 ## bottom of the desktop, a window auto-filling the rest, nested HBox/VBox
 ## with fixed + stretchy panes. Resize the terminal: everything reflows.
 ## ESC quits.

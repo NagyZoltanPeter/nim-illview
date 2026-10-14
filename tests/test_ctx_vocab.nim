@@ -1,10 +1,10 @@
-## Phase 12 (plan-3 D7/D8/D11): instance-ctx vocabulary — widgets emit
+## Instance-ctx vocabulary — widgets emit
 ## framework events on their own BrokerContext and handle Set-signals on it;
 ## dispose() tears wiring down and recycles the ctx.
 ##
 ## Discipline note: listeners registered HERE (playing the "model" role) are
 ## OURS to drop before dispose() releases a ctx — dispose only runs the
-## widget's own disposers (D11/D12 drop-then-release contract). Skipping the
+## widget's own disposers (drop-then-release contract). Skipping the
 ## drop would leak the listener into a recycled id and contaminate later
 ## tests through ctx reuse.
 
@@ -55,7 +55,7 @@ suite "instance-ctx vocab":
     check SetText.signal(inp.brokerCtx, SetText(text: "hello")).isOk
     pump()
     check inp.text == "hello"
-    check changes.len == 0 # programmatic apply must not re-emit (D8)
+    check changes.len == 0 # programmatic apply must not re-emit
 
     # user edit DOES emit
     discard inp.handleEvent(Event(kind: evKey, ikey: keyEvent(Key.A, Rune('a'))))

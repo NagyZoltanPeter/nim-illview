@@ -1,4 +1,4 @@
-## Geometry primitives and layout size hints (§3.2).
+## Geometry primitives and layout size hints.
 
 type
   Point* = object
@@ -16,12 +16,12 @@ type
   Align* = enum
     ## Cross-axis (box) / in-cell (grid) placement of a child within the
     ## space allotted to it. alStretch (default) fills the span — the
-    ## pre-iteration-4 behavior; the others size the child to its pref hint
+    ## legacy behavior; the others size the child to its pref hint
     ## and position it at the start / center / end of the span.
     alStretch, alStart, alCenter, alEnd
 
   Anchor* = enum
-    ## Edge-anchor mode for a dkNone child (plan-4 D14): each set edge keeps
+    ## Edge-anchor mode for a dkNone child: each set edge keeps
     ## a constant offset from the parent's matching content edge as the
     ## parent resizes. Both edges of an axis => the child stretches on that
     ## axis; one edge => it slides; neither => it stays put (top-left).
@@ -59,7 +59,7 @@ func fixedHint*(n: int): SizeHint =
 func prefHint*(n: int, stretch = 0): SizeHint =
   SizeHint(min: 0, pref: n, stretch: stretch)
 
-# --- scroll geometry (plan-4 D15): pure int math shared by the ScrollBar -----
+# --- scroll geometry: pure int math shared by the ScrollBar ------------------
 # widget and the list/table/textview indicator columns so they agree exactly.
 
 func scrollMax*(total, page: int): int = max(total - page, 0)

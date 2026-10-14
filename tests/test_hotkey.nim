@@ -1,4 +1,4 @@
-## Phase 22 exit criteria (plan-4 P22/D19): tilde hotkey parsing, Alt+letter
+## Coverage: tilde hotkey parsing, Alt+letter
 ## routing, Label.linkTo focus, and command enable/disable gating activation.
 ## No terminal.
 
@@ -32,7 +32,7 @@ suite "parseHotkey":
     check hotkeyMatches("F".runeAt(0), "f".runeAt(0))
     check not hotkeyMatches(Rune(0), "f".runeAt(0)) # no accelerator
 
-suite "command enable/disable (D19)":
+suite "command enable/disable":
   test "disabled command blocks button activation and greys it":
     let root = newGroup()
     root.bounds = rect(0, 0, 40, 4)

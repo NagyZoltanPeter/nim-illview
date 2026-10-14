@@ -1,4 +1,4 @@
-## Iteration-5 showcase: a full app skeleton.
+## Showcase: a full app skeleton.
 ##
 ##   [ menu bar (declarative, EventBroker actions) ]
 ##   [ title bar                                    ]
@@ -257,7 +257,7 @@ proc main() {.async.} =
     {.cast(gcsafe).}: app.stop()
   discard AboutRequested.listenIt:
     {.cast(gcsafe).}: discard messageBox(app, "About",
-      "illview showcase — iteration 5", @[("~O~K", cmOk)])
+      "illview showcase", @[("~O~K", cmOk)])
   discard TileRequested.listenIt:
     {.cast(gcsafe).}: (ground.tile(); app.requestRedraw())
   # dialog examples: one persistent listener each (no per-example app capture)

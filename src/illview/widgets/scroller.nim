@@ -1,4 +1,4 @@
-## Scroller (Phase 19, plan-4 D16): a viewport over one over-sized content
+## Scroller: a viewport over one over-sized content
 ## view. The content is arranged at its virtual (preferred) size positioned at
 ## (-offX, -offY); the framework's DrawContext.sub() clip and the hit-test's
 ## bounds translation then give clipped drawing and correct mouse routing for

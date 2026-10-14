@@ -1,4 +1,4 @@
-## Phase 20 demo: a horizontal Splitter with a peer list on the left and a log
+## Demo: a horizontal Splitter with a peer list on the left and a log
 ## on the right. Drag the divider with the mouse, or Tab to it and nudge with
 ## Alt+Left / Alt+Right. Tab also cycles the list and the log (wheel scrolls
 ## each). ESC quits.

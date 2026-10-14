@@ -1,4 +1,4 @@
-## Phase 15 demo (plan-3): instance-ctx events & signals.
+## Demo: instance-ctx events & signals.
 ## TWO instances of the same ConnectForm are mounted side by side — every
 ## widget owns a BrokerContext, so the SAME event type (Clicked,
 ## TextChanged, ...) routes per instance with zero cross-talk, and the model
@@ -6,7 +6,7 @@
 ##   - Run starts an async progress driver fed by SetProgress.signal; it
 ##     stops the moment the widget disappears (signal returns err)
 ##   - host uses the two-way binding: user edits store into hostVal
-##     (bindValue), setHostVal() writes back to the widget (D10 writer)
+##     (bindValue), setHostVal() writes back to the widget (two-way writer)
 ##   - a model-side listener live-mirrors the LEFT form's host input only —
 ##     instance-ctx listening as the escape hatch (right form is untouched)
 ## ESC quits.
@@ -46,7 +46,7 @@ proc onRun(self: ConnectForm) {.gcsafe, raises: [].} =
 
 proc onReset(self: ConnectForm) {.gcsafe, raises: [].} =
   {.cast(gcsafe).}:
-    self.setHostVal("") # D10 writer: store + SetText to the widget
+    self.setHostVal("") # two-way writer: store + SetText to the widget
     discard SetProgress.signal(self.prog.brokerCtx, SetProgress(value: 0))
     discard SetText.signal(self.status.brokerCtx, SetText(text: "idle"))
     discard FocusMe.signal(self.host.brokerCtx)

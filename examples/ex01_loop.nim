@@ -1,4 +1,4 @@
-## Phase 1 demo: dirty-driven capped rendering + opt-in TUI lifecycle.
+## Demo: dirty-driven capped rendering + opt-in TUI lifecycle.
 ##
 ## - an async producer bumps a tick counter once a second (mutate + redraw)
 ## - the frame counter shows renders only happen when something changed

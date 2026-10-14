@@ -1,4 +1,4 @@
-## Phase 24 exit criteria (plan-4 D18): key-level Input.filter rejects runes
+## Coverage: key-level Input.filter rejects runes
 ## at input time (silently), the shipped helpers behave, and the intRange
 ## bindRequest provider vetoes out-of-range values. No terminal.
 
@@ -11,7 +11,7 @@ proc typeInto(i: Input, s: string) =
   for r in s.runes:
     discard i.handleEvent(Event(kind: evKey, ikey: keyEvent(Key.None, r)))
 
-suite "key filters (plan-4 D18)":
+suite "key filters":
   test "digitsOnly rejects non-digits silently":
     let i = newInput()
     i.filter = digitsOnly()
@@ -47,7 +47,7 @@ suite "key filters (plan-4 D18)":
     typeInto(i, "aZ9 !")
     check i.text == "aZ9 !"
 
-suite "intRange provider (plan-4 D18, value-level)":
+suite "intRange provider (value-level)":
   test "vetoes out-of-range, passes in-range and empty":
     let p = intRange(1, 100)
     check p("50").isOk

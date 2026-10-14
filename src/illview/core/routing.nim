@@ -1,4 +1,4 @@
-## Framework-owned input routing (§3.6, LOCKED): mouse = z-order hit-test,
+## Framework-owned input routing (LOCKED): mouse = z-order hit-test,
 ## keys = focus + bubble, Tab/Shift-Tab at the scope root. Pure view-tree
 ## logic — no chronos, no terminal — fully unit-testable.
 ##
@@ -198,7 +198,7 @@ proc findHotkey(g: Group, key: Rune): View =
   nil
 
 proc dispatchHotkey*(scope: Group, key: Rune): bool =
-  ## Alt-accelerator routing (plan-4 P22): trigger the matching view, if any.
+  ## Alt-accelerator routing: trigger the matching view, if any.
   let v = findHotkey(scope, key)
   if v != nil:
     v.triggerHotkey(scope)

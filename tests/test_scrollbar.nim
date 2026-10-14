@@ -1,4 +1,4 @@
-## Phase 18 exit criteria (plan-4 D15 + mouse infra): thumb geometry math,
+## Coverage (incl. mouse infra): thumb geometry math,
 ## ScrollBar wheel/page/drag behavior, list/table/textview indicator columns,
 ## and the double-click synthesis (nextClicks + routing forwarding). No
 ## terminal — widgets render into an off-screen TerminalBuffer.
@@ -164,7 +164,7 @@ suite "widget scrollbar indicators":
     check cellStr(tb, 11, 2) == "■"
     check cellStr(tb, 11, 4) == "▼"
 
-# --- double-click synthesis (plan-4 mouse infra) ------------------------------
+# --- double-click synthesis ---------------------------------------------------
 
 type ClickProbe = ref object of View
   lastClicks: int

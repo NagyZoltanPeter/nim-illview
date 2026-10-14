@@ -1,5 +1,5 @@
-## Button (Phase 4.1): `onClick` closure slot + optional broker `command`
-## (§3.9). Slot fires synchronously inside dispatch, before the next frame.
+## Button: `onClick` closure slot + optional broker `command`.
+## Slot fires synchronously inside dispatch, before the next frame.
 ## Look (deviation #36): flat green face, `> caption <` while focused; the
 ## face sits one cell right of the button's left edge and shifts into that
 ## cell while pressed. Mouse fires on release over the button (TV); keys fire
@@ -21,7 +21,7 @@ type
     pressed*: bool   # face shifted one cell left (mouse held / key flash)
 
 proc applyCaption*(b: Button, s: string) =
-  ## Set the caption, parsing ~tilde~ hotkey markup (plan-4 P22).
+  ## Set the caption, parsing ~tilde~ hotkey markup.
   let hk = parseHotkey(s)
   b.caption = hk.text
   b.hotkey = hk.key
@@ -41,12 +41,12 @@ proc disabled(b: Button): bool =
   b.command != cmdNone and not b.commandEnabled(b.command)
 
 proc activate*(b: Button) =
-  if not b.enabled or b.disabled: # command gating (plan-4 D19)
+  if not b.enabled or b.disabled: # command gating
     return
   if b.onClick != nil:
     b.onClick(b)
   b.publish(b.command)
-  if b.hasBrokerCtx: Clicked.emit(b.brokerCtx) # instance-routed vocab event (plan-3 D8)
+  if b.hasBrokerCtx: Clicked.emit(b.brokerCtx) # instance-routed vocab event
   b.invalidate()
 
 proc unpressLater(b: Button) {.async: (raises: []).} =

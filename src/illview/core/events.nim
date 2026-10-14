@@ -1,8 +1,8 @@
-## Backend input event types (§3.1 of docs/BUILD-PLAN.md).
+## Backend input event types.
 ##
 ## `Key` is reused from the vendored illwill. The framework-level `Event`
-## (§3.5) lives in core/view.nim because it references `View` (sender) —
-## see docs/DESIGN-DEVIATIONS.md.
+## lives in core/view.nim because it references `View` (sender) —
+## see docs/design-notes/DESIGN-DEVIATIONS.md.
 
 import std/unicode
 

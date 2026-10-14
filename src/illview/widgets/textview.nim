@@ -1,4 +1,4 @@
-## TextView (Phase 4.4): buffered read-only log/output widget — capped line
+## TextView: buffered read-only log/output widget — capped line
 ## buffer + viewport + scrolling. `follow` keeps the view pinned to the
 ## bottom while new lines arrive (until the user scrolls up).
 ##

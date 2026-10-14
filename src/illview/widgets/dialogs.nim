@@ -1,8 +1,8 @@
-## Stock dialogs (Phase 25, plan-4 D20): messageBox / inputBox / confirm built
+## Stock dialogs: messageBox / inputBox / confirm built
 ## as plain compositions over the App modal loop (execView). Esc cancels,
 ## Enter fires the default (OK) path; button captions take ~tilde~ accelerators.
 
-import std/[options, unicode]
+import std/options
 import chronos
 import ../core/[geometry, theme, bus, view, events, hotkey, app, textwidth]
 import ./window, ./button, ./label, ./input
@@ -68,7 +68,7 @@ proc confirm*(app: App, text: string, title = "Confirm"): Future[bool] {.async.}
 proc inputBox*(app: App, title, prompt: string, initial = "",
                filter: KeyFilter = nil): Future[Option[string]] {.async.} =
   ## Prompt for a line of text -> some(text) on OK/Enter, none on Cancel/Esc.
-  ## `filter` (D18) applies to the field.
+  ## `filter` applies to the field.
   let inp = newInput(initial)
   inp.filter = filter
   inp.dock = dkTop

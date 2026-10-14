@@ -1,19 +1,20 @@
 # Design deviations & gap analysis
 
-Deviations from [BUILD-PLAN.md](BUILD-PLAN.md), found while executing. The plan
-remains authoritative for everything not listed here. Numbering is stable so
-commits can reference "deviation #N".
+This is illview's chronological decision log: each entry records a design
+decision and why it was made. Numbering is stable — code comments and commits
+cite entries as `deviation #N`. For the architecture overview, see
+[DESIGN.md](../DESIGN.md).
 
-## 1. Decoder is a rewrite, not a lift (Phase 0)
+## 1. Decoder is a rewrite, not a lift
 
-The plan assumes the escape-sequence parser can be "lifted out" of illwill's
+The original design assumed the escape-sequence parser can be "lifted out" of illwill's
 `getKey()`. It cannot: illwill's POSIX `parseStdin` issues multiple blocking
 `read()` calls *mid-sequence*, keeps no partial-sequence state, and does not
 handle Alt-combos, UTF-8 runes, CSI modifier parameters, or bracketed paste.
 
 What was ported verbatim: the `Key` mapping tables (`KEYS_D/E/F/G`) and the
 SGR mouse bit layout from `fillGlobalMouseInfo`. The incremental state machine
-in `backend/decoder.nim` is new. Additions beyond the plan's §3.1:
+in `backend/decoder.nim` is new. Additions beyond the original input design:
 
 - `flush()` — resolves the bare-ESC ambiguity. A lone `0x1B` may be the ESC
   key or the head of a sequence whose tail hasn't arrived. `feed()` keeps it
@@ -21,46 +22,46 @@ in `backend/decoder.nim` is new. Additions beyond the plan's §3.1:
   pending lone ESC into `Key.Escape`. Without this, ESC-the-key is
   undecodable in an incremental parser.
 - CSI modifier params (`\e[1;5C` → Right+Ctrl), `\e[Z` → Shift-Tab.
-- Bracketed paste (`ikPaste` is declared in the plan's §3.1 but no phase task
-  implements it; the framework will enable mode 2004 in the driver).
+- Bracketed paste (`ikPaste` was declared in the original design but nothing
+  implemented it; the framework enables mode 2004 in the driver).
 - Key aliasing follows upstream illwill: bytes 10 and 13 → `Key.Enter`,
   8 and 127 → `Key.Backspace`. `Key.CtrlH` / `Key.CtrlJ` are therefore
   unreachable, exactly as in illwill.
 
-## 2. `DrawContext.tb` is `TerminalBuffer`, not `ptr TerminalBuffer` (§3.3)
+## 2. `DrawContext.tb` is `TerminalBuffer`, not `ptr TerminalBuffer`
 
 illwill's `TerminalBuffer` is a `ref object`; a `ptr` to it would be a pointer
 to a managed ref cell. The field holds the ref directly.
 
-## 3. `Style` is an illview type (§3.3)
+## 3. `Style` is an illview type
 
 illwill has no single `Style` value — drawing state is
 `ForegroundColor` + `BackgroundColor` + `set[terminal.Style]`. `core/theme.nim`
 defines `Style* = object; fg, bg, styles` and the theme tokens map to it.
 
-## 4. Widget access to `App`/bus (§3.9)
+## 4. Widget access to `App`/bus
 
-The plan's activation pseudocode references `app.bus` inside
+The original design's activation pseudocode references `app.bus` inside
 `Button.handleEvent` but never defines how a widget reaches the `App`.
 Decision: `Desktop` (the root `Group`) holds an `App` backref; `View.app()`
 walks `parent` to the root. Views detached from a desktop get `nil` — slots
 still fire, broker publish is skipped.
 
-## 5. `Group.focused` vs `App.focus` (§3.4/§3.7)
+## 5. `Group.focused` vs `App.focus`
 
-Two sources of truth in the plan. Decision: `App.focus` is authoritative for
+Two sources of truth in the original design. Decision: `App.focus` is authoritative for
 key delivery; `Group.focused` only remembers the group's last-focused child so
 window activation can restore it. Invariant: `App.focus` is always reachable
 from `App.desktop` or is `nil`.
 
-## 6. Modal loop is Future-based (§ Phase 2)
+## 6. Modal loop is Future-based
 
 A TurboVision-style nested poll loop conflicts with a single chronos loop.
 `execView(v): Future[Command]` inserts the modal view, marks it modal (routing
 refuses to deliver outside it), and returns a future completed by
 `endModal(cmd)`. No nested event loop, no reentrancy.
 
-## 7. Framework `Event` lives next to `View`, not in `core/events.nim` (§3.5)
+## 7. Framework `Event` lives next to `View`, not in `core/events.nim`
 
 `Event` carries `sender*: View`; defining it in `events.nim` would create an
 import cycle (`events → view → events`). `core/events.nim` holds the backend
@@ -72,13 +73,13 @@ by the umbrella module, so user code sees no difference.
 - `chronos` — normal nimble requirement.
 - `nim-brokers` — IS in the nimble registry as `brokers`
   (github.com/NagyZoltanPeter/nim-brokers), contrary to the initial
-  assumption. Phases 1–5 code against the `EventBus` abstraction + `StubBus`
-  only (per plan §3.8); Phase 6 adds `requires "brokers >= 3.1.0"` and
-  implements `BrokersBus` in `illview/bus_brokers.nim`. That module is
+  assumption. The early framework coded against the `EventBus` abstraction +
+  `StubBus` only, as originally designed; the nim-brokers integration added
+  `requires "brokers >= 3.1.0"` and implements `BrokersBus` in `illview/bus_brokers.nim`. That module is
   deliberately NOT re-exported by the umbrella so the broker macro expansion
   stays out of the default import graph — import it explicitly.
 
-## 9. Phase 6 scope split
+## 9. Scope split
 
 Wiring `enableTui`/`disableTui` into the LogosDelivery daemon happens in the
 `logos-delivery` repository, not here. This repo delivers: the real
@@ -93,7 +94,7 @@ double-deinit; the vendored file stays verbatim, so `App` tracks its own
 (illwill only toggles termios ICANON/ECHO; the chronos driver needs
 non-blocking reads).
 
-## 11. Resize delivery (Phase 1)
+## 11. Resize delivery
 
 `SIGWINCH` handlers can't safely touch the chronos loop. The POSIX driver uses
 the self-pipe trick: the signal handler write()s one byte to a pipe registered
@@ -101,25 +102,25 @@ with `addReader`; the read side emits `ikResize` on the loop thread. (chronos'
 signal support is platform-uneven; the self-pipe is dependency-free and
 single-threaded.)
 
-## 12. Example file names carry an `ex` prefix (§2)
+## 12. Example file names carry an `ex` prefix
 
-The plan's `00_echo.nim` is not a valid Nim module name (identifiers cannot
+The original design's `00_echo.nim` is not a valid Nim module name (identifiers cannot
 start with a digit — the compiler rejects the file). Examples are
 `ex00_echo.nim`, `ex01_loop.nim`, … instead.
 
-## 13. Demand-scheduled frames instead of a permanent ticker (§3.7, Phase 1)
+## 13. Demand-scheduled frames instead of a permanent ticker
 
-The plan describes "a capped ticker [that] renders one frame when dirty". A
+The original design called for "a capped ticker [that] renders one frame when dirty". A
 permanently-running 30 Hz ticker wakes the loop 30×/s even when idle. Instead,
 `requestRedraw` arms a *one-shot* frame task that waits out the remainder of
 the fps period and then renders once. Same observable behavior (dirty-driven,
 fps-capped), but an idle app has **zero** pending timers — which is what the
-Phase 1 exit criterion ("idle CPU ≈ 0") actually demands. Verified: 4 s
+"idle CPU ≈ 0" requirement actually demands. Verified: 4 s
 mostly-idle run = 0.00 user + 0.00 sys.
 
-## 14. Input reads its own tty fd, never O_NONBLOCK on stdin (Phase 6 fix)
+## 14. Input reads its own tty fd, never O_NONBLOCK on stdin
 
-The Phase-1 driver set `O_NONBLOCK` on fd 0. On a terminal, fd 0/1/2
+The first POSIX driver set `O_NONBLOCK` on fd 0. On a terminal, fd 0/1/2
 normally share ONE open file description, so the flag also made **stdout**
 non-blocking — large frames then failed mid-write with `EAGAIN` (observed as
 `IOError: errno 35` on quit, and silently dropped frames elsewhere). The
@@ -129,9 +130,9 @@ applies because termios state is per-device. Note: `/dev/tty` (the alias
 device) is NOT usable here — macOS kqueue refuses to watch it. Fallback when
 no fd is a tty: the old stdin+O_NONBLOCK path (flags restored on stop).
 
-## 15. No echo-guard flag for signal application (plan-3 D8, Phase 12)
+## 15. No echo-guard flag for signal application
 
-Plan-3 D8 called for an `applying: bool` guard so inbound Set-signals don't
+The original design called for an `applying: bool` guard so inbound Set-signals don't
 re-emit outbound vocab events. Unnecessary: illview's programmatic setters
 (`setText`, direct field application in the signal handlers) have NEVER fired
 change slots — only user-driven edit paths call `changed()`/`onToggle`/etc.,
@@ -140,9 +141,9 @@ therefore bypasses slots and emission by construction; no guard flag exists.
 Consequence (documented in vocab.nim): tier-1 slots do NOT observe
 signal-applied changes — same semantics programmatic setters always had.
 
-## 16. dispose() is explicit; remove()/close do NOT auto-dispose (plan-3 D11)
+## 16. dispose() is explicit; remove()/close do NOT auto-dispose
 
-Plan-3 wired dispose into `Desktop.remove`/`Window.close`. There is no
+The original design wired dispose into `Desktop.remove`/`Window.close`. There is no
 `Window.close`, and `Group.remove` is used for transient reparenting (menu
 popups, window re-adds) where broker wiring must survive. Auto-dispose there
 would silently strip signal handlers from a view the app intends to re-add.
@@ -151,7 +152,7 @@ subtree is permanently done. The strong-ref note stands: broker registrations
 keep undisposed views alive (registry global → plain leak under refc AND ORC,
 no cycle involved).
 
-## 17. core/view depends on brokers/broker_context (plan-3 D7, Phase 12)
+## 17. core/view depends on brokers/broker_context
 
 `bus.nim`/`view.nim` were the dependency-free bottom. `View.brokerCtx`
 requires `brokers/broker_context` — a leaf module (chronos-only) of
@@ -160,9 +161,9 @@ out of core and lives in `vocab.nim`. vocab also deliberately does not
 `export brokers`: event_broker re-exports std/tables, whose `Table` collides
 with the Table widget in the umbrella module.
 
-## 18. Windows input driver deferred by decision (plan-4 D13, Phase 16)
+## 18. Windows input driver deferred by decision
 
-The original plan scoped Windows *async* input out; iteration 4 makes the
+The original design scoped Windows *async* input out; this entry makes the
 deferral explicit and documented. illview is POSIX-only (macOS/Linux/WSL)
 until a native-Windows consumer exists. The full design — INPUT_RECORD
 translation, `RegisterWaitForSingleObject` → chronos `ThreadSignalPtr`
@@ -171,9 +172,9 @@ single-thread directive in letter, not in spirit), `WINDOW_BUFFER_SIZE_EVENT`
 resize — lives in [WINDOWS-DRIVER.md](WINDOWS-DRIVER.md), including cost/risk
 and the testing blocker (no pty equivalent on Windows).
 
-## 19. The child-alignment pragma is `alignSelf`, not `align` (plan-4 D14, Phase 17)
+## 19. The child-alignment pragma is `alignSelf`, not `align`
 
-BUILD-PLAN-4 D14 names the DSL pragma `align(a)`. Nim reserves `{.align: N.}`
+The original design named the DSL pragma `align(a)`. Nim reserves `{.align: N.}`
 as a built-in field-alignment pragma taking a power-of-two integer, and it
 wins name resolution in field-pragma position — `align: alEnd` fails with
 "power of two expected" at type-definition time, before the mount macro ever
@@ -181,20 +182,20 @@ runs. The pragma is therefore `alignSelf` (after CSS `align-self`); the
 `View.align` field and the `Align`/`al*` enum keep their names. `padding` and
 `anchors` do not collide with any built-in pragma.
 
-## 20. Command gating reuses `tkTextDisabled`; menu gating lands in P23 (plan-4 D19, Phase 22)
+## 20. Command gating reuses `tkTextDisabled`; menu gating lands with the menu rework
 
-D19 calls for a new `tkDisabled` theme token; `tkTextDisabled` already exists
-with identical semantics (dim, non-interactive), so greyed command items reuse
-it rather than add a redundant token. Command enable/disable is wired through
-Button, Checkbox and StatusBar in Phase 22; **menu** item greying/gating is
-deferred to Phase 23, where the menu is already being reworked for submenus —
-doing both in one pass avoids touching menu.nim twice. Alt+letter hotkeys cover
-Button/Checkbox/Label in P22; **menubar** top-level accelerators also land with
-the P23 menu rework.
+The original design called for a new `tkDisabled` theme token; `tkTextDisabled`
+already exists with identical semantics (dim, non-interactive), so greyed
+command items reuse it rather than add a redundant token. Command
+enable/disable was wired through Button, Checkbox and StatusBar first; **menu**
+item greying/gating was deferred to the menu rework for submenus — doing both
+in one pass avoids touching menu.nim twice. Alt+letter hotkeys cover
+Button/Checkbox/Label; **menubar** top-level accelerators landed with the same
+menu rework.
 
-## 21. instanceCtx recycling dropped; back to nim-brokers 3.2.0 (iteration 5)
+## 21. instanceCtx recycling dropped; back to nim-brokers 3.2.0
 
-Iteration 3 (deviation #16) had `dispose()` call `releaseInstanceCtx` to recycle
+An earlier design (deviation #16) had `dispose()` call `releaseInstanceCtx` to recycle
 a View's broker instanceCtx id, needing a local nim-brokers 3.3.0. That whole
 mechanism is **reverted**: `requires "brokers >= 3.2.0"` at the time (now
 `>= 3.4.0`, still without `releaseInstanceCtx`), `dispose()` no longer
@@ -237,7 +238,7 @@ Three related runtime bugs found stress-testing the showcase (ex13):
   terminal with async-signal-safe `write(2)`/`tcsetattr` before the default
   action. Normal exit still restores via `run()`'s `finally: disableTui`.
 
-Standalone reproducer: [repro/orc_churn_crash.nim](../repro/orc_churn_crash.nim)
+Standalone reproducer: [repro/orc_churn_crash.nim](../../repro/orc_churn_crash.nim)
 — SIGSEGVs under `--mm:orc`, clean under `--mm:refc`. The crash resisted
 minimization below the full-app graph (pure-stdlib closure churn and several
 smaller illview subsets did not reproduce it), so the reproducer is the
@@ -288,7 +289,7 @@ MDI follow-ups (nested floating windows in a sub-group):
 
 ## 25. Showcase MDI ground is a nested Desktop; click activates content-less windows
 
-Iterations 4–5 repeatedly hit rough edges putting the ex13 example windows in a
+Earlier work repeatedly hit rough edges putting the ex13 example windows in a
 plain `Group` "ground": no `tile`/`cascade`, subtly different z-order and
 activation than the desktop. Root cause: the ground was an *untested* window
 container. Fix (deviation #25, driven by the user's redesign call):
@@ -372,7 +373,7 @@ Consequence: on a bare thread, `emits:` events now fire on
 already uses, and isolation is opt-in (install or pass a ctx). Two UIs in one
 process each pass their own `sessionCtx`.
 
-Same phase: menu `item(label, EventType)` no longer emits on the ambient
+Same change: menu `item(label, EventType)` no longer emits on the ambient
 default ctx. It emits on the popup **host's** `sessionCtx` (menu bar /
 context-menu opener) with `senderId = host.id` when the type declares that
 field (default-constructed otherwise), via a new `MenuItem.onActivateFrom`
@@ -432,7 +433,8 @@ by the audit, all now compile errors:
    is neither `{.view.}` nor covered by a `createView` overload fell to
    `mount(T)`, i.e. `T()` + `initView` — the widget's own constructor never
    ran. Now `when T.hasCustomPragma(view): mount(T) else: {.error.}`.
-   COOKBOOK §15 shows the one-line overload.
+   [COOKBOOK recipe 15](../COOKBOOK.md#15-custom-widget-joining-the-vocabulary)
+   shows the one-line overload.
 3. **`payloadKind` by type NAME.** `uiEvents` chose the `emits:` payload and
    the `set<Field>` writer by string-matching `"Input"`, `"Checkbox"`, …: a
    user type named `Input` was misclassified, and a third-party widget could
@@ -456,7 +458,8 @@ overload; `not compiles` for the bad child, three misplacements, and the bad
 handler) and `tests/test_bindings.nim` "third-party widget joins
 bindValue/emits" (a `Dialish` widget with `uiValueKind = upSelected` gets a
 typed `DialTurned.selected` payload, a store, and a `setDialVal` writer that
-drives it through `SetSelected`). The full contract: `docs/EXTENDING.md`.
+drives it through `SetSelected`). The full contract:
+[DESIGN.md](../DESIGN.md) (Extending illview).
 
 ## 30. Model binding, console widgets, examples hygiene
 
@@ -467,12 +470,12 @@ path segment), and a new `notify<Field>(self)` pushes the store's current
 value to the widget after the model was mutated behind the framework's back.
 The view keeps only a pointer to the model — the audit's "domain state lives
 inside the widget tree" finding. `examples/ex09_bindings.nim` now binds to a
-`FormState` ref; DESIGN.md gained a dataflow section. Test:
+`FormState` ref; [DESIGN.md](../DESIGN.md) gained a dataflow section. Test:
 `tests/test_bindings.nim` "bindValue on an external model".
 
 **Widgets a status console needs.**
 - `Scroller` gets the same stretchy default hint `Splitter` got in #22, so a
-  scroller in a box no longer collapses to nothing (COOKBOOK §17 relied on
+  scroller in a box no longer collapses to nothing ([COOKBOOK recipe 17](../COOKBOOK.md#17-scrolling-scroller--a-synced-scrollbar) relied on
   the hand-set hint it did not show).
 - `Table.setRows` keeps `selected` and `top` (clamped) instead of jumping to
   the top on every refresh.
@@ -490,13 +493,14 @@ example imports `illview` exactly as a downstream project does (no more
 `../src/illview/...` teaching internal paths; the redundant `ivlayout`
 aliases are gone). `newNetVizWidget` → `newNetViz` (the one `…Widget`
 constructor). Nim floor reconciled to `>= 2.2.4` at all five sites; README
-build section documents `testRefc`/`testAsan`, the lockfile, and links
-`EMBEDDING.md`; `EXTENDING.md` documents the widget/DSL extension contract.
+build section documents `testRefc`/`testAsan`, the lockfile, and links the
+embedding guide; the widget/DSL extension contract is documented in
+[DESIGN.md](../DESIGN.md) (Extending illview).
 
 ## 31. Embedding hygiene: NullBus default, chained crash handlers, refc/ASAN CI
 
 Three changes so illview behaves inside a long-running host process
-(`docs/EMBEDDING.md`):
+([DESIGN.md](../DESIGN.md), Embedding in a host):
 
 - **`NullBus` is the default `app.bus`** (`core/bus.nim`). `StubBus`
   appended every `UiAction` and domain event to a seq forever — fine for
@@ -579,7 +583,7 @@ The layout containers return `true`, and the raise loop skips any view whose
 parent keeps child order. Desktops, windows, plain groups, popups, `Splitter`
 and `Scroller` keep raising (the last two find their children through fields,
 so raising only changes draw order). A third-party layout container overrides
-`keepsChildOrder` (`docs/EXTENDING.md`). Rejected: raising only `Window`s
+`keepsChildOrder` ([DESIGN.md](../DESIGN.md), Extending illview). Rejected: raising only `Window`s
 (core routing would import a widget module, and non-Window floating panes
 would stop raising) and opt-in raising (every existing floating container
 would have to declare it).
@@ -817,7 +821,7 @@ resume re-sent 254 bytes (status bar and gray backgrounds missing), after it
 ## 41. Capturing stdout/stderr while the TUI is up
 
 User-facing architecture, ownership table and flow diagrams:
-[OUTPUT-CAPTURE.md](OUTPUT-CAPTURE.md).
+[DESIGN.md](../DESIGN.md) (Output capture).
 
 While the TUI drew on the alternate screen, anything else written to fd 1/2 —
 `echo`, C `printf`, child processes — landed on that screen too: it garbled
@@ -909,7 +913,7 @@ Verified on a real pty (ex04, Esc to quit): `xterm-ghostty` and
 
 ## 43. TreeView: scrolling and live refresh
 
-The plan-4 TreeView only scrolled vertically by following the selection. It had
+The original TreeView only scrolled vertically by following the selection. It had
 no paging, no wheel and no horizontal scroll, and long rows were clipped at the
 right edge. Refreshing a live tree meant replacing `roots`, which collapsed
 every branch and moved the selection. Both problems showed up in a host that

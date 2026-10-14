@@ -1,10 +1,9 @@
-## ListView (Phase 4.2): viewport + selection + key/wheel navigation.
+## ListView: viewport + selection + key/wheel navigation.
 ## Slots: onSelect (selection moved), onActivate (Enter / item re-click).
 ## Items wider than the view scroll horizontally (deviation #49): Left/Right
 ## or Shift+Left/Right by `hScrollStep`, Shift+Home/End, Shift+wheel or the
 ## horizontal wheel, and a one-row bar at the bottom while anything is cut.
 
-import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
 import ../vocab
 import ./hbar
@@ -56,7 +55,7 @@ proc newListView*(items: seq[string] = @[], command = cmdNone): ListView =
   result.hint = (prefHint(w, stretch = 1), prefHint(items.len, stretch = 1))
   let l = result
   l.installSignal(SetSelected):
-    # programmatic apply: no slot, no re-emit (plan-3 D8)
+    # programmatic apply: no slot, no re-emit
     if l.items.len > 0:
       l.selected = clamp(sig.selected, 0, l.items.high)
       l.ensureVisible()

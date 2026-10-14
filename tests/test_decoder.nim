@@ -1,4 +1,4 @@
-## Phase 0 exit criteria: drive raw byte arrays through Decoder.feed() and
+## Coverage: drive raw byte arrays through Decoder.feed() and
 ## assert exact InputEvents. No terminal required.
 
 import std/unittest

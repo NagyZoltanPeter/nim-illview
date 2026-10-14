@@ -1,4 +1,4 @@
-## Phase 19 exit criteria (plan-4 D16): a Scroller places over-sized content
+## Coverage: a Scroller places over-sized content
 ## at a negative offset and inherits clipping (DrawContext.sub) and mouse
 ## routing (hit-test bounds translation). Verifies virtual sizing, clamped
 ## scrolling, clipped drawing, offset-correct mouse routing, and — the headline

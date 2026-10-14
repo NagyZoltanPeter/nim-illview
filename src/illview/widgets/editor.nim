@@ -1,4 +1,4 @@
-## Editor (Phase 4.6, LAST, scope-locked by plan §0.8): multiline editor on
+## Editor (deliberately scope-locked): multiline editor on
 ## a plain `seq[string]` model with cursor, two-axis scrolling and basic
 ## editing (`onChange`). NO soft-wrap, NO piece table, NO undo in v1.
 ## Tab is NOT consumed (focus traversal wins in v1).
@@ -28,7 +28,7 @@ type
     onChange*: proc(sender: Editor) {.gcsafe, raises: [].}
 
 proc setText*(e: Editor, s: string) =
-  ## Programmatic replace: no onChange, no re-emit (plan-3 D8).
+  ## Programmatic replace: no onChange, no re-emit.
   e.lines = s.splitLines
   e.hasSelAnchor = false
   e.curLine = clamp(e.curLine, 0, e.lines.high)

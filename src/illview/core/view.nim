@@ -1,7 +1,7 @@
-## View / Group — the retained view tree (§3.4) and the framework Event
-## (§3.5; defined here rather than events.nim, deviation #7).
+## View / Group — the retained view tree and the framework Event
+## (defined here rather than events.nim, deviation #7).
 ##
-## Decoration model (iteration 2, plan-2 D1/D2): border, border title and
+## Decoration model: border, border title and
 ## shadow are View-level properties drawn by the PARENT group; the base
 ## clientRect insets by the border. Coordinate convention: the DrawContext a
 ## view receives in draw() and the mouse coords it receives in handleEvent
@@ -29,7 +29,7 @@ type
     bkNone, bkSingle, bkDouble
 
   StyleOverride* = object
-    ## Per-view style overrides merged over the theme token (plan-2 D2).
+    ## Per-view style overrides merged over the theme token.
     ## fgNone/bgNone = inherit from the theme.
     fg*: ForegroundColor
     bg*: BackgroundColor
@@ -38,7 +38,7 @@ type
     focusBg*: BackgroundColor
 
   AnchorState* = object
-    ## Edge-anchor bookkeeping for a dkNone child (plan-4 D14). `edges`
+    ## Edge-anchor bookkeeping for a dkNone child. `edges`
     ## selects which parent edges are tracked; the rest is captured lazily
     ## on the first arrange (design-time bounds + the parent content size
     ## they were authored against) so later resizes are relative to that.
@@ -49,7 +49,7 @@ type
 
   View* = ref object of RootObj
     id*: int # unique per process; UiAction.senderId
-    ctx: BrokerContext       # instance route (plan-3 D7), materialized by brokerCtx()
+    ctx: BrokerContext       # instance route, materialized by brokerCtx()
     sessionClass: uint16     # classCtx captured at construction (viewSessionParent)
     disposed: bool
     wiring: seq[proc() {.gcsafe, raises: [].}] # deferred broker installs (deviation #28)
@@ -58,9 +58,9 @@ type
     parent*: Group
     hint*: tuple[w, h: SizeHint] # content-size hints (border added on top)
     dock*: Dock
-    align*: Align         # cross-axis / in-cell placement (plan-4 D14)
-    anchor*: AnchorState  # dkNone edge anchoring (plan-4 D14)
-    padding*: int         # content inset, composes with the border (plan-4 D14)
+    align*: Align         # cross-axis / in-cell placement
+    anchor*: AnchorState  # dkNone edge anchoring
+    padding*: int         # content inset, composes with the border
     visible*: bool
     enabled*: bool
     focusable*: bool
@@ -70,7 +70,7 @@ type
     borderTitle*: string
     shadow*: bool
     styleOv*: StyleOverride
-    hotkey*: Rune # Alt-accelerator (plan-4 P22); Rune(0) = none
+    hotkey*: Rune # Alt-accelerator; Rune(0) = none
 
   Group* = ref object of View
     children*: seq[View] # z-order: index 0 = bottom, last = topmost
@@ -90,7 +90,7 @@ type
       ikey*: InputEvent
     of evMouse:
       imouse*: InputEvent # coords translated to target-CONTENT-local
-      clicks*: int = 1    # 1 = single, 2 = double-click (synthesized, plan-4 D-mouse)
+      clicks*: int = 1    # 1 = single, 2 = double-click (synthesized)
     of evCommand:
       cmd*: Command
       sender*: View
@@ -148,7 +148,7 @@ func hasBrokerCtx*(v: View): bool =
   v.ctx != BrokerContext(0) and not v.disposed
 
 proc brokerCtx*(v: View): BrokerContext {.gcsafe, raises: [].} =
-  ## The view's instance broker route (plan-3 D7): vocab events out, signals
+  ## The view's instance broker route: vocab events out, signals
   ## in. Materialized on FIRST use (deviation #28): a view nobody
   ## listens to or signals never consumes one of the process-wide 65 535
   ## instanceCtx ids. Deferred wiring (`installSignal`/`installFocusMe`) runs
@@ -208,7 +208,7 @@ func effectiveTheme*(v: View): Theme =
   nil
 
 proc styleOf*(v: View, tok: ThemeToken): Style =
-  ## Theme token -> per-view override -> focus override (plan-2 D2).
+  ## Theme token -> per-view override -> focus override.
   let t = v.effectiveTheme
   result = if t != nil: t.style(tok) else: Style()
   let o = v.styleOv
@@ -249,12 +249,12 @@ method handleEvent*(v: View, ev: Event): bool {.base, gcsafe, raises: [].} =
   false
 
 method handlesHotkey*(v: View, key: Rune): bool {.base, gcsafe, raises: [].} =
-  ## Whether this view claims the Alt-accelerator `key` (plan-4 P22). Base:
+  ## Whether this view claims the Alt-accelerator `key`. Base:
   ## the single `hotkey` field. MenuBar overrides — it owns one per menu.
   hotkeyMatches(v.hotkey, key)
 
 method triggerHotkey*(v: View, scope: Group) {.base, gcsafe, raises: [].} =
-  ## Invoked when this view's Alt-accelerator fires (plan-4 P22); `scope` is
+  ## Invoked when this view's Alt-accelerator fires; `scope` is
   ## the active routing scope. Base: no-op; Button clicks, Checkbox toggles,
   ## Label focuses its linked control within `scope`.
   discard
@@ -272,7 +272,7 @@ method borderKind*(v: View): BorderKind {.base, gcsafe, raises: [].} =
 method clientRect*(v: View): Rect {.base, gcsafe, raises: [].} =
   ## The content area (in full-rect local coords). Drawing, hit-testing and
   ## child placement all honor it, so they can never disagree. Border inset
-  ## (1 cell) plus padding (plan-4 D14) shrink it together.
+  ## (1 cell) plus padding shrink it together.
   let i = (if v.borderKind == bkNone: 0 else: 1) + v.padding
   rect(i, i, max(v.bounds.w - 2 * i, 0), max(v.bounds.h - 2 * i, 0))
 
@@ -342,7 +342,7 @@ proc publish*(v: View, cmd: Command) {.gcsafe, raises: [].} =
     Group(r).publishCb(UiAction(cmd: cmd, senderId: v.id))
 
 proc commandEnabled*(v: View, cmd: Command): bool {.gcsafe, raises: [].} =
-  ## Whether `cmd` is currently enabled (plan-4 P22/D19). cmdNone and detached
+  ## Whether `cmd` is currently enabled. cmdNone and detached
   ## views are always enabled; the App answers the rest via a root closure.
   if cmd == cmdNone:
     return true
@@ -374,7 +374,7 @@ proc releaseMouse*(v: View) {.gcsafe, raises: [].} =
   if r of Group and Group(r).mouseCapture == v:
     Group(r).mouseCapture = nil
 
-# --- broker teardown (plan-3 D11) ---------------------------------------------
+# --- broker teardown ----------------------------------------------------------
 
 proc dispose*(v: View) {.gcsafe, raises: [].} =
   ## Tear down broker wiring for v's subtree, leaves first: run the recorded
@@ -427,10 +427,10 @@ func stripLen(h: SizeHint, remaining: int): int =
 
 proc anchoredBounds(c: View, cr: Rect): Rect =
   ## dkNone placement honoring c.anchor.edges as the parent content area
-  ## `cr` resizes (plan-4 D14). Design-time bounds and the parent size they
+  ## `cr` resizes. Design-time bounds and the parent size they
   ## were authored against are captured on the first arrange; each set edge
   ## then keeps its offset. No anchors => bounds are used verbatim (the
-  ## pre-iteration-4 behavior).
+  ## legacy behavior).
   if c.anchor.edges == {}:
     return c.bounds
   if not c.anchor.captured:
@@ -453,8 +453,8 @@ proc anchoredBounds(c: View, cr: Rect): Rect =
     result.y = b.y + dh
 
 proc arrangeChildren*(g: Group) {.gcsafe, raises: [].} =
-  ## Dock-aware arrangement of direct children inside clientRect (plan §1
-  ## "dock anchors"). Docked children consume edge strips sized by their
+  ## Dock-aware arrangement of direct children inside clientRect
+  ## ("dock anchors"). Docked children consume edge strips sized by their
   ## measured hint (incl. border); dkFill takes what remains; dkNone keeps
   ## manual bounds. Recurses via child.arrange, so a resize reflows the tree.
   let cr = g.clientRect

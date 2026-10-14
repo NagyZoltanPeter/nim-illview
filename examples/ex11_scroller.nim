@@ -1,4 +1,4 @@
-## Phase 19 demo: a Scroller over a tall column of buttons, with a synced
+## Demo: a Scroller over a tall column of buttons, with a synced
 ## vertical ScrollBar beside it. Tab / Shift-Tab walk the buttons and the
 ## viewport auto-scrolls to keep the focused one visible; the mouse wheel and
 ## PageUp/PageDown scroll; dragging the scrollbar thumb scrolls too. ESC quits.

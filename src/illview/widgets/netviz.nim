@@ -1,4 +1,4 @@
-## NetVizWidget (Phase 6): live network/domain event visualizer built on
+## NetVizWidget: live network/domain event visualizer built on
 ## TextView — a stats header plus the scrolling event feed. The widget has
 ## ZERO input plumbing of its own (framework routes input) and no broker
 ## dependency: subscription glue calls addEvent(), e.g. via

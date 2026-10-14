@@ -13,7 +13,7 @@ import illview/vocab
 # The real nim-brokers bus lives in illview/bus_brokers — import explicitly
 # to keep the broker macro expansion out of the default import graph.
 # (vocab is different: the widgets themselves emit its events, so it is
-# part of the default graph since Phase 12.)
+# part of the default graph.)
 
 export events, geometry, theme, drawcontext, bus, view, routing, app
 export decoder

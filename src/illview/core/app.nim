@@ -1,14 +1,14 @@
-## App context and the dirty-driven, fps-capped render loop (§3.7, Phase 1).
+## App context and the dirty-driven, fps-capped render loop.
 ##
 ## Rendering is demand-scheduled rather than a fixed ticker: `requestRedraw`
 ## sets the dirty flag and arms a one-shot frame task that waits out the
 ## remainder of the fps period (default 30) before calling the blocking,
 ## single-shot `frame()`. An idle app therefore has *no* pending timers and
-## zero render cost — strictly stronger than the plan's "capped ticker"
-## wording, same observable behavior.
+## zero render cost — strictly stronger than a "capped ticker", same
+## observable behavior.
 ##
-## Phase 1 exposes `onInput`/`onRender` hooks; Phase 2 replaces them with
-## view-tree routing and drawing (the hooks remain as escape hatches).
+## View-tree routing and drawing are primary; the `onInput`/`onRender`
+## hooks remain as escape hatches.
 
 import chronos
 import ../backend/illwill_vendored
@@ -64,7 +64,7 @@ type
     lastClick: tuple[t: Moment, x, y: int, button: events.MouseButton, count: int]
     when defined(posix):
       intPipe: array[2, cint] ## SIGINT self-pipe while the TUI is up (deviation #48)
-    disabledCommands: seq[Command] # P22/D19: greyed + non-activatable
+    disabledCommands: seq[Command] # greyed + non-activatable
     modalStack: seq[tuple[view: Group, fut: Future[Command], prevFocus: View]]
     when compileOption("threads"):
       loopThreadId: int
@@ -301,7 +301,7 @@ proc isCommandEnabled*(app: App, cmd: Command): bool =
   cmd notin app.disabledCommands
 
 proc disableCommand*(app: App, cmd: Command) =
-  ## Grey out and block a command across menu/status/buttons (plan-4 D19).
+  ## Grey out and block a command across menu/status/buttons.
   if cmd != cmdNone and cmd notin app.disabledCommands:
     app.disabledCommands.add cmd
     app.requestRedraw()
@@ -322,7 +322,7 @@ proc scope(app: App): Group =
 proc tuiActive*(app: App): bool = app.tuiActive
 
 proc assertLoopThread(app: App) =
-  ## Single-thread invariant (plan §6). Without --threads there is nothing to
+  ## Single-thread invariant. Without --threads there is nothing to
   ## check — the program cannot have a second thread.
   when compileOption("threads"):
     if app.loopThreadId == 0:
@@ -394,7 +394,7 @@ proc handleInput(app: App, ev: InputEvent) {.gcsafe, raises: [].} =
     when CaptureSupported:
       if app.capture.active:
         app.capture.syncSize() # captured programs see the new width
-    app.requestRedraw() # frame() re-sizes the buffer; Phase 3 adds relayout
+    app.requestRedraw() # frame() re-sizes the buffer and relayouts
   if app.onInput != nil:
     app.onInput(ev) # observer hook, runs after routing
 

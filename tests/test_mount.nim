@@ -1,7 +1,7 @@
-## Phase 5 exit criteria: a declaratively-defined screen produces a tree
+## Coverage: a declaratively-defined screen produces a tree
 ## structurally identical to a hand-built equivalent; `action:` sets the
 ## right command; `bindTo:` wires the right method. No terminal.
-## Phase 13 (plan-3 D9): `on:` installs ctx-scoped listeners per instance.
+## `on:` installs ctx-scoped listeners per instance.
 
 import std/unittest
 import chronos
@@ -131,7 +131,7 @@ suite "mount(T)":
     check g.children.len == 3
     check Label(g.children[1]).text == "row 2"
 
-# --- on: pragma (plan-3 D9) ----------------------------------------------------
+# --- on: pragma ----------------------------------------------------------------
 
 type
   CtxForm {.view, vbox.} = ref object of Group
@@ -159,7 +159,7 @@ proc onHostEdit(self: CtxForm, ev: TextChanged) {.gcsafe, raises: [].} =
 template pump() =
   waitFor sleepAsync(5.milliseconds)
 
-suite "mount(T) on: pragma (plan-3 D9)":
+suite "mount(T) on: pragma":
   setup:
     evLog.setLen(0)
 
@@ -202,7 +202,7 @@ suite "mount(T) on: pragma (plan-3 D9)":
     pump()
     check evLog.len == 0
 
-# --- plan-4 D14: form container + align/anchors/padding field pragmas ---------
+# --- form container + align/anchors/padding field pragmas ---------------------
 
 type
   FormScreen {.view, form, spacing: 1.} = ref object of Group
@@ -214,7 +214,7 @@ type
   AnchoredScreen {.view.} = ref object of Group
     body {.child, anchors: {aLeft, aTop, aRight, aBottom}.}: TextView
 
-suite "mount(T) plan-4 layout pragmas":
+suite "mount(T) layout pragmas":
   test "form: container is a FormLayout and lays out label/control pairs":
     let f = mount(FormScreen)
     f.bounds = rect(0, 0, 30, 6)

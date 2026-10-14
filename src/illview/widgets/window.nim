@@ -1,8 +1,8 @@
-## Window: framed, titled Group, riding the decoration mechanism (plan-2
-## D1): the parent draws frame + title; border doubles while active. The
+## Window: framed, titled Group, riding the decoration mechanism:
+## the parent draws frame + title; border doubles while active. The
 ## window itself only fills its content background and hosts children.
 ##
-## Move/resize (plan-2 D7, floating dkNone windows only):
+## Move/resize (floating dkNone windows only):
 ##   mouse — drag the title row to move; drag the bottom-right corner
 ##   (marked ◢ while active) to resize; keyboard — Alt+Arrows move,
 ##   Alt+Shift+Arrows resize.
@@ -22,7 +22,7 @@ type
   Window* = ref object of Group
     dragMode: DragMode
     dragOff: Point # window origin relative to the grab point (move)
-    closable*: bool # show/allow the [■] close box (plan-4 P21)
+    closable*: bool # show/allow the [■] close box
     zoomable*: bool # show/allow the [↑]/[↓] zoom box
     zoomed: bool
     savedBounds: Rect # pre-zoom bounds, restored on un-zoom
@@ -68,7 +68,7 @@ method drawOverlay*(w: Window, dc: DrawContext) {.gcsafe, raises: [].} =
     return
   if w.isActive and w.dock == dkNone and w.bounds.w >= 2 and w.bounds.h >= 2:
     dc.putCell(w.bounds.w - 1, w.bounds.h - 1, "◢".runeAt(0), w.borderStyle)
-  # title-row chrome (plan-4 P21): close box at the left, zoom box at the right
+  # title-row chrome: close box at the left, zoom box at the right
   if w.closable and w.bounds.w >= 6:
     dc.write(1, 0, "[■]", w.borderStyle)
     dc.write(2, 0, "■", w.styleOf(tkWindowCloseBox))
@@ -176,7 +176,7 @@ method handleEvent*(w: Window, ev: Event): bool {.gcsafe, raises: [].} =
     # consume: clicks on frame/background never bubble under the window
     return true
   of evKey:
-    # Alt+Arrows move, Alt+Shift+Arrows resize (plan-2 D7)
+    # Alt+Arrows move, Alt+Shift+Arrows resize
     let k = ev.ikey
     if modAlt in k.keyMods and w.floating:
       var dx, dy = 0

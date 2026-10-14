@@ -1,4 +1,4 @@
-## Phase 1 demo: stdin -> decoder -> app callback -> dirty-driven render.
+## Demo: stdin -> decoder -> app callback -> dirty-driven render.
 ## Press keys, click/scroll the mouse, paste text. ESC quits.
 
 import std/[strformat, unicode]

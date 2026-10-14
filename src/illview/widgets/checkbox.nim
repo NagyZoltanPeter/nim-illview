@@ -1,4 +1,4 @@
-## Checkbox (Phase 4.1): `onToggle` slot + optional broker `command`.
+## Checkbox: `onToggle` slot + optional broker `command`.
 
 import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus, hotkey]
@@ -27,7 +27,7 @@ proc newCheckbox*(caption: string, checked = false, command = cmdNone): Checkbox
   result.applyCaption(caption)
   let c = result
   c.installSignal(SetChecked):
-    # programmatic apply: no slot, no publish, no re-emit (plan-3 D8)
+    # programmatic apply: no slot, no publish, no re-emit
     c.checked = sig.checked
     c.invalidate()
   c.installFocusMe()

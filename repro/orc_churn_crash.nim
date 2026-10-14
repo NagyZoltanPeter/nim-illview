@@ -1,4 +1,4 @@
-## ORC cycle-collector crash reproducer (illview iteration-5, deviation #22).
+## ORC cycle-collector crash reproducer (deviation #22).
 ##
 ## Run under the default `--mm:orc`:  the app SIGSEGVs (exit signal 11) while
 ## navigating the tree — each selection builds a fresh example window whose
@@ -25,7 +25,7 @@
 ## Repro drive (84x24 terminal): focus the tree, then Down x7, Right, Down x2
 ## to navigate Widgets... -> Dialogs -> Confirm. It faults building "Confirm".
 
-## Iteration-5 showcase: a full app skeleton.
+## Showcase: a full app skeleton.
 ##
 ##   [ menu bar (declarative, EventBroker actions) ]
 ##   [ title bar                                    ]
@@ -248,7 +248,7 @@ proc main() {.async.} =
   discard AboutRequested.listen(proc(ev: AboutRequested): Future[void] {.
     async: (raises: []), gcsafe.} =
     {.cast(gcsafe).}: discard messageBox(app, "About",
-      "illview showcase — iteration 5", @[("~O~K", cmOk)]))
+      "illview showcase", @[("~O~K", cmOk)]))
   discard TileRequested.listen(proc(ev: TileRequested): Future[void] {.
     async: (raises: []), gcsafe.} =
     {.cast(gcsafe).}: app.desktop.tile())

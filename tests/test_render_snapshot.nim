@@ -1,6 +1,6 @@
-## Phase 2 exit criteria: render scenes into an off-screen TerminalBuffer and
+## Coverage: render scenes into an off-screen TerminalBuffer and
 ## assert cells — clipping correctness is the highest-risk item in the
-## project (plan §3.3). No terminal required (display() is never called).
+## project. No terminal required (display() is never called).
 
 import std/[unittest, unicode, strutils]
 import ../src/illview/backend/illwill_vendored
@@ -116,7 +116,7 @@ suite "render snapshots":
     check cell.fg == st.fg
     check cell.bg == st.bg
 
-suite "decoration (iteration 2)":
+suite "decoration":
   test "border insets the content and clips it":
     let d = newDesktop()
     let win = newWindow("W", rect(0, 0, 20, 7))

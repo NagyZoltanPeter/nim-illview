@@ -1,6 +1,6 @@
-## Table (Phase 8): header row + row selection + vertical scrolling. Column
+## Table: header row + row selection + vertical scrolling. Column
 ## widths are size hints distributed by the layout engine's distribute().
-## NOT in v1 (scope-locked by plan-2): sorting, cell editing.
+## NOT in v1 (scope-locked): sorting, cell editing.
 ##
 ## Long cells (deviation #49): the columns keep their widths and each cell
 ## scrolls inside its own: one shared offset, `scrollX`, clamped per cell to
@@ -9,7 +9,6 @@
 ## while any cell is cut. Left/Right or Shift+Left/Right by `hScrollStep`,
 ## Shift+Home/End, Shift+wheel or the horizontal wheel.
 
-import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
 import ../layout/layout
 import ../vocab
@@ -109,7 +108,7 @@ proc newTable*(columns: seq[TableColumn] = @[],
   result.recomputeHint()
   let t = result
   t.installSignal(SetSelected):
-    # programmatic apply: no slot, no re-emit (plan-3 D8)
+    # programmatic apply: no slot, no re-emit
     if t.rows.len > 0:
       t.selected = clamp(sig.selected, 0, t.rows.high)
       t.ensureVisible()

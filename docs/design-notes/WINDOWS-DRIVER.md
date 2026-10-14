@@ -1,8 +1,12 @@
-# Windows input driver — design (deferred, D13)
+# Windows input driver — design (deferred)
 
-Status: **not implemented** (decision 2026-07-10, plan-4 D13). illview is
-POSIX-only: macOS, Linux, and Windows via WSL. This document captures the
-design so implementation can start without re-deriving it.
+Status: **not implemented** (decision 2026-07-10,
+[deviation #18](DESIGN-DEVIATIONS.md#18-windows-input-driver-deferred-by-decision)).
+illview is POSIX-only: macOS, Linux, and Windows via WSL. This document
+captures the design so implementation can start without re-deriving it.
+
+Current behaviour: on native Windows illview compiles with a warning
+(`backend/driver_fallback.nim`) and `App.run` raises `OSError`.
 
 ## Why rendering is NOT the gap
 
@@ -61,8 +65,8 @@ in spirit — record it as a deviation when implemented. The alternative
 
 - `src/illview/backend/driver_windows.nim` exposing the same surface as
   driver_posix (`newInputDriver`, start/stop, event callback).
-- `when defined(windows)` dispatch in core/app.nim (currently imports
-  driver_posix unconditionally).
+- `when defined(windows)` dispatch in core/app.nim (currently `posix` →
+  driver_posix, everything else → driver_fallback).
 - decoder.nim stays untouched — it remains the POSIX byte decoder; the
   Windows driver produces `InputEvent`s directly.
 

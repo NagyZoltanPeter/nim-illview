@@ -1,4 +1,4 @@
-## Phase 7 demo: declarative styling — borders, colors, focus styles and
+## Demo: declarative styling — borders, colors, focus styles and
 ## shadows, both via pragmas (mount) and imperative setters. Tab around to
 ## see focus overrides; ESC quits.
 

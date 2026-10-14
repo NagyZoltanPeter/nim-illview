@@ -1,4 +1,4 @@
-## Phase 6: BrokersBus over the real nim-brokers single-thread EventBroker.
+## BrokersBus over the real nim-brokers single-thread EventBroker.
 ## publish/publishDomain -> emit -> listeners fire on the same chronos loop.
 
 import std/[unittest, tables, deques]

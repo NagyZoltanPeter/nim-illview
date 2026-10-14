@@ -1,7 +1,6 @@
-## StatusBar (Phase 4.5): docked one-line bar with clickable hotkey items
+## StatusBar: docked one-line bar with clickable hotkey items
 ## (each publishes its `command`) plus a free-text area.
 
-import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
 
 type
@@ -39,7 +38,7 @@ method draw*(sb: StatusBar, dc: DrawContext) {.gcsafe, raises: [].} =
   dc.fill(rect(0, 0, sb.contentW, 1), " ", st)
   for i, item in sb.items:
     let (x, _) = sb.itemSpan(i)
-    let s = if sb.commandEnabled(item.command): hot else: off # greyed (D19)
+    let s = if sb.commandEnabled(item.command): hot else: off # greyed
     dc.write(x, 0, " " & item.label & " ", s)
   if sb.text.len > 0:
     let x = sb.contentW - sb.text.textWidth - 1

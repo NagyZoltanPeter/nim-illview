@@ -1,8 +1,8 @@
-## Real nim-brokers EventBus implementation (Phase 6, §3.8).
+## Real nim-brokers EventBus implementation.
 ##
 ## Uses the single-thread EventBroker (default mode): emit() asyncSpawns the
 ## listener notification on the SAME chronos loop illview runs on — no
-## threads, no marshaling, matching prime directive §0.1. Two broker event
+## threads, no marshaling, matching the single-threaded design. Two broker event
 ## types carry the illview traffic:
 ##   IvUiAction   — tier-2 widget actions (UiAction publish)
 ##   IvDomainEvent — topic/payload domain events (network etc.)

@@ -1,4 +1,4 @@
-## Phase 4 exit criteria: snapshot tests for list scroll, input horizontal
+## Coverage: snapshot tests for list scroll, input horizontal
 ## scroll, textview viewport, editor cursor/edit; closure slots fire inside
 ## dispatch; command-bearing widgets publish to the StubBus. No terminal.
 
@@ -260,7 +260,7 @@ suite "editor (snapshot)":
     discard e.handleEvent(keyEv(Key.Backspace))
     check changes == 2
 
-suite "groupbox (iteration 2)":
+suite "groupbox":
   test "border + title + inset children, drawn by the parent":
     let root = newGroup()
     root.bounds = rect(0, 0, 20, 8)
@@ -298,7 +298,7 @@ suite "groupbox (iteration 2)":
     let cluster = defaultTheme().style(tkCluster).bg
     check tb[5, 3].bg == cluster         # empty content cell: cluster fill
     check tb[5, 1].bg != cluster         # heading row: not the block
-suite "table (iteration 2)":
+suite "table":
   setup:
     var rows: seq[seq[string]]
     for i in 1 .. 10:
@@ -339,7 +339,7 @@ suite "table (iteration 2)":
     check t.handleEvent(hdr)
     check t.selected == 1 # header click changes nothing
 
-suite "progressbar (iteration 2)":
+suite "progressbar":
   test "fill at 0 / 50 / 100 percent":
     let p = newProgressBar(maxValue = 100, showPercent = false)
     p.setValue(0)

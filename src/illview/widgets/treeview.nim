@@ -1,4 +1,4 @@
-## TreeView (Phase 26, plan-4): a collapsible outline. ▸/▾ mark branches;
+## TreeView: a collapsible outline. ▸/▾ mark branches;
 ## Up/Down navigate the flattened visible rows, Right expands (or descends),
 ## Left collapses (or ascends to the parent), Enter toggles a branch or
 ## activates a leaf. Children may be supplied up front or via a lazy `loader`
@@ -13,7 +13,7 @@
 ## and scroll, matched by node path (`key`, else `label`) — for live trees
 ## refreshed on a timer.
 
-import std/[sets, unicode]
+import std/sets
 import ../core/[geometry, theme, view, drawcontext, events]
 import ./hbar
 

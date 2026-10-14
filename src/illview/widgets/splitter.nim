@@ -1,4 +1,4 @@
-## Splitter (Phase 20, plan-4): two panes divided by a draggable 1-cell
+## Splitter: two panes divided by a draggable 1-cell
 ## handle. axH = side-by-side (vertical divider), axV = stacked (horizontal
 ## divider). The handle is a focusable child: drag it with the mouse (mouse
 ## capture) or, when it holds focus, nudge with Alt+Left/Right (axH) or

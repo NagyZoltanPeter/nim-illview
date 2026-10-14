@@ -1,4 +1,4 @@
-## Phase 21 exit criteria (plan-4): window title-row chrome (close/zoom) with
+## Coverage: window title-row chrome (close/zoom) with
 ## hit regions, zoom save/restore, onClose override, and desktop management
 ## (Alt+N select, tile, cascade). No terminal.
 

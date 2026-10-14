@@ -1,4 +1,4 @@
-## Phase 9 demo: declarative state binding + typed broker events.
+## Demo: declarative state binding + typed broker events.
 ## - left: a form whose fields auto-store into plain state fields
 ##   (bindValue), with the port routed through a validating RequestBroker
 ##   provider (bindRequest) — digits only, try typing letters

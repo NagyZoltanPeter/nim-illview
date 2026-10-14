@@ -1,4 +1,4 @@
-## Phase 9 exit criteria: bindValue keeps enclosing-view fields current;
+## Coverage: bindValue keeps enclosing-view fields current;
 ## bindRequest routes updates through a replaceable sync RequestBroker
 ## provider; emits: auto-generated typed broker events fire on activation;
 ## the opened bus (subscribe + wildcards) works on StubBus and BrokersBus.
@@ -11,7 +11,7 @@ import ../src/illview/dsl/pragmas
 import ../src/illview/dsl/mount
 import ../src/illview/dsl/uievents
 import ../src/illview/bus_brokers
-import ../src/illview/vocab # set<Field> writers signal on instance ctxs (D10)
+import ../src/illview/vocab # set<Field> writers signal on instance ctxs
 
 var handlerLog: seq[string]
 
@@ -36,7 +36,7 @@ proc typeText(root: Group, s: string) =
   for c in s:
     discard dispatchKey(root, keyEvent(Key.None, Rune(c)))
 
-suite "bindValue / bindRequest (plan-2 D4)":
+suite "bindValue / bindRequest":
   setup:
     handlerLog.setLen(0)
     let root = newGroup()
@@ -79,9 +79,9 @@ suite "bindValue / bindRequest (plan-2 D4)":
     check form.portVal == "p:42" # unchanged after veto
     SetPort.clearProvider()
 
-# --- set<Field> writers (plan-3 D10) --------------------------------------------
+# --- set<Field> writers ---------------------------------------------------------
 
-suite "set<Field> writers (plan-3 D10)":
+suite "set<Field> writers":
   setup:
     handlerLog.setLen(0)
     let root = newGroup()
@@ -131,7 +131,7 @@ suite "set<Field> writers (plan-3 D10)":
     SetPort.clearProvider()
     dispose(form)
 
-suite "emits: auto-generated typed events (plan-2 D5)":
+suite "emits: auto-generated typed events":
   test "button activation emits RunClicked on the session ctx (== the thread's global ctx)":
     var got: seq[int]
     let root = newGroup()
@@ -293,7 +293,7 @@ proc turn(d: Dialish, v: int) =
   if d.onTurn != nil:
     d.onTurn(d)
 
-# the extension contract (docs/EXTENDING.md §3), all resolved at this site
+# the extension contract (docs/DESIGN.md §9), all resolved at this site
 proc createView(t: typedesc[Dialish]): Dialish = newDialish()
 template uiValueKind(t: typedesc[Dialish]): UiPayloadKind = upSelected
 proc widgetValue(w: Dialish): int = w.value
@@ -326,7 +326,7 @@ suite "third-party widget joins bindValue/emits (deviation #29)":
     waitFor DialTurned.dropAllListeners(form.sessionCtx)
     dispose(form)
 
-suite "opened bus: subscribe + wildcards (plan-2 D6)":
+suite "opened bus: subscribe + wildcards":
   test "topic matching rules":
     check matchTopic("net/peer", "net/peer")
     check matchTopic("net/*", "net/peer")

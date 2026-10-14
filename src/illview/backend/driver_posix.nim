@@ -1,4 +1,4 @@
-## chronos-based POSIX stdin input driver (Phase 1).
+## chronos-based POSIX stdin input driver.
 ##
 ## STDIN is registered with the chronos selector (`register2` +
 ## `addReader2`); on readability the callback drains all available bytes
@@ -6,7 +6,7 @@
 ## InputEvent to the app callback — no threads, no polling.
 ##
 ## SIGWINCH is delivered via the self-pipe trick (deviation #11 in
-## docs/DESIGN-DEVIATIONS.md): the signal handler write()s one byte into a
+## docs/design-notes/DESIGN-DEVIATIONS.md): the signal handler write()s one byte into a
 ## pipe whose read end is registered with the same selector, so resize events
 ## reach the event loop synchronously and signal-safely.
 

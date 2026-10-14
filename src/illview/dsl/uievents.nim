@@ -1,4 +1,4 @@
-## uiEvents(T) — top-level companion of mount(T) (plan-2 D5): scans the
+## uiEvents(T) — top-level companion of mount(T): scans the
 ## same field pragmas and generates, per `emits: "Name"`, a nim-brokers
 ## EventBroker event type
 ##
@@ -22,10 +22,10 @@
 ##
 ## with a default identity provider (registered at module init unless one
 ## is already provided) — replace it via Name.replaceProvider for external
-## validation/normalization (confirmed amendment to D4).
+## validation/normalization (an intentional extension of bindValue).
 ##
 ## Per `bindValue: "field"` it additionally generates the INVERSE writer
-## (plan-3 D10, two-way binding):
+## (two-way binding):
 ##
 ##   proc set<Field>*(self: T, v: VT)   # store + Set-signal to the widget
 ##
@@ -156,7 +156,7 @@ macro uiEventsImpl(T: typedesc, kinds: static seq[UiPayloadKind]): untyped =
           discard setProvider(`reqId`,
             proc(value: `vt`): Result[`vt`, string] = ok(value))
 
-    # two-way binding writer (plan-3 D10): set<Field> = store + Set-signal.
+    # two-way binding writer: set<Field> = store + Set-signal.
     # Built with parseStmt so SetText/SetChecked/SetSelected stay raw and
     # bind to illview/vocab at the expansion site (same trap as uiEmit).
     let bindValArg = pragmaArg(fprag, "bindValue")

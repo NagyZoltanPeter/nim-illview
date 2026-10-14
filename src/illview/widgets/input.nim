@@ -1,7 +1,7 @@
-## Input (Phase 4.3): single-line editor with cursor, horizontal scroll on
+## Input: single-line editor with cursor, horizontal scroll on
 ## overflow, and the full slot set: onChange (text edited), onSubmit
 ## (Enter), onFocus / onBlur (focus in / out) — deliberately NOT collapsed
-## into one event (plan Phase 4 note).
+## into one event.
 ##
 ## Selection and copy as in Editor (deviation #47): Shift+Left/Right/Home/End
 ## or a mouse drag select, Ctrl+A selects all, F5 / Ctrl+Insert copy,
@@ -16,7 +16,7 @@ import ../vocab
 
 type
   KeyFilter* = proc(r: Rune, text: string): bool {.gcsafe, raises: [].}
-    ## Per-key validator (plan-4 D18): given a candidate rune and the current
+    ## Per-key validator: given a candidate rune and the current
     ## text, return true to accept it. Rejected runes are swallowed silently.
 
   Input* = ref object of View
@@ -25,7 +25,7 @@ type
     scrollX*: int # first visible display column (wide characters take 2)
     command*: Command
     filter*: KeyFilter # nil = accept everything
-    history*: seq[string] # most-recent-first; Down opens a picker (P26)
+    history*: seq[string] # most-recent-first; Down opens a picker
     historyMax*: int      # cap; 0 = unbounded
     readOnly*: bool ## no editing: selection and copy only
     selAnchor: int  ## selection start (rune index); the cursor is the other end
@@ -56,7 +56,7 @@ proc newInput*(text = "", command = cmdNone): Input =
   result.cursor = result.runes.len
   let i = result
   i.installSignal(SetText):
-    i.setText(sig.text) # programmatic apply: no onChange, no re-emit (D8)
+    i.setText(sig.text) # programmatic apply: no onChange, no re-emit
   i.installFocusMe()
 
 proc changed(i: Input) =
@@ -163,7 +163,7 @@ proc addHistory*(i: Input, s: string) =
   if i.historyMax > 0 and i.history.len > i.historyMax:
     i.history.setLen(i.historyMax)
 
-# --- history dropdown (plan-4 P26) -------------------------------------------
+# --- history dropdown --------------------------------------------------------
 
 type
   HistoryPopup = ref object of Group
@@ -313,7 +313,7 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
             i.runes.insert(k.rune, i.cursor)
             inc i.cursor
             i.changed()
-          # rejected: consume the key, no change (silent, per D18)
+          # rejected: consume the key, no change (silent by design)
         else:
           return false
     return true
@@ -363,7 +363,7 @@ method handleEvent*(i: Input, ev: Event): bool {.gcsafe, raises: [].} =
     discard
   false
 
-# --- shipped validators (plan-4 D18) -----------------------------------------
+# --- shipped validators ------------------------------------------------------
 
 proc digitsOnly*(): KeyFilter =
   ## Accept only ASCII digits.

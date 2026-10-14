@@ -5,14 +5,13 @@ author        = "Zoltan Peter Nagy"
 description   = "Retained-mode, TurboVision-inspired TUI widget framework on a vendored illwill + chronos"
 license       = "MIT"
 srcDir        = "src"
-skipDirs      = @["tests", "examples", "docs"]
 
 # Dependencies
 
 requires "nim >= 2.2.4"
-requires "chronos >= 4.0.0"
-requires "brokers >= 3.4.0" # nim-brokers; bus_brokers (Phase 6) + listenIt/onSignalIt handler sugar (per-type since 3.4.0)
-requires "chronicles" # examples/ex14_logpane dynamic sink
+requires "chronos >= 4.0.0 & < 5.0.0"
+requires "brokers >= 3.4.0 & < 4.0.0" # nim-brokers; bus_brokers + listenIt/onSignalIt handler sugar (per-type since 3.4.0)
+taskRequires "examples", "chronicles" # examples/ex14_logpane dynamic sink
 
 const testFiles = ["test_decoder", "test_layout", "test_render_snapshot",
                    "test_routing", "test_widgets", "test_mount", "test_bus_brokers",

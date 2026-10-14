@@ -1,4 +1,4 @@
-## Phase 23 exit criteria (plan-4): nested submenus (open right, navigate,
+## Coverage: nested submenus (open right, navigate,
 ## close a level), keyboard/accelerator activation that closes the whole
 ## chain, and command gating (disabled items grey + skip + refuse). Driven
 ## through a minimal modal harness (root closures stand in for the App). No
@@ -43,7 +43,7 @@ proc fileMenu(): MenuBar =
 
 proc top(): Group = modals[^1]
 
-suite "menu accelerators + submenus (plan-4 P23)":
+suite "menu accelerators + submenus":
   test "Alt+F opens the File menu via the hotkey router":
     let root = newHarness()
     let mb = fileMenu(); root.add mb; root.arrangeChildren()
@@ -81,7 +81,7 @@ suite "menu accelerators + submenus (plan-4 P23)":
     check published == @[Command(4)]
     check modals.len == 0
 
-suite "menu command gating (D19, deferred from P22)":
+suite "menu command gating":
   test "disabled item is skipped by the initial selection and refuses accel":
     let root = newHarness()
     offCmds = @[Command(1)] # Open disabled
@@ -95,7 +95,7 @@ suite "menu command gating (D19, deferred from P22)":
     discard dispatchKey(top(), keyEvent(Key.None, "q".runeAt(0)))
     check published == @[Command(4)]
 
-# --- iteration-5: persistent popups + onActivate + declarative + context -----
+# --- persistent popups + onActivate + declarative + context -------------------
 
 var fired: seq[string]
 
@@ -107,7 +107,7 @@ EventBroker:
   type OpenReqFrom = object
     senderId*: int
 
-suite "persistent popups (iteration-5, item 2)":
+suite "persistent popups":
   test "opening the same menu twice reuses ONE popup object":
     let root = newHarness()
     let mb = fileMenu(); root.add mb; root.arrangeChildren()
@@ -118,7 +118,7 @@ suite "persistent popups (iteration-5, item 2)":
     discard dispatchKey(root, keyEvent(Key.None, "f".runeAt(0), {modAlt}))
     check top() == first # same object — built once, re-added, not rebuilt
 
-suite "onActivate + declarative items (iteration-5, 2b)":
+suite "onActivate + declarative items":
   setup:
     fired.setLen(0)
 
@@ -184,7 +184,7 @@ suite "onActivate + declarative items (iteration-5, 2b)":
     discard dispatchKey(top(), keyEvent(Key.Enter))
     check fired == @["two"]
 
-suite "ContextMenu (iteration-5, item 2)":
+suite "ContextMenu":
   test "openAt remembers the source; reuses one object; action reads it":
     let root = newHarness()
     let target = newGroup()

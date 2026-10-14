@@ -1,4 +1,4 @@
-## Tilde hotkey markup (plan-4 P22): a caption like "~F~ile" declares 'F' as
+## Tilde hotkey markup: a caption like "~F~ile" declares 'F' as
 ## the Alt-accelerator and marks it for highlighting. Pure string parsing,
 ## shared by Button/Checkbox/Label/menu captions.
 

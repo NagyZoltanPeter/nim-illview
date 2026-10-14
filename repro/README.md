@@ -4,7 +4,7 @@
 
 A standalone illview app that **SIGSEGVs under `--mm:orc`** while navigating the
 tree, and **runs cleanly under `--mm:refc`** — the signature of an ORC
-cycle-collector bug (see [DESIGN-DEVIATIONS #22](../docs/DESIGN-DEVIATIONS.md)).
+cycle-collector bug (see [DESIGN-DEVIATIONS #22](../docs/design-notes/DESIGN-DEVIATIONS.md)).
 
 ```sh
 nim c -r --mm:orc  repro/orc_churn_crash.nim   # crashes (exit signal 11) navigating to "Confirm"

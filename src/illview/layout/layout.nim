@@ -1,4 +1,4 @@
-## Two-pass layout engine (Phase 3): measure bottom-up aggregates child
+## Two-pass layout engine: measure bottom-up aggregates child
 ## SizeHints per axis; arrange top-down distributes space — satisfy min,
 ## aim pref, share leftover by stretch, clamp to max. No constraint solver.
 ## `distribute()` is pure so the whole engine is unit-testable without a
@@ -13,7 +13,7 @@ func satAdd(a, b: int): int =
   else: a + b
 
 func alignSpan*(a: Align, avail: int, h: SizeHint): tuple[off, size: int] =
-  ## Place a child of hint `h` within `avail` cells per `a` (plan-4 D14).
+  ## Place a child of hint `h` within `avail` cells per `a`.
   ## alStretch fills the span (clamped to max) at offset 0 — the historical
   ## behavior; the others size to pref and offset start/center/end.
   if a == alStretch:
@@ -163,7 +163,7 @@ method arrange*(b: BoxLayout, r: Rect) {.gcsafe, raises: [].} =
   var pos = 0
   for i, c in kids:
     # alStretch keeps the historical cross clamp-to-max; other aligns size to
-    # pref and offset within the cross span (plan-4 D14).
+    # pref and offset within the cross span.
     let (coff, csize) =
       if c.align == alStretch:
         (0, clamp(crossTotal, cross[i].min, cross[i].max))
@@ -253,7 +253,7 @@ method arrange*(g: Grid, r: Rect) {.gcsafe, raises: [].} =
 
 type
   FormLayout* = ref object of Group
-    ## Two-column form (plan-4 D14): children are (label, control) pairs in
+    ## Two-column form: children are (label, control) pairs in
     ## order. Column 0 auto-sizes to the widest label's pref; column 1 takes
     ## the rest and stretches. A trailing unpaired child gets its own row's
     ## label column. Per-child `align` still applies within each cell.

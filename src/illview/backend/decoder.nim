@@ -1,4 +1,4 @@
-## Incremental, terminal-free input decoder (§3.1, Phase 0).
+## Incremental, terminal-free input decoder.
 ##
 ## The escape-sequence → Key mapping tables and the SGR mouse bit layout are
 ## ported from the vendored illwill; the state machine itself is new: illwill's

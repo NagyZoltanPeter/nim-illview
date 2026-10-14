@@ -1,4 +1,4 @@
-## Named style tokens (plan §1 "Theming"): a Theme maps role tokens to
+## Named style tokens: a Theme maps role tokens to
 ## concrete styles — not TurboVision's numeric cascading palette.
 ##
 ## `Style` is an illview type (deviation #3): illwill has no single style

@@ -1,7 +1,6 @@
-## Radio (Phase 4.1): TurboVision-style exclusive group as ONE view with
+## Radio: TurboVision-style exclusive group as ONE view with
 ## multiple items (one per row); `onSelect` slot.
 
-import std/unicode
 import ../core/[geometry, theme, view, drawcontext, events, bus]
 import ../vocab
 
@@ -22,7 +21,7 @@ proc newRadio*(items: seq[string], selected = 0, command = cmdNone): Radio =
   result.hint = (fixedHint(w), fixedHint(items.len))
   let r = result
   r.installSignal(SetSelected):
-    # programmatic apply: no slot, no publish, no re-emit (plan-3 D8)
+    # programmatic apply: no slot, no publish, no re-emit
     r.selected = clamp(sig.selected, 0, max(r.items.high, 0))
     r.invalidate()
   r.installFocusMe()

@@ -1,4 +1,4 @@
-## Phase 3 exit criteria (pure, no terminal): given a tree of hints and a
+## Coverage (pure, no terminal): given a tree of hints and a
 ## root rect, assert computed child rects for HBox/VBox/Grid, stretch
 ## distribution, min/max clamping, and dock placement.
 
@@ -171,7 +171,7 @@ suite "dock anchoring (Group.arrangeChildren)":
     g.arrangeChildren()
     check free.bounds == rect(7, 4, 5, 3)
 
-# --- iteration 4 (plan-4 D14): align / anchors / padding / FormLayout --------
+# --- align / anchors / padding / FormLayout -----------------------------------
 
 const bounded6 = SizeHint(min: 0, pref: 6, max: 6)   # sizes to 6, alignable
 const grow = SizeHint(min: 0, pref: 4, max: high(int)) # fills its span
@@ -214,7 +214,7 @@ suite "align wired through grid cells":
     check a.bounds == rect(2, 0, 6, 2)     # (10-6)/2 = 2 within the 10-wide cell
     check wide.bounds == rect(0, 2, 10, 2) # alStretch fills its cell
 
-suite "padding (plan-4 D14)":
+suite "padding":
   test "shrinks clientRect and composes with the border":
     let g = newGroup()
     g.bounds = rect(0, 0, 20, 10)
@@ -236,7 +236,7 @@ suite "padding (plan-4 D14)":
     g.arrangeChildren()
     check fill.bounds == rect(0, 0, 18, 8) # content-local origin, inset both axes
 
-suite "anchors (plan-4 D14)":
+suite "anchors":
   test "single edge slides the child on resize":
     let g = newGroup()
     g.bounds = rect(0, 0, 20, 10)
@@ -272,7 +272,7 @@ suite "anchors (plan-4 D14)":
     g.arrangeChildren()
     check c.bounds == rect(2, 6, 6, 3)
 
-suite "FormLayout (plan-4 D14)":
+suite "FormLayout":
   test "col0 auto-sizes to the label, col1 stretches":
     let f = newFormLayout(1)
     let lab = newHinted(SizeHint(min: 0, pref: 5, max: 5), fixedHint(1))

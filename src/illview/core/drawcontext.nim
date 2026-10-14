@@ -1,4 +1,4 @@
-## Offset + clip DrawContext (§3.3) — the ONLY sanctioned way widgets draw.
+## Offset + clip DrawContext — the ONLY sanctioned way widgets draw.
 ##
 ## Coordinates passed to write/fill/box/putCell are VIEW-LOCAL; the context
 ## translates them to absolute buffer positions and clips per cell against

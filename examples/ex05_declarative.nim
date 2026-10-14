@@ -1,4 +1,4 @@
-## Phase 5 demo: the Phase-4 gallery rebuilt declaratively — pragma-annotated
+## Demo: the ex04 widget gallery rebuilt declaratively — pragma-annotated
 ## view types + mount(T); `bindTo:` wires handlers, `action:` wires broker
 ## commands, the `ui:` block covers dynamic content (list items, extra
 ## buttons). Behaves like ex04: Tab/mouse/F10 menu, ESC quits.

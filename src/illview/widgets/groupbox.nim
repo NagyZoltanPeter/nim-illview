@@ -1,4 +1,4 @@
-## GroupBox (Phase 8, deviation #34): a group of controls that pops out of the
+## GroupBox (deviation #34): a group of controls that pops out of the
 ## window by colour — its content is filled with the cluster surface
 ## (`tkCluster`). Borderless by default: the title is a heading row ABOVE the
 ## block, drawn on the window surface. `border = bkSingle` restores the framed

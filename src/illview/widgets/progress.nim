@@ -1,4 +1,4 @@
-## ProgressBar (Phase 8): determinate progress with optional percent label.
+## ProgressBar: determinate progress with optional percent label.
 ## (Indeterminate/animated mode deliberately out — it would need a ticker.)
 
 import std/strformat
