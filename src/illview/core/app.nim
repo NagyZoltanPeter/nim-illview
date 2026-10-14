@@ -110,7 +110,10 @@ when defined(posix):
     "\e[?1049l" &                   # leave the alt screen
     "\e[0m"                         # reset attributes
 
-  proc restoreOnSignal(sig: cint, info: ptr posix.SigInfo, ctx: pointer) {.noconv.} =
+  proc restoreTerminalNow(dump: bool) =
+    ## The terminal back to the shell from a signal handler or the unhandled-
+    ## exception hook: write(2), tcsetattr, sigaction only. `dump`: then the
+    ## captured output not yet shown (a crash's context).
     # A background job (suspended with Ctrl+Z, then `kill`ed and continued)
     # gets SIGTTOU for tcsetattr — and for the write under `stty tostop` —
     # which stops it again before it can end: ignore SIGTTOU meanwhile.
@@ -124,12 +127,15 @@ when defined(posix):
     if gTermiosSaved:
       discard tcSetAttr(cint(0), TCSANOW, addr gOrigTermios)
     discard posix.sigaction(posix.SIGTTOU, prevTtou, nil)
+    when CaptureSupported:
+      if dump:
+        captureCrashDump() # then the captured tail, on the main screen
+
+  proc restoreOnSignal(sig: cint, info: ptr posix.SigInfo, ctx: pointer) {.noconv.} =
     var crash = false
     for s in CrashSignals:
       if s == sig: crash = true
-    when CaptureSupported:
-      if crash:
-        captureCrashDump() # then the captured tail, on the main screen
+    restoreTerminalNow(dump = crash)
     # Hand the signal on. sa_handler/sa_sigaction share one union slot on every
     # POSIX we build for, so the cast reads whichever the previous owner set.
     var prev = gPrevActions[int(sig)]
@@ -145,12 +151,44 @@ when defined(posix):
       # blocked while this handler runs, so it lands (and ends us) on return
       discard posix.kill(posix.getpid(), sig)
 
+  # --- unhandled exceptions (deviation #50) ---------------------------------
+  # Nim reports an unhandled exception (a Defect, also under --panics:on, or
+  # any exception escaping a thread) and then rawQuit(1)s: no exit procs, no
+  # `finally: disableTui`. Its report goes to stderr — the output capture —
+  # so the traceback was lost and the terminal left in TUI mode. The hook
+  # restores the terminal first, shows the captured tail, then the traceback;
+  # a handler installed before is called with it instead of printing.
+  # Goto-based exceptions (ORC's default): the report runs with the thread's
+  # error flag still set, and after every call into Nim code the generated C
+  # checks that flag and unwinds — the hook would stop at its first call.
+  # Clear it for the hook and set it back before returning to the report.
+  when compileOption("exceptions", "goto"):
+    proc nimErrorFlagPtr(): ptr bool {.importc: "nimErrorFlag", nodecl.}
+
+  var gPrevUnhandled: proc (errorMsg: string) {.nimcall, gcsafe.}
+
+  proc onUnhandled(errorMsg: string) {.nimcall, gcsafe.} =
+    when compileOption("exceptions", "goto"):
+      let flag = nimErrorFlagPtr()
+      let inError = flag[]
+      flag[] = false
+    {.cast(gcsafe).}: # globals read only; write(2) / tcsetattr / sigaction
+      restoreTerminalNow(dump = true)
+      if gPrevUnhandled != nil:
+        gPrevUnhandled(errorMsg)
+      elif errorMsg.len > 0:
+        discard posix.write(cint(2), unsafeAddr errorMsg[0], errorMsg.len)
+    when compileOption("exceptions", "goto"):
+      flag[] = inError
+
   proc installCrashRestore*() =
     ## Idempotent; called by `enableTui` unless `-d:noCrashRestore`. Exported
     ## so the chaining behavior is testable without a terminal.
     if gSignalRestoreInstalled:
       return
     gSignalRestoreInstalled = true
+    gPrevUnhandled = onUnhandledException
+    onUnhandledException = onUnhandled
     gTermiosSaved = tcGetAttr(cint(0), addr gOrigTermios) == 0
     var act: posix.Sigaction
     act.sa_handler = cast[proc (x: cint) {.noconv.}](restoreOnSignal)

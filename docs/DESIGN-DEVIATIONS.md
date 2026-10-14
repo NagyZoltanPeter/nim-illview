@@ -1149,3 +1149,33 @@ the bar row. Verified live in logos-delivery-tui (sidebar, log pane,
 configuration table). Drawing arithmetic and cached integers on the loop
 thread: the same under refc and ORC; the suite passes under ORC, refc and
 ASAN.
+
+## 50. Unhandled exceptions restore the terminal and show the traceback
+
+Nim reports an unhandled exception — a Defect, also any raised under
+`--panics:on`, or an exception escaping a thread — through
+`reportUnhandledError` and then `rawQuit(1)`s: no exit procs and no
+`finally: disableTui`. Its report goes to stderr, which the output capture
+(#41) collects, so the traceback was lost and the terminal stayed in raw
+mode on the alternate screen with mouse tracking on.
+
+- `installCrashRestore` (called by `enableTui`) also sets Nim's
+  `onUnhandledException`, keeping a handler installed before. The hook runs
+  the signal path's restore (`restoreTerminalNow`: fd 1/2 back on the
+  terminal, restore sequence, saved termios, SIGTTOU ignored meanwhile),
+  writes the captured tail not yet shown, then the traceback to the
+  terminal — or hands it to the previous handler. Nim's `rawQuit(1)`
+  follows: exit status 1 as before.
+- Goto-based exceptions: the report runs with the thread's error flag set,
+  and the generated C unwinds after every call into Nim code while it is
+  set, so the hook would stop at its first call. It clears the flag
+  (`nimErrorFlag`) for its own run and sets it back before returning.
+- It runs on the failing thread; write(2), tcsetattr and sigaction only,
+  plus reading the report string Nim built: the same under refc and ORC.
+  `-d:noCrashRestore` disables it with the signal handlers.
+
+`tests/test_app.nim` re-runs itself as a child that dies of an unhandled
+AssertionDefect: exit 1, the restore sequence before the report, and the
+handler installed before receives it. Verified live with a capturing app
+whose chronos callback hits an IndexDefect: the alternate screen is left,
+the captured tail and the traceback show, exit 1.

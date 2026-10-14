@@ -3,10 +3,21 @@
 ## installed before it instead of replacing it. Deviation #48: termination
 ## signals restore and chain too; SIGINT stops the app.
 
-import std/[unittest, strutils]
+import std/[unittest, strutils, os, osproc]
 import chronos
 import ../src/illview/core/[bus, app]
 import ../src/illview/backend/illwill_vendored
+
+when defined(posix):
+  # Deviation #50: re-run as a child that dies of an unhandled Defect.
+  if paramCount() >= 1 and paramStr(1) == "crash-child":
+    onUnhandledException = proc(msg: string) {.nimcall, gcsafe.} =
+      try:
+        stderr.write "PRIOR:" & msg
+      except IOError:
+        discard
+    installCrashRestore()
+    raise newException(AssertionDefect, "boom from the child")
 
 when defined(posix):
   from std/posix import nil
@@ -102,3 +113,16 @@ suite "Ctrl+Z / fg terminal state (deviation #48)":
     setBracketedPaste(false)
     check not bracketedPaste()
     check "\e[?2004" notin suspendSeq()
+
+when defined(posix):
+  suite "unhandled exceptions (deviation #50)":
+    test "restore first, then the traceback to the handler installed before":
+      let (output, code) = execCmdEx(quoteShell(getAppFilename()) & " crash-child")
+      check code == 1
+      let restore = output.find("\e[?1049l")
+      let prior = output.find("PRIOR:")
+      check restore >= 0
+      check "\e[?1003l" in output # mouse tracking off
+      check prior > restore
+      check "boom from the child" in output
+      check "[AssertionDefect]" in output
